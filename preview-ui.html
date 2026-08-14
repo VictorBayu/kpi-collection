@@ -1,0 +1,724 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>KPI Collection — Pratinjau Antarmuka</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wght@500;600;700;800&family=Inter:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+:root{
+  --ink:#0C1626;          /* teks utama, navigasi gelap */
+  --ink-soft:#48566B;     /* teks sekunder */
+  --ink-faint:#8794A6;    /* label, keterangan */
+  --page:#EDF1F6;         /* latar halaman, sejuk bukan krem */
+  --surface:#FFFFFF;
+  --line:#DDE4ED;
+  --line-soft:#EDF1F6;
+  --accent:#1D4ED8;       /* biru korporat, dipakai hemat */
+  --accent-soft:#E7EDFD;
+  --good:#047857;
+  --good-soft:#E3F4ED;
+  --warn:#B45309;
+  --warn-soft:#FDF1E1;
+  --bad:#B91C1C;
+  --bad-soft:#FBEAEA;
+  --r:14px;
+}
+*{box-sizing:border-box}
+html,body{margin:0;padding:0}
+body{
+  background:var(--page); color:var(--ink);
+  font-family:'Inter',system-ui,sans-serif; font-size:14px; line-height:1.55;
+  -webkit-font-smoothing:antialiased;
+}
+h1,h2,h3,h4{font-family:'Archivo',sans-serif; margin:0; letter-spacing:-.02em; font-weight:700}
+.num{font-family:'IBM Plex Mono',ui-monospace,monospace; font-variant-numeric:tabular-nums; letter-spacing:-.02em}
+button{font-family:inherit; cursor:pointer}
+a{color:inherit}
+:focus-visible{outline:2px solid var(--accent); outline-offset:2px; border-radius:4px}
+@media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+
+/* ---------- kerangka ---------- */
+.shell{max-width:1180px;margin:0 auto;padding:0 20px 64px}
+.topbar{background:var(--ink);color:#fff}
+.topbar-in{max-width:1180px;margin:0 auto;padding:14px 20px;display:flex;align-items:center;justify-content:space-between;gap:16px}
+.brand{display:flex;align-items:center;gap:11px}
+.mark{width:34px;height:34px;border-radius:9px;background:var(--accent);display:grid;place-items:center;font-family:'Archivo';font-weight:800;font-size:13px}
+.brand small{display:block;color:#93A3B8;font-size:11px;letter-spacing:.04em}
+.who{display:flex;align-items:center;gap:10px;font-size:12.5px}
+.who .dot{width:32px;height:32px;border-radius:9px;background:#1E2C42;display:grid;place-items:center;font-family:'Archivo';font-weight:700;font-size:12px}
+
+/* pemilih tampilan (khusus pratinjau) */
+.viewswitch{display:flex;gap:4px;background:#1A2537;padding:4px;border-radius:11px}
+.viewswitch button{background:none;border:0;color:#93A3B8;font-size:12.5px;font-weight:600;padding:6px 13px;border-radius:8px}
+.viewswitch button[aria-pressed="true"]{background:#fff;color:var(--ink)}
+
+/* pita konteks data */
+.ribbon{background:#fff;border-bottom:1px solid var(--line)}
+.ribbon-in{max-width:1180px;margin:0 auto;padding:11px 20px;display:flex;flex-wrap:wrap;align-items:center;gap:10px;font-size:12.5px;color:var(--ink-soft)}
+.pill{display:inline-flex;align-items:center;gap:6px;background:var(--good-soft);color:var(--good);font-weight:600;font-size:11.5px;padding:4px 10px;border-radius:20px}
+.pill.grey{background:var(--line-soft);color:var(--ink-soft)}
+.spacer{flex:1}
+.select{border:1px solid var(--line);background:#fff;border-radius:9px;padding:6px 11px;font-size:12.5px;font-weight:600;color:var(--ink)}
+
+/* kartu */
+.card{background:var(--surface);border:1px solid var(--line);border-radius:var(--r)}
+.card-pad{padding:20px}
+.eyebrow{font-size:10.5px;font-weight:700;letter-spacing:.09em;text-transform:uppercase;color:var(--ink-faint)}
+.muted{color:var(--ink-soft)}
+.faint{color:var(--ink-faint)}
+.sep{height:1px;background:var(--line-soft);margin:16px 0}
+
+/* ---------- hero ---------- */
+.hero{display:grid;grid-template-columns:1.35fr 1fr;gap:16px;margin-top:22px}
+.hero .card{overflow:hidden}
+.scorewrap{display:flex;align-items:flex-end;gap:14px;margin:6px 0 2px}
+.score{font-family:'IBM Plex Mono';font-weight:600;font-size:60px;line-height:.9;letter-spacing:-.04em}
+.scoreof{font-size:13px;color:var(--ink-faint);padding-bottom:9px}
+.verdict{font-size:13.5px;font-weight:600;color:var(--ink-soft);margin-top:10px}
+.verdict b{color:var(--ink)}
+
+/* tangga target — elemen tanda tangan */
+.ladder{margin-top:18px}
+.ladder-track{position:relative;height:9px;background:var(--line-soft);border-radius:20px}
+.ladder-fill{position:absolute;left:0;top:0;bottom:0;background:var(--accent);border-radius:20px;transition:width .8s cubic-bezier(.2,.8,.2,1)}
+.ladder-fill.is-good{background:var(--good)}
+.ladder-fill.is-warn{background:var(--warn)}
+.notch{position:absolute;top:-5px;width:2px;height:19px;background:var(--ink);opacity:.28}
+.marker{position:absolute;top:-7px;width:22px;height:23px;margin-left:-11px;transition:left .8s cubic-bezier(.2,.8,.2,1)}
+.marker i{display:block;width:14px;height:14px;margin:4px auto 0;background:#fff;border:3px solid var(--ink);border-radius:50%}
+.ladder-labels{position:relative;height:32px;margin-top:7px;font-size:10.5px}
+.ladder-labels span{position:absolute;transform:translateX(-50%);text-align:center;color:var(--ink-faint);white-space:nowrap}
+.ladder-labels span b{display:block;font-family:'IBM Plex Mono';font-size:11.5px;color:var(--ink-soft);font-weight:600}
+
+/* sparkline */
+.trend{display:flex;align-items:flex-end;justify-content:space-between;gap:3px;height:74px;margin-top:14px}
+.bar{flex:1;background:var(--line-soft);border-radius:4px 4px 2px 2px;position:relative;transition:height .5s ease}
+.bar.now{background:var(--accent)}
+.trend-x{display:flex;justify-content:space-between;gap:3px;margin-top:7px}
+.trend-x span{flex:1;text-align:center;font-size:10px;color:var(--ink-faint)}
+
+.money{font-family:'IBM Plex Mono';font-weight:600;font-size:31px;letter-spacing:-.03em}
+.delta{display:inline-flex;align-items:center;gap:5px;font-size:12.5px;font-weight:600;padding:3px 9px;border-radius:20px}
+.delta.up{background:var(--good-soft);color:var(--good)}
+.delta.down{background:var(--bad-soft);color:var(--bad)}
+
+/* ---------- indikator ---------- */
+.sectionhead{display:flex;align-items:baseline;justify-content:space-between;gap:12px;margin:34px 0 14px}
+.sectionhead p{margin:3px 0 0;font-size:13px;color:var(--ink-soft)}
+.grid2{display:grid;grid-template-columns:repeat(2,1fr);gap:16px}
+.ind-top{display:flex;justify-content:space-between;align-items:flex-start;gap:12px}
+.ind-name{font-family:'Archivo';font-weight:700;font-size:15px;line-height:1.3}
+.chip{font-size:10.5px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;padding:3px 9px;border-radius:6px;background:var(--line-soft);color:var(--ink-soft);white-space:nowrap}
+.chip.k5{background:var(--good-soft);color:var(--good)}
+.chip.k4{background:var(--accent-soft);color:var(--accent)}
+.chip.k3{background:var(--warn-soft);color:var(--warn)}
+.chip.k0{background:var(--bad-soft);color:var(--bad)}
+.ind-figs{display:flex;gap:26px;margin-top:14px}
+.fig .eyebrow{margin-bottom:3px}
+.fig .v{font-family:'IBM Plex Mono';font-weight:600;font-size:18px}
+.gap-note{margin-top:14px;font-size:12.5px;color:var(--ink-soft);border-left:2px solid var(--line);padding-left:11px}
+.gap-note b{color:var(--ink)}
+
+/* ---------- tabel insentif ---------- */
+table{width:100%;border-collapse:collapse;font-size:13.5px}
+th{text-align:left;font-size:10.5px;letter-spacing:.09em;text-transform:uppercase;color:var(--ink-faint);font-weight:700;padding:0 14px 9px;border-bottom:1px solid var(--line)}
+td{padding:13px 14px;border-bottom:1px solid var(--line-soft)}
+tr:last-child td{border-bottom:0}
+td.r,th.r{text-align:right}
+tfoot td{font-weight:700;border-top:1px solid var(--line);background:#FAFBFD}
+
+/* ---------- admin ---------- */
+.steps{display:flex;gap:0;margin:22px 0 20px;background:#fff;border:1px solid var(--line);border-radius:var(--r);overflow:hidden}
+.step{flex:1;padding:14px 16px;border-right:1px solid var(--line);display:flex;gap:11px;align-items:center;min-width:0}
+.step:last-child{border-right:0}
+.step .n{width:24px;height:24px;border-radius:50%;background:var(--line-soft);color:var(--ink-faint);display:grid;place-items:center;font-size:11.5px;font-weight:700;flex:none;font-family:'IBM Plex Mono'}
+.step .t{font-size:12.5px;font-weight:600;color:var(--ink-faint);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.step.active{background:#FAFBFF}
+.step.active .n{background:var(--accent);color:#fff}
+.step.active .t{color:var(--ink)}
+.step.done .n{background:var(--good);color:#fff}
+.step.done .t{color:var(--ink-soft)}
+
+.drop{border:2px dashed var(--line);border-radius:var(--r);background:#fff;padding:46px 22px;text-align:center;transition:all .2s}
+.drop:hover,.drop.over{border-color:var(--accent);background:#FAFBFF}
+.drop .ic{width:52px;height:52px;border-radius:14px;background:var(--accent-soft);color:var(--accent);display:grid;place-items:center;margin:0 auto 14px}
+.btn{border:0;border-radius:10px;padding:11px 18px;font-size:13.5px;font-weight:600;background:var(--accent);color:#fff;transition:background .2s}
+.btn:hover{background:#1740B5}
+.btn.ghost{background:#fff;color:var(--ink);border:1px solid var(--line)}
+.btn.ghost:hover{background:var(--page)}
+.btn.good{background:var(--good)} .btn.good:hover{background:#0363459}
+.btn:disabled{opacity:.45;cursor:not-allowed}
+.btn.sm{padding:7px 13px;font-size:12.5px}
+
+.progress{height:7px;background:var(--line-soft);border-radius:20px;overflow:hidden;margin:16px 0 9px}
+.progress i{display:block;height:100%;background:var(--accent);width:0;transition:width .25s linear}
+
+.tally{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-bottom:18px}
+.tally .card-pad{padding:16px}
+.tally .v{font-family:'IBM Plex Mono';font-weight:600;font-size:26px;line-height:1}
+.issue{display:flex;gap:12px;padding:12px 14px;border-bottom:1px solid var(--line-soft);align-items:flex-start}
+.issue:last-child{border-bottom:0}
+.tag{font-size:10px;font-weight:700;letter-spacing:.06em;padding:3px 7px;border-radius:5px;flex:none;margin-top:1px}
+.tag.err{background:var(--bad-soft);color:var(--bad)}
+.tag.wrn{background:var(--warn-soft);color:var(--warn)}
+.issue .row{font-family:'IBM Plex Mono';font-size:11.5px;color:var(--ink-faint);flex:none;margin-top:2px}
+
+.maprow{display:grid;grid-template-columns:1fr 22px 1fr;gap:12px;align-items:center;padding:11px 0;border-bottom:1px solid var(--line-soft)}
+.maprow:last-child{border-bottom:0}
+.maprow .src{font-family:'IBM Plex Mono';font-size:12.5px;background:var(--page);border:1px solid var(--line);border-radius:8px;padding:8px 11px}
+.maprow .arw{text-align:center;color:var(--ink-faint)}
+.maprow select{width:100%;border:1px solid var(--line);border-radius:8px;padding:8px 10px;font-family:inherit;font-size:12.5px;background:#fff;color:var(--ink)}
+
+.banner{display:flex;gap:13px;align-items:flex-start;border-radius:var(--r);padding:15px 17px;font-size:13.5px}
+.banner.info{background:var(--accent-soft);color:#12358F}
+.banner.warn{background:var(--warn-soft);color:#7C3A06}
+.banner.good{background:var(--good-soft);color:#04543C}
+.banner b{display:block;font-family:'Archivo';font-size:14px;margin-bottom:2px}
+
+.hide{display:none!important}
+@media (max-width:900px){
+  .hero,.grid2,.tally{grid-template-columns:1fr}
+  .steps{flex-wrap:wrap}
+  .step{flex:1 1 50%;border-bottom:1px solid var(--line)}
+  .score{font-size:48px}
+  .who .txt{display:none}
+}
+</style>
+</head>
+<body>
+
+<!-- ================= TOPBAR ================= -->
+<div class="topbar">
+  <div class="topbar-in">
+    <div class="brand">
+      <div class="mark">KC</div>
+      <div>
+        <div style="font-family:'Archivo';font-weight:700;font-size:14px">KPI Collection</div>
+        <small>Smart Multi Finance</small>
+      </div>
+    </div>
+
+    <div class="viewswitch" role="group" aria-label="Pratinjau tampilan">
+      <button id="tabUser" aria-pressed="true" onclick="setView('user')">Tampilan karyawan</button>
+      <button id="tabAdmin" aria-pressed="false" onclick="setView('admin')">Unggah data (admin)</button>
+    </div>
+
+    <div class="who">
+      <div class="txt" style="text-align:right">
+        <div style="font-weight:600" id="whoName">Rizky Pratama</div>
+        <div style="color:#93A3B8;font-size:11px" id="whoRole">Collection Officer · Tangerang</div>
+      </div>
+      <div class="dot" id="whoInit">RP</div>
+    </div>
+  </div>
+</div>
+
+<!-- ================= TAMPILAN KARYAWAN ================= -->
+<div id="viewUser">
+
+  <div class="ribbon">
+    <div class="ribbon-in">
+      <span class="pill">● Data terbit 12 Agu 2026, 14:20</span>
+      <span class="faint">Sumber: KPI_Agustus_2026_final.xlsx · 1.240 baris</span>
+      <span class="spacer"></span>
+      <label class="faint" for="periode">Periode</label>
+      <select class="select" id="periode">
+        <option>Agustus 2026</option>
+        <option>Juli 2026</option>
+        <option>Juni 2026</option>
+      </select>
+    </div>
+  </div>
+
+  <div class="shell">
+
+    <!-- HERO -->
+    <div class="hero">
+      <!-- skor + tangga -->
+      <div class="card card-pad">
+        <div class="eyebrow">Skor KPI Anda bulan ini</div>
+        <div class="scorewrap">
+          <div class="score" id="heroScore">4,12</div>
+          <div class="scoreof">dari 5,00</div>
+        </div>
+        <div class="verdict" id="heroVerdict"></div>
+
+        <div class="ladder" id="heroLadder"></div>
+      </div>
+
+      <!-- insentif + tren -->
+      <div class="card card-pad">
+        <div class="eyebrow">Perkiraan insentif</div>
+        <div style="display:flex;align-items:center;gap:11px;margin:7px 0 4px">
+          <div class="money">Rp 3.450.000</div>
+          <span class="delta up">▲ Rp 420.000</span>
+        </div>
+        <div class="muted" style="font-size:12.5px">Naik dari Rp 3.030.000 bulan lalu. Angka final menunggu penutupan buku.</div>
+
+        <div class="sep"></div>
+
+        <div class="eyebrow">Skor KPI enam bulan terakhir</div>
+        <div class="trend" id="trendBars"></div>
+        <div class="trend-x" id="trendLabels"></div>
+      </div>
+    </div>
+
+    <!-- INDIKATOR -->
+    <div class="sectionhead">
+      <div>
+        <h2 style="font-size:19px">Rincian per indikator</h2>
+        <p>Garis di bawah tiap indikator menunjukkan posisi Anda terhadap target KPI 3, 4, dan 5.</p>
+      </div>
+    </div>
+    <div class="grid2" id="indList"></div>
+
+    <!-- INSENTIF -->
+    <div class="sectionhead">
+      <div>
+        <h2 style="font-size:19px">Dari mana insentif ini datang</h2>
+        <p>Setiap baris dihitung dari pencapaian yang sudah terverifikasi tim data.</p>
+      </div>
+    </div>
+    <div class="card">
+      <div style="padding:18px 6px 6px">
+        <table>
+          <thead>
+            <tr>
+              <th>Kategori</th>
+              <th class="r">Saldo awal</th>
+              <th class="r">Pencapaian</th>
+              <th class="r">Rasio</th>
+              <th class="r">Insentif</th>
+            </tr>
+          </thead>
+          <tbody id="insBody"></tbody>
+          <tfoot>
+            <tr>
+              <td colspan="4">Total perkiraan insentif Agustus 2026</td>
+              <td class="r num">Rp 3.450.000</td>
+            </tr>
+          </tfoot>
+        </table>
+      </div>
+    </div>
+
+    <div style="margin-top:18px" class="banner info">
+      <div>ℹ️</div>
+      <div>
+        <b>Ada angka yang menurut Anda keliru?</b>
+        Ajukan koreksi lewat menu Request. Sertakan nomor kontrak atau nama debitur agar tim data bisa menelusuri baris yang Anda maksud.
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<!-- ================= TAMPILAN ADMIN ================= -->
+<div id="viewAdmin" class="hide">
+  <div class="ribbon">
+    <div class="ribbon-in">
+      <span class="pill grey">Batch aktif: Juli 2026 · terbit 11 Jul 16:05</span>
+      <span class="spacer"></span>
+      <span class="faint">Perubahan baru terlihat karyawan setelah Anda menekan Terbitkan.</span>
+    </div>
+  </div>
+
+  <div class="shell">
+    <div class="sectionhead" style="margin-top:22px">
+      <div>
+        <h2 style="font-size:19px">Unggah data KPI</h2>
+        <p>Empat langkah. Data karyawan tidak berubah sampai langkah terakhir.</p>
+      </div>
+    </div>
+
+    <div class="steps" id="steps">
+      <div class="step active"><div class="n">1</div><div class="t">Pilih file</div></div>
+      <div class="step"><div class="n">2</div><div class="t">Cocokkan kolom</div></div>
+      <div class="step"><div class="n">3</div><div class="t">Tinjau temuan</div></div>
+      <div class="step"><div class="n">4</div><div class="t">Terbitkan</div></div>
+    </div>
+
+    <!-- LANGKAH 1 -->
+    <div id="s1">
+      <div class="drop" id="drop" tabindex="0" role="button" onclick="mulaiBaca()" onkeydown="if(event.key==='Enter')mulaiBaca()">
+        <div class="ic">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 16V4m0 0L7 9m5-5 5 5"/><path d="M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2"/></svg>
+        </div>
+        <h3 style="font-size:16px">Tarik file Excel ke sini</h3>
+        <div class="muted" style="margin-top:5px">atau klik untuk memilih · format .xlsx atau .xls · maksimal 20 MB</div>
+        <div class="faint" style="margin-top:14px;font-size:12px">Gunakan sheet <span class="num">KPI Calculation</span> dan <span class="num">INSENTIF Calc</span> seperti biasa</div>
+      </div>
+      <div id="reading" class="hide" style="margin-top:16px">
+        <div class="card card-pad">
+          <div style="display:flex;justify-content:space-between;font-size:13.5px">
+            <b class="num">KPI_Agustus_2026_final.xlsx</b>
+            <span class="muted" id="readTxt">Membaca berkas…</span>
+          </div>
+          <div class="progress"><i id="readBar"></i></div>
+          <div class="faint" style="font-size:12px">File asli disimpan sebagai arsip. Anda bisa membatalkan kapan saja sebelum langkah 4.</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- LANGKAH 2 -->
+    <div id="s2" class="hide">
+      <div class="banner info" style="margin-bottom:16px">
+        <div>✓</div>
+        <div><b>Terbaca 1.261 baris dari sheet “KPI Calculation”</b>
+        Sepuluh kolom dikenali otomatis dari unggahan bulan lalu. Periksa dua kolom yang belum cocok di bawah.</div>
+      </div>
+      <div class="card card-pad">
+        <div style="display:grid;grid-template-columns:1fr 22px 1fr;gap:12px;padding-bottom:9px;border-bottom:1px solid var(--line)">
+          <div class="eyebrow">Kolom di file Anda</div><div></div><div class="eyebrow">Kolom sistem</div>
+        </div>
+        <div id="mapList"></div>
+        <div style="display:flex;gap:9px;margin-top:18px">
+          <button class="btn" onclick="mulaiValidasi()">Lanjut ke pemeriksaan</button>
+          <button class="btn ghost" onclick="reset()">Batalkan</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- LANGKAH 3 -->
+    <div id="s3" class="hide">
+      <div class="tally">
+        <div class="card card-pad">
+          <div class="eyebrow">Siap diterbitkan</div>
+          <div class="v" style="color:var(--good)">1.240</div>
+          <div class="faint" style="font-size:12px">baris lolos semua pemeriksaan</div>
+        </div>
+        <div class="card card-pad">
+          <div class="eyebrow">Perlu dicek</div>
+          <div class="v" style="color:var(--warn)">18</div>
+          <div class="faint" style="font-size:12px">tetap terbit, tandai jika perlu</div>
+        </div>
+        <div class="card card-pad">
+          <div class="eyebrow">Ditolak</div>
+          <div class="v" style="color:var(--bad)">3</div>
+          <div class="faint" style="font-size:12px">tidak akan ikut terbit</div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div style="padding:16px 16px 10px;border-bottom:1px solid var(--line)">
+          <h3 style="font-size:15px">Temuan pemeriksaan</h3>
+          <div class="muted" style="font-size:12.5px;margin-top:3px">Nomor baris merujuk ke baris di file Excel Anda.</div>
+        </div>
+        <div id="issueList"></div>
+      </div>
+
+      <div style="display:flex;gap:9px;margin-top:16px;flex-wrap:wrap">
+        <button class="btn" onclick="setStep(4)">Lanjut ke penerbitan</button>
+        <button class="btn ghost" onclick="reset()">Perbaiki file dulu</button>
+      </div>
+    </div>
+
+    <!-- LANGKAH 4 -->
+    <div id="s4" class="hide">
+      <div class="card card-pad" style="max-width:640px">
+        <h3 style="font-size:17px">Terbitkan data periode Agustus 2026</h3>
+        <p class="muted" style="margin:7px 0 0;font-size:13.5px">
+          Setelah diterbitkan, 1.240 baris ini menjadi data yang dilihat 312 karyawan.
+          Batch Juli 2026 tetap tersimpan dan bisa diaktifkan kembali kapan saja.
+        </p>
+        <div class="sep"></div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;font-size:13.5px">
+          <div><div class="eyebrow">Periode</div><b>Agustus 2026</b></div>
+          <div><div class="eyebrow">Baris terbit</div><b class="num">1.240</b></div>
+          <div><div class="eyebrow">Karyawan terdampak</div><b class="num">312</b></div>
+          <div><div class="eyebrow">Menggantikan</div><b>Juli 2026</b></div>
+        </div>
+        <div style="display:flex;gap:9px;margin-top:20px">
+          <button class="btn good" id="btnPublish" onclick="terbitkan()">Terbitkan sekarang</button>
+          <button class="btn ghost" onclick="setStep(3)">Kembali ke temuan</button>
+        </div>
+      </div>
+
+      <div id="published" class="hide" style="margin-top:16px;max-width:640px">
+        <div class="banner good">
+          <div>✓</div>
+          <div>
+            <b>Data Agustus 2026 sudah terbit</b>
+            1.240 baris aktif sejak 13 Agu 2026, 09:41. Karyawan melihat angka baru saat memuat ulang halaman.
+            <div style="margin-top:11px"><button class="btn ghost sm" onclick="reset()">Unggah file lain</button></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<script>
+/* =====================================================================
+   DATA CONTOH — di aplikasi asli berasal dari /api/kpi/detail
+   ===================================================================== */
+const RINGKASAN = { skor:4.12, t3:3.00, t4:4.00, t5:5.00 };
+
+const INDIKATOR = [
+  { nama:"Penagihan Bucket 30", produk:"Mobil", satuan:"rupiah",
+    saldoAwal:1240000000, pencapaian:892000000, t3:800000000, t4:950000000, t5:1100000000, skor:3.7 },
+  { nama:"Rasio OD 60+", produk:"Motor", satuan:"persen",
+    saldoAwal:0, pencapaian:0.82, t3:0.70, t4:0.80, t5:0.90, skor:4.2 },
+  { nama:"Recovery Write-Off", produk:"Multiguna", satuan:"rupiah",
+    saldoAwal:410000000, pencapaian:118000000, t3:120000000, t4:180000000, t5:250000000, skor:2.9 },
+  { nama:"Kunjungan Terverifikasi", produk:"Semua produk", satuan:"unit",
+    saldoAwal:0, pencapaian:268, t3:180, t4:240, t5:300, skor:4.5 }
+];
+
+const INSENTIF = [
+  { kategori:"Bucket 30 — Mobil",     saldo:1240000000, capai:892000000, rasio:.72, nominal:1420000 },
+  { kategori:"Bucket 60 — Motor",     saldo:680000000,  capai:557000000, rasio:.82, nominal:980000 },
+  { kategori:"Recovery Write-Off",    saldo:410000000,  capai:118000000, rasio:.29, nominal:410000 },
+  { kategori:"Bonus kunjungan",       saldo:0,          capai:268,       rasio:1.12, nominal:640000 }
+];
+
+const TREN = [
+  {b:"Mar", v:3.42},{b:"Apr", v:3.61},{b:"Mei", v:3.28},
+  {b:"Jun", v:3.95},{b:"Jul", v:3.88},{b:"Agu", v:4.12}
+];
+
+/* =====================================================================
+   FORMAT ANGKA
+   ===================================================================== */
+const nf = new Intl.NumberFormat('id-ID');
+function rp(n){ return "Rp " + nf.format(Math.round(n)); }
+function rpSingkat(n){
+  if (n >= 1e9) return "Rp " + (n/1e9).toFixed(1).replace('.',',') + " M";
+  if (n >= 1e6) return "Rp " + (n/1e6).toFixed(0) + " jt";
+  return rp(n);
+}
+function nilai(v, satuan){
+  if (satuan === "persen") return (v*100).toFixed(0) + "%";
+  if (satuan === "unit")   return nf.format(v) + " kunjungan";
+  return rpSingkat(v);
+}
+function selisih(v, satuan){
+  if (satuan === "persen") return (v*100).toFixed(0) + " poin";
+  if (satuan === "unit")   return nf.format(Math.ceil(v)) + " kunjungan";
+  return rpSingkat(v);
+}
+
+/* =====================================================================
+   TANGGA TARGET — posisi 20% / 55% / 90% untuk KPI 3 / 4 / 5
+   ===================================================================== */
+function posisi(v, t3, t4, t5){
+  if (v < t3) return Math.max(2, (v/t3)*20);
+  if (v < t4) return 20 + ((v-t3)/(t4-t3))*35;
+  if (v < t5) return 55 + ((v-t4)/(t5-t4))*35;
+  return Math.min(99, 90 + ((v-t5)/t5)*40);
+}
+function tingkat(v,t3,t4,t5){ return v>=t5?5 : v>=t4?4 : v>=t3?3 : 0; }
+
+function gambarTangga(el, v, t3, t4, t5, satuan, ringkas){
+  const p = posisi(v,t3,t4,t5), lv = tingkat(v,t3,t4,t5);
+  const warna = lv>=5 ? 'is-good' : lv>=4 ? '' : lv>=3 ? 'is-warn' : 'is-warn';
+  const lbl = ringkas
+    ? [['KPI 3',t3],['KPI 4',t4],['KPI 5',t5]].map(([n,x])=>`<span style="left:${posisi(x,t3,t4,t5)}%"><b>${n.split(' ')[1]}</b></span>`)
+    : [['KPI 3',t3],['KPI 4',t4],['KPI 5',t5]].map(([n,x])=>`<span style="left:${posisi(x,t3,t4,t5)}%">${n}<b>${nilai(x,satuan)}</b></span>`);
+
+  el.innerHTML = `
+    <div class="ladder-track">
+      <div class="ladder-fill ${warna}" style="width:0%"></div>
+      <div class="notch" style="left:20%"></div>
+      <div class="notch" style="left:55%"></div>
+      <div class="notch" style="left:90%"></div>
+      <div class="marker" style="left:0%"><i></i></div>
+    </div>
+    <div class="ladder-labels">${lbl.join('')}</div>`;
+
+  requestAnimationFrame(()=>{
+    el.querySelector('.ladder-fill').style.width = p + '%';
+    el.querySelector('.marker').style.left = p + '%';
+  });
+}
+
+function kalimatJarak(v,t3,t4,t5,satuan){
+  const lv = tingkat(v,t3,t4,t5);
+  if (lv >= 5) return `Sudah melewati target tertinggi. Kelebihan <b>${selisih(v-t5,satuan)}</b> di atas KPI 5.`;
+  const berikut = lv>=4 ? t5 : lv>=3 ? t4 : t3;
+  const label   = lv>=4 ? 'KPI 5' : lv>=3 ? 'KPI 4' : 'KPI 3';
+  return `Kurang <b>${selisih(berikut-v,satuan)}</b> lagi untuk mencapai ${label}.`;
+}
+
+/* =====================================================================
+   RENDER TAMPILAN KARYAWAN
+   ===================================================================== */
+function renderUser(){
+  document.getElementById('heroVerdict').innerHTML =
+    "Anda berada di tingkat <b>KPI 4</b>. " + kalimatJarak(RINGKASAN.skor, RINGKASAN.t3, RINGKASAN.t4, RINGKASAN.t5, 'unit')
+      .replace('kunjungan','poin').replace('Kurang','Kurang');
+  gambarTangga(document.getElementById('heroLadder'),
+    RINGKASAN.skor, RINGKASAN.t3, RINGKASAN.t4, RINGKASAN.t5, 'skor');
+
+  // tren
+  const maks = 5;
+  document.getElementById('trendBars').innerHTML = TREN.map((t,i)=>
+    `<div class="bar ${i===TREN.length-1?'now':''}" style="height:${(t.v/maks)*100}%" title="${t.b}: ${t.v.toFixed(2).replace('.',',')}"></div>`).join('');
+  document.getElementById('trendLabels').innerHTML = TREN.map(t=>`<span>${t.b}</span>`).join('');
+
+  // indikator
+  document.getElementById('indList').innerHTML = INDIKATOR.map((d,i)=>{
+    const lv = tingkat(d.pencapaian,d.t3,d.t4,d.t5);
+    const cls = lv>=5?'k5':lv>=4?'k4':lv>=3?'k3':'k0';
+    const txt = lv===0?'Di bawah KPI 3':'KPI '+lv;
+    return `
+    <div class="card card-pad">
+      <div class="ind-top">
+        <div>
+          <div class="ind-name">${d.nama}</div>
+          <div class="faint" style="font-size:12px;margin-top:2px">${d.produk}</div>
+        </div>
+        <span class="chip ${cls}">${txt}</span>
+      </div>
+      <div class="ind-figs">
+        <div class="fig">
+          <div class="eyebrow">Pencapaian</div>
+          <div class="v">${nilai(d.pencapaian,d.satuan)}</div>
+        </div>
+        ${d.saldoAwal?`<div class="fig"><div class="eyebrow">Saldo awal</div><div class="v faint">${nilai(d.saldoAwal,d.satuan)}</div></div>`:''}
+        <div class="fig">
+          <div class="eyebrow">Skor</div>
+          <div class="v">${d.skor.toFixed(2).replace('.',',')}</div>
+        </div>
+      </div>
+      <div class="ladder" id="lad${i}"></div>
+      <div class="gap-note">${kalimatJarak(d.pencapaian,d.t3,d.t4,d.t5,d.satuan)}</div>
+    </div>`;
+  }).join('');
+
+  INDIKATOR.forEach((d,i)=>gambarTangga(document.getElementById('lad'+i),
+    d.pencapaian,d.t3,d.t4,d.t5,d.satuan,true));
+
+  // tabel insentif
+  document.getElementById('insBody').innerHTML = INSENTIF.map(r=>`
+    <tr>
+      <td><b>${r.kategori}</b></td>
+      <td class="r num faint">${r.saldo?rpSingkat(r.saldo):'—'}</td>
+      <td class="r num">${r.saldo?rpSingkat(r.capai):nf.format(r.capai)}</td>
+      <td class="r num">${(r.rasio*100).toFixed(0)}%</td>
+      <td class="r num"><b>${rp(r.nominal)}</b></td>
+    </tr>`).join('');
+}
+
+/* =====================================================================
+   ALUR ADMIN (simulasi)
+   ===================================================================== */
+const KOLOM = [
+  ["A · NIK / NAMA PIC", "nik", true],
+  ["C · PRODUK", "produk", true],
+  ["E · INDIKATOR", "indikator", true],
+  ["G · SALDO AWAL", "saldo_awal", true],
+  ["H · PENCAPAIAN", "pencapaian", true],
+  ["I · % CAPAI", "rasio", true],
+  ["J · KPI", "skor_kpi", true],
+  ["M · TARGET 3", "target_kpi3", true],
+  ["Q · KETERANGAN", "", false],
+  ["R · FLAG BARU", "", false]
+];
+const OPSI = ["", "nik","nama","produk","indikator","bobot","saldo_awal","pencapaian",
+  "rasio","skor_kpi","target_kpi3","target_kpi4","target_kpi5","catatan","— abaikan kolom ini —"];
+
+const TEMUAN = [
+  ["err", 84,  "NIK 20249117 tidak ada di daftar karyawan aktif. Baris tidak akan diterbitkan."],
+  ["err", 512, "Kolom Pencapaian berisi teks “#N/A”. Isi angka atau kosongkan."],
+  ["err", 903, "Periode di baris ini Juli 2026, berbeda dari periode file."],
+  ["wrn", 27,  "Pencapaian 4,2× lebih besar dari saldo awal. Pastikan bukan salah satuan."],
+  ["wrn", 156, "Target KPI 5 kosong. Sistem memakai target bulan lalu."],
+  ["wrn", 341, "Nama berbeda dari data karyawan: “Rizki P.” vs “Rizky Pratama”."]
+];
+
+function setStep(n){
+  [...document.querySelectorAll('#steps .step')].forEach((el,i)=>{
+    el.classList.toggle('active', i === n-1);
+    el.classList.toggle('done',  i <  n-1);
+  });
+  ['s1','s2','s3','s4'].forEach((id,i)=>
+    document.getElementById(id).classList.toggle('hide', i !== n-1));
+  window.scrollTo({top:0, behavior:'smooth'});
+}
+
+function mulaiBaca(){
+  document.getElementById('drop').classList.add('hide');
+  document.getElementById('reading').classList.remove('hide');
+  let p = 0;
+  const bar = document.getElementById('readBar'), txt = document.getElementById('readTxt');
+  const t = setInterval(()=>{
+    p += 9 + Math.random()*13;
+    if (p >= 100){
+      p = 100; clearInterval(t);
+      txt.textContent = "1.261 baris terbaca";
+      setTimeout(()=>{ renderMap(); setStep(2); }, 450);
+    } else {
+      txt.textContent = "Membaca " + Math.round(p*12.6) + " baris…";
+    }
+    bar.style.width = p + "%";
+  }, 180);
+}
+
+function renderMap(){
+  document.getElementById('mapList').innerHTML = KOLOM.map(([src,val,ok])=>`
+    <div class="maprow">
+      <div class="src">${src}</div>
+      <div class="arw">→</div>
+      <select ${ok?'':'style="border-color:var(--warn);background:var(--warn-soft)"'}>
+        ${OPSI.map(o=>`<option value="${o}" ${o===val?'selected':''}>${o||'Belum dicocokkan'}</option>`).join('')}
+      </select>
+    </div>`).join('');
+}
+
+function mulaiValidasi(){
+  document.getElementById('issueList').innerHTML = TEMUAN.map(([t,row,msg])=>`
+    <div class="issue">
+      <span class="tag ${t==='err'?'err':'wrn'}">${t==='err'?'DITOLAK':'DICEK'}</span>
+      <span class="row">Baris ${row}</span>
+      <span>${msg}</span>
+    </div>`).join('') + `
+    <div class="issue"><span class="faint" style="font-size:12.5px">15 temuan lain sejenis disembunyikan. <a href="#" onclick="return false" style="color:var(--accent);font-weight:600">Unduh semuanya sebagai CSV</a></span></div>`;
+  setStep(3);
+}
+
+function terbitkan(){
+  const b = document.getElementById('btnPublish');
+  b.disabled = true; b.textContent = "Menerbitkan…";
+  setTimeout(()=>{
+    document.getElementById('published').classList.remove('hide');
+    b.textContent = "Sudah diterbitkan";
+    [...document.querySelectorAll('#steps .step')].forEach(el=>{
+      el.classList.add('done'); el.classList.remove('active');
+    });
+  }, 1100);
+}
+
+function reset(){
+  document.getElementById('drop').classList.remove('hide');
+  document.getElementById('reading').classList.add('hide');
+  document.getElementById('readBar').style.width = "0%";
+  document.getElementById('published').classList.add('hide');
+  const b = document.getElementById('btnPublish');
+  b.disabled = false; b.textContent = "Terbitkan sekarang";
+  setStep(1);
+}
+
+/* =====================================================================
+   PERGANTIAN TAMPILAN (khusus pratinjau ini)
+   ===================================================================== */
+function setView(v){
+  const u = v === 'user';
+  document.getElementById('viewUser').classList.toggle('hide', !u);
+  document.getElementById('viewAdmin').classList.toggle('hide', u);
+  document.getElementById('tabUser').setAttribute('aria-pressed', u);
+  document.getElementById('tabAdmin').setAttribute('aria-pressed', !u);
+  document.getElementById('whoName').textContent = u ? "Rizky Pratama" : "Dina Ariani";
+  document.getElementById('whoRole').textContent = u ? "Collection Officer · Tangerang" : "Admin Data · Kantor Pusat";
+  document.getElementById('whoInit').textContent = u ? "RP" : "DA";
+  window.scrollTo({top:0});
+}
+
+renderUser();
+</script>
+</body>
+</html>
