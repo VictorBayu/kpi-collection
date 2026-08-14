@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { readSession } from "@/lib/auth";
 import LogoutButton from "./LogoutButton";
+import AccessBeacon from "./AccessBeacon";
 
 /** Bilah atas yang sama di semua halaman, menu menyesuaikan peran. */
 export default async function AppShell({ children }: { children: React.ReactNode }) {
@@ -8,7 +9,9 @@ export default async function AppShell({ children }: { children: React.ReactNode
 
   const menu =
     s?.peran === "admin"
-      ? [["/admin/import", "Unggah data"], ["/admin/riwayat", "Riwayat impor"], ["/admin/request", "Kelola request"]]
+      ? [["/admin/import", "Unggah data"], ["/admin/kpi", "Data KPI"],
+         ["/admin/riwayat", "Riwayat impor"], ["/admin/request", "Kelola request"],
+         ["/admin/pengguna", "Pengguna & Akses"]]
       : s?.peran === "atasan"
       ? [["/dashboard", "Dasbor saya"], ["/tim", "Tim saya"], ["/request", "Request"]]
       : [["/dashboard", "Dasbor saya"], ["/request", "Request"]];
@@ -41,6 +44,7 @@ export default async function AppShell({ children }: { children: React.ReactNode
           </div>
         </div>
       </header>
+      <AccessBeacon />
       {children}
     </>
   );

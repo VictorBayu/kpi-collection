@@ -12,6 +12,9 @@ export const POST = handler(async (req) => {
   // Pesan sengaja sama untuk NIK salah maupun password salah,
   // supaya tidak bisa dipakai menebak NIK mana yang terdaftar.
   if (!u) throw new HttpError(401, "NIK atau password tidak cocok. Periksa kembali.");
+  if ("suspended" in u) {
+    throw new HttpError(403, "Akun Anda sedang dinonaktifkan. Hubungi admin data untuk mengaktifkannya kembali.");
+  }
 
   const token = await signSession({ sub: u.id, nik: u.nik, nama: u.nama, peran: u.peran });
   (await cookies()).set(COOKIE, token, {

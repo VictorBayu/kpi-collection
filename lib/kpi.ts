@@ -115,3 +115,59 @@ export async function timSaya(atasanNik: string, periode: string) {
     })),
   };
 }
+
+/* ============================================================
+ * FUNGSI UNTUK ADMIN — melihat KPI lintas cabang
+ * ============================================================ */
+
+/** Daftar cabang yang punya data pada satu periode, + ringkasannya. */
+export async function cabangPeriode(periode: string) {
+  const rows = await q<any>(
+    `SELECT COALESCE(cabang,'(Tanpa cabang)') AS cabang,
+            COUNT(DISTINCT nik)::int AS karyawan,
+            ROUND(AVG(skor_bykaryawan),2) AS skor_rata
+       FROM (
+         SELECT cabang, nik, SUM(skor_terbobot) AS skor_bykaryawan
+           FROM v_kpi_aktif WHERE periode = $1
+          GROUP BY cabang, nik
+       ) t
+      GROUP BY cabang
+      ORDER BY skor_rata ASC NULLS LAST`, [periode]);
+  return rows.map((r) => ({
+    cabang: r.cabang, karyawan: r.karyawan,
+    skorRata: r.skor_rata === null ? null : Number(r.skor_rata),
+  }));
+}
+
+/** Daftar karyawan pada satu cabang + skor & insentifnya (untuk admin). */
+export async function karyawanCabang(periode: string, cabang: string) {
+  const rows = await q<any>(
+    `WITH skor AS (
+       SELECT nik, SUM(skor_terbobot) AS skor FROM v_kpi_aktif
+        WHERE periode = $1 AND COALESCE(cabang,'(Tanpa cabang)') = $2 GROUP BY nik),
+     ins AS (
+       SELECT nik, SUM(nominal) AS insentif FROM v_insentif_aktif
+        WHERE periode = $1 GROUP BY nik),
+     lemah AS (
+       SELECT DISTINCT ON (nik) nik, indikator FROM v_kpi_aktif
+        WHERE periode = $1 AND COALESCE(cabang,'(Tanpa cabang)') = $2
+        ORDER BY nik, skor_kpi ASC NULLS LAST)
+     SELECT k.nik, u.nama, u.jabatan,
+            COALESCE(s.skor,0) AS skor, COALESCE(i.insentif,0) AS insentif, l.indikator AS terlemah
+       FROM (SELECT DISTINCT nik FROM v_kpi_aktif
+              WHERE periode=$1 AND COALESCE(cabang,'(Tanpa cabang)')=$2) k
+       LEFT JOIN app_user u ON u.nik = k.nik
+       LEFT JOIN skor s ON s.nik = k.nik
+       LEFT JOIN ins  i ON i.nik = k.nik
+       LEFT JOIN lemah l ON l.nik = k.nik
+      ORDER BY COALESCE(s.skor,0) ASC`, [periode, cabang]);
+  return rows.map((r) => ({
+    nik: r.nik, nama: r.nama ?? r.nik, jabatan: r.jabatan,
+    skor: Number(r.skor), insentif: Number(r.insentif), terlemah: r.terlemah,
+  }));
+}
+
+/** Indikator satu karyawan (dipakai admin untuk menelisik detail). */
+export async function indikatorNik(nik: string, periode: string) {
+  return indikatorKaryawan(nik, periode);
+}

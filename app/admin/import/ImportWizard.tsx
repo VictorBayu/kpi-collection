@@ -230,20 +230,7 @@ export default function ImportWizard() {
             </div>
             {issues.length === 0
               ? <p className="empty">Tidak ada temuan. Semua baris bersih.</p>
-              : issues.slice(0, 50).map((i, n) => (
-                  <div className="issue" key={n}>
-                    <span className={i.tingkat === "error" ? "tag err" : "tag wrn"}>
-                      {i.tingkat === "error" ? "DITOLAK" : "DICEK"}
-                    </span>
-                    <span className="row">Baris {i.baris}</span>
-                    <span>{i.pesan}</span>
-                  </div>
-                ))}
-            {issues.length > 50 && (
-              <p className="faint pad">{issues.length - 50} temuan lain tidak ditampilkan.{" "}
-                <a href={`/api/import/batches?batchId=${batchId}`} download>Unduh semuanya</a>
-              </p>
-            )}
+              : <IssuePager issues={issues} batchId={batchId} />}
           </div>
 
           <div className="actions">
@@ -305,4 +292,45 @@ function bulanIni() {
 
 function namaPeriode(iso: string) {
   return new Date(iso).toLocaleDateString("id-ID", { month: "long", year: "numeric" });
+}
+
+/* ---------------- daftar temuan dengan paginasi 10 per halaman ---------------- */
+function IssuePager({ issues, batchId }: { issues: Issue[]; batchId?: string }) {
+  const PER = 10;
+  const [hal, setHal] = useState(0);
+  const totalHal = Math.ceil(issues.length / PER);
+  const mulai = hal * PER;
+  const tampil = issues.slice(mulai, mulai + PER);
+
+  return (
+    <>
+      {tampil.map((i, n) => (
+        <div className="issue" key={mulai + n}>
+          <span className={i.tingkat === "error" ? "tag err" : "tag wrn"}>
+            {i.tingkat === "error" ? "DITOLAK" : "DICEK"}
+          </span>
+          <span className="row">Baris {i.baris}</span>
+          <span>{i.pesan}</span>
+        </div>
+      ))}
+
+      <div className="pager">
+        <span className="faint">
+          Menampilkan {mulai + 1}–{Math.min(mulai + PER, issues.length)} dari {issues.length} temuan
+        </span>
+        <div className="pager-btns">
+          <button className="btn ghost sm" disabled={hal === 0}
+                  onClick={() => setHal((h) => Math.max(0, h - 1))}>← Sebelumnya</button>
+          <span className="pager-num">Hal {hal + 1}/{totalHal}</span>
+          <button className="btn ghost sm" disabled={hal >= totalHal - 1}
+                  onClick={() => setHal((h) => Math.min(totalHal - 1, h + 1))}>Berikutnya →</button>
+          {batchId && (
+            <a className="btn ghost sm" href={`/api/import/batches?batchId=${batchId}`} download>
+              Unduh semua (CSV)
+            </a>
+          )}
+        </div>
+      </div>
+    </>
+  );
 }

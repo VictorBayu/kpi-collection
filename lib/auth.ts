@@ -45,15 +45,42 @@ export async function verifyLogin(nik: string, password: string) {
   const rows = await q<{
     id: string; nik: string; nama: string; peran: Session["peran"];
     password_hash: string; aktif: boolean; must_change_password: boolean;
-  }>(`SELECT id, nik, nama, peran, password_hash, aktif, must_change_password
+    suspended_at: string | null;
+  }>(`SELECT id, nik, nama, peran, password_hash, aktif, must_change_password, suspended_at
         FROM app_user WHERE nik = $1`, [nik.trim()]);
 
   const u = rows[0];
-  if (!u || !u.aktif) return null;
+  if (!u) return null;
+  // Password salah -> gagal biasa (pesan generik di route)
   if (!(await bcrypt.compare(password, u.password_hash))) return null;
+  // Akun nonaktif / disuspend -> tandai khusus agar route bisa memberi pesan tepat
+  if (!u.aktif || u.suspended_at) return { suspended: true } as const;
 
-  await q(`UPDATE app_user SET last_login_at = now() WHERE id = $1`, [u.id]);
+  // Hitung login + catat ke access_log
+  await q(
+    `UPDATE app_user
+        SET last_login_at = now(), last_access_at = now(),
+            login_count = login_count + 1, access_count = access_count + 1
+      WHERE id = $1`, [u.id]);
+  await q(`INSERT INTO access_log (user_id, path, jenis) VALUES ($1, '/login', 'login')`, [u.id]);
+
   return u;
+}
+
+/**
+ * Mencatat satu kunjungan halaman (akses web). Dipanggil dari AppShell,
+ * sehingga setiap kali user membuka halaman ber-AppShell terhitung.
+ * Ringan: dua perintah kecil, tidak memblokir tampilan.
+ */
+export async function catatAkses(userId: string, path: string) {
+  try {
+    await q(
+      `UPDATE app_user SET last_access_at = now(), access_count = access_count + 1 WHERE id = $1`,
+      [userId]);
+    await q(`INSERT INTO access_log (user_id, path, jenis) VALUES ($1, $2, 'akses')`, [userId, path]);
+  } catch {
+    // pencatatan akses tidak boleh menggagalkan halaman
+  }
 }
 
 export const hashPassword = (pw: string) => bcrypt.hash(pw, 12);

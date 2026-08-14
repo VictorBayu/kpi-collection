@@ -184,3 +184,18 @@ Konstanta `KATEGORI` sudah dipindahkan ke `lib/request.ts`. Sudah diperbaiki.
 Middleware sempat menyeret bcrypt lewat impor `COOKIE` dari `lib/auth.ts`.
 Konstanta itu dipindah ke `lib/session-const.ts` yang ringan, sehingga middleware
 hanya memakai `jose` (aman di Edge). Sudah diperbaiki.
+
+---
+
+## Pembaruan fitur (jalankan schema tambahan)
+
+Versi ini menambah: laporan akses pengguna, suspend/aktifkan login, dan halaman
+Data KPI per cabang untuk admin. Satu file schema baru perlu dijalankan **sekali**
+di SQL Editor Neon:
+
+1. Buka `db/schema-access.sql`, salin seluruh isinya, tempel ke SQL Editor Neon, **Run**.
+2. Selesai. Kolom penghitung dan tabel `access_log` terbentuk. Data lama tidak terpengaruh.
+
+Setelah itu, setiap login dan setiap kali user membuka halaman akan tercatat.
+Menu admin bertambah: **Data KPI** (lihat per cabang) dan **Pengguna & Akses**
+(laporan akses + tombol nonaktifkan/aktifkan login).
