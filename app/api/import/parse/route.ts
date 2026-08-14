@@ -2,6 +2,7 @@ import { requireAdmin, handler, HttpError } from "@/lib/auth";
 import { q, auditLog } from "@/lib/db";
 import { parseWorkbook } from "@/lib/import/parse";
 import { FIELDS } from "@/lib/import/fields";
+import { toISODate } from "@/lib/format";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -21,23 +22,34 @@ export const POST = handler(async (req) => {
 
   const hasil = await parseWorkbook(blobUrl, tipe, sheetName);
 
-  // Berkas identik hanya diblokir kalau sudah pernah DITERBITKAN.
-  // Draf/validated lama dengan hash sama (mis. sisa unggahan yang gagal
-  // di tengah jalan) dihapus otomatis supaya admin bisa mengulang.
-  const kembar = await q<{ id: string; status: string; diunggah_pada: string; nama_file: string }>(
-    `SELECT b.id, b.status, b.diunggah_pada, b.nama_file FROM import_batch b
+  // Aturan berkas identik (hash sama):
+  //  * Draf/validated lama            -> dihapus, unggahan dilanjutkan.
+  //  * Sudah terbit di PERIODE SAMA   -> boleh: batch baru akan MENGGANTIKAN
+  //    yang lama saat tombol Terbitkan ditekan (mekanisme supersede).
+  //  * Sudah terbit di PERIODE BEDA   -> diblokir; hampir pasti salah pilih
+  //    periode, karena isi berkasnya persis sama dengan periode lain.
+  const kembar = await q<{ id: string; status: string; periode: string; diunggah_pada: string; nama_file: string }>(
+    `SELECT b.id, b.status, b.periode, b.diunggah_pada, b.nama_file FROM import_batch b
       WHERE b.file_sha256 = $1 AND b.status <> 'failed'`, [hasil.sha256]);
 
-  const sudahTerbit = kembar.find((k) => k.status === "published" || k.status === "superseded");
-  if (sudahTerbit) {
+  const periodeBaru = String(periode).slice(0, 10);
+  const terbitBeda = kembar.find((k) =>
+    (k.status === "published" || k.status === "superseded") &&
+    toISODate(k.periode) !== periodeBaru);
+  if (terbitBeda) {
     throw new HttpError(409,
-      `Berkas ini sudah pernah diterbitkan sebagai "${sudahTerbit.nama_file}" pada ` +
-      `${new Date(sudahTerbit.diunggah_pada).toLocaleString("id-ID")}. ` +
-      `Kalau ini revisi, simpan ulang dengan perubahan Anda lalu unggah lagi.`);
+      `Berkas yang sama persis sudah diterbitkan untuk periode ` +
+      `${new Date(terbitBeda.periode).toLocaleDateString("id-ID", { month: "long", year: "numeric" })} ` +
+      `("${terbitBeda.nama_file}"). Kalau memang data periode ${new Date(periodeBaru).toLocaleDateString("id-ID", { month: "long", year: "numeric" })}, ` +
+      `pastikan isi berkasnya sudah berbeda, lalu unggah lagi.`);
   }
   for (const k of kembar) {
-    // hapus draf lama beserta staging & baris turunannya (CASCADE)
-    await q(`DELETE FROM import_batch WHERE id = $1`, [k.id]);
+    if (k.status === "draft" || k.status === "validated") {
+      // hapus draf lama beserta staging & baris turunannya (CASCADE)
+      await q(`DELETE FROM import_batch WHERE id = $1`, [k.id]);
+    }
+    // batch published periode sama dibiarkan; akan berstatus superseded
+    // otomatis ketika batch baru diterbitkan.
   }
 
   const maks = Number(process.env.IMPORT_MAX_ROWS ?? 30000);

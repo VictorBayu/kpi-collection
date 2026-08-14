@@ -52,8 +52,9 @@ CREATE TABLE IF NOT EXISTS import_batch (
   diterbitkan_pada TIMESTAMPTZ
 );
 
--- Cegah file identik diunggah dua kali
-CREATE UNIQUE INDEX IF NOT EXISTS uq_batch_file ON import_batch (file_sha256);
+-- Hash file diindeks untuk pencarian cepat (TIDAK unik: berkas sama boleh
+-- diunggah ulang untuk menggantikan periode yang sama)
+CREATE INDEX IF NOT EXISTS idx_batch_file ON import_batch (file_sha256);
 -- Hanya satu batch aktif per periode per tipe
 CREATE UNIQUE INDEX IF NOT EXISTS uq_batch_published
   ON import_batch (periode, tipe) WHERE status = 'published';
