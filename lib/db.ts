@@ -7,9 +7,17 @@ import { neon } from "@neondatabase/serverless";
  */
 export const sql = neon(process.env.DATABASE_URL!);
 
-/** Kueri berparameter untuk perintah yang dibangun dinamis. */
+/**
+ * Kueri berparameter untuk perintah yang dibangun dinamis.
+ * Driver Neon menyediakan sql.query(text, params) untuk gaya ini.
+ * Sebagian versi menamainya berbeda, jadi kita panggil dengan aman.
+ */
 export async function q<T = any>(text: string, params: any[] = []): Promise<T[]> {
-  return (await sql.query(text, params)) as T[];
+  const fn: any = sql as any;
+  const rows = typeof fn.query === "function"
+    ? await fn.query(text, params)   // @neondatabase/serverless >= 0.9
+    : await fn(text, params);        // fallback untuk versi lain
+  return (Array.isArray(rows) ? rows : rows?.rows ?? []) as T[];
 }
 
 export async function auditLog(
