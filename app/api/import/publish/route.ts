@@ -1,3 +1,4 @@
+import { revalidateTag } from "next/cache";
 import { requireAdmin, handler, HttpError } from "@/lib/auth";
 import { q, sql, auditLog } from "@/lib/db";
 
@@ -40,6 +41,10 @@ export const POST = handler(async (req) => {
   await auditLog(s.sub, "publish_batch", batchId, {
     periode: batch.periode, menggantikan: sebelum?.id ?? null, karyawan: dampak.karyawan,
   });
+
+  // Statistik di halaman login di-cache; segarkan agar periode terbit
+  // langsung ikut berubah, tidak menunggu masa cache habis.
+  revalidateTag("login-info");
 
   return Response.json({
     ok: true,

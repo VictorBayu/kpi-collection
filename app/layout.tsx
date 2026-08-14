@@ -1,6 +1,33 @@
 import "./globals.css";
 import type { Metadata } from "next";
 import { SpeedInsights } from "@vercel/speed-insights/next";
+import { Archivo, Inter, IBM_Plex_Mono } from "next/font/google";
+
+/**
+ * Font di-host sendiri oleh Next (bukan <link> ke fonts.googleapis.com).
+ * Hasilnya: tidak ada render-blocking request ke domain pihak ketiga,
+ * dan `display: swap` mencegah teks tak tampil saat font belum siap.
+ */
+const inter = Inter({
+  subsets: ["latin"],
+  weight: ["400", "500", "600"],
+  display: "swap",
+  variable: "--font-inter",
+});
+
+const archivo = Archivo({
+  subsets: ["latin"],
+  weight: ["500", "600", "700", "800"],
+  display: "swap",
+  variable: "--font-archivo",
+});
+
+const plexMono = IBM_Plex_Mono({
+  subsets: ["latin"],
+  weight: ["400", "500", "600"],
+  display: "swap",
+  variable: "--font-plex-mono",
+});
 
 export const metadata: Metadata = {
   title: "KPI Collection",
@@ -9,14 +36,10 @@ export const metadata: Metadata = {
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="id">
-      <head>
-        <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="" />
-        <link
-          href="https://fonts.googleapis.com/css2?family=Archivo:wght@500;600;700;800&family=Inter:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500;600&display=swap"
-          rel="stylesheet"
-        />
-      </head>
+    <html
+      lang="id"
+      className={`${inter.variable} ${archivo.variable} ${plexMono.variable}`}
+    >
       <body>
         {children}
         <SpeedInsights />

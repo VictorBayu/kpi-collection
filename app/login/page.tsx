@@ -1,4 +1,5 @@
 import { redirect } from "next/navigation";
+import { unstable_cache } from "next/cache";
 import { readSession } from "@/lib/auth";
 import { q } from "@/lib/db";
 import LoginForm from "./LoginForm";
@@ -6,16 +7,31 @@ import { namaPeriode, waktu } from "@/lib/format";
 
 export const metadata = { title: "Masuk — KPI Collection" };
 
+/**
+ * Statistik di panel kiri hanya berubah saat batch KPI baru diterbitkan
+ * (sebulan sekali). Tanpa cache, setiap kunjungan /login menunggu Neon
+ * merespons sebelum HTML terkirim — itu yang membuat TTFB tinggi.
+ * Hasil di-cache 1 jam; kunjungan berikutnya dilayani tanpa query.
+ */
+const ambilInfoTerbit = unstable_cache(
+  async () => {
+    const [row] = await q<any>(
+      `SELECT b.periode, b.diterbitkan_pada,
+              (SELECT COUNT(*)::int FROM app_user WHERE aktif) AS karyawan
+         FROM import_batch b
+        WHERE b.tipe='kpi' AND b.status='published'
+        ORDER BY b.periode DESC LIMIT 1`);
+    return row ?? null;
+  },
+  ["login-info-terbit"],
+  { revalidate: 3600, tags: ["login-info"] },
+);
+
 export default async function LoginPage() {
   const s = await readSession();
   if (s) redirect(s.peran === "admin" ? "/admin/import" : "/dashboard");
 
-  const [info] = await q<any>(
-    `SELECT b.periode, b.diterbitkan_pada,
-            (SELECT COUNT(*)::int FROM app_user WHERE aktif) AS karyawan
-       FROM import_batch b
-      WHERE b.tipe='kpi' AND b.status='published'
-      ORDER BY b.periode DESC LIMIT 1`);
+  const info = await ambilInfoTerbit();
 
   return (
     <div className="loginwrap">

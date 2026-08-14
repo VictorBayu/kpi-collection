@@ -1,3 +1,4 @@
+import { revalidateTag } from "next/cache";
 import { requireAdmin, handler, HttpError } from "@/lib/auth";
 import { q, sql, auditLog } from "@/lib/db";
 
@@ -17,6 +18,8 @@ export const POST = handler(async (req) => {
 
   await sql.transaction([sql`SELECT publish_batch(${batchId}::uuid)`]);
   await auditLog(s.sub, "rollback_batch", batchId, { periode: batch.periode, alasan: alasan ?? null });
+
+  revalidateTag("login-info");
 
   return Response.json({ ok: true, barisAktif: Number(batch.baris_valid) });
 });
