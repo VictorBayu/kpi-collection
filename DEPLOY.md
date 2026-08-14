@@ -199,3 +199,22 @@ di SQL Editor Neon:
 Setelah itu, setiap login dan setiap kali user membuka halaman akan tercatat.
 Menu admin bertambah: **Data KPI** (lihat per cabang) dan **Pengguna & Akses**
 (laporan akses + tombol nonaktifkan/aktifkan login).
+
+---
+
+## Pembaruan: impor INSENTIF + perbaikan tampilan indikator
+
+Satu schema baru perlu dijalankan **sekali** di SQL Editor Neon:
+
+* `db/schema-insentif.sql` — menambah kolom jabatan/cabang/bobot/skor_kpi pada
+  `insentif_row` dan mengizinkan nominal kosong (berkas memakai "-").
+
+Perubahan lain (otomatis setelah deploy):
+* Pembacaan angka kini memahami nilai berlabel ("Penyelesaian : 1,689,239,025"),
+  pemisah ribuan titik maupun koma, dan "#N/A"/"-" sebagai kosong.
+* Perbandingan dengan Target 3/4/5 memakai kolom **% Pencapaian** bila target
+  berskala rasio, bukan nominal rupiah.
+* Indikator "makin kecil makin bagus" (Delq, NPL — ditandai target menurun)
+  kini dinilai terbalik dengan benar.
+* Halaman **Tim saya** punya pilihan tampilan: "Indikator terlemah" (ringkas)
+  atau "Detail semua indikator".

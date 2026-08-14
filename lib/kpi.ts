@@ -174,3 +174,30 @@ export async function karyawanCabang(periode: string, cabang: string) {
 export async function indikatorNik(nik: string, periode: string) {
   return indikatorKaryawan(nik, periode);
 }
+
+/** Semua indikator untuk sekumpulan NIK sekaligus (tampilan detail Tim saya). */
+export async function indikatorBanyakNik(niks: string[], periode: string) {
+  if (!niks.length) return new Map<string, any[]>();
+  const rows = await q<any>(
+    `SELECT nik, indikator, produk, saldo_awal, pencapaian, rasio,
+            skor_kpi, target_kpi3, target_kpi4, target_kpi5
+       FROM v_kpi_aktif
+      WHERE periode = $1 AND nik = ANY($2)
+      ORDER BY nik, skor_kpi ASC NULLS FIRST`, [periode, niks]);
+  const peta = new Map<string, any[]>();
+  for (const r of rows) {
+    const arr = peta.get(r.nik) ?? [];
+    arr.push({
+      indikator: r.indikator, produk: r.produk,
+      saldo_awal: r.saldo_awal === null ? null : Number(r.saldo_awal),
+      pencapaian: r.pencapaian === null ? null : Number(r.pencapaian),
+      rasio: r.rasio === null ? null : Number(r.rasio),
+      skor_kpi: r.skor_kpi === null ? null : Number(r.skor_kpi),
+      target_kpi3: r.target_kpi3 === null ? null : Number(r.target_kpi3),
+      target_kpi4: r.target_kpi4 === null ? null : Number(r.target_kpi4),
+      target_kpi5: r.target_kpi5 === null ? null : Number(r.target_kpi5),
+    });
+    peta.set(r.nik, arr);
+  }
+  return peta;
+}

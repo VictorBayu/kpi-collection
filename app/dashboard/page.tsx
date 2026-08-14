@@ -7,7 +7,7 @@ import {
   periodeTersedia, indikatorKaryawan, insentifKaryawan, ringkasan, trenKpi,
 } from "@/lib/kpi";
 import {
-  rp, rpSingkat, angka, nilai, namaPeriode, waktu, tebakSatuan, toISODate,
+  rp, rpSingkat, angka, nilai, namaPeriode, waktu, tebakSatuan, toISODate, nilaiBanding,
 } from "@/lib/format";
 
 export const metadata = { title: "Dasbor saya" };
@@ -125,9 +125,12 @@ export default async function Dashboard({
 
         <section className="grid2">
           {ind.map((d, i) => {
-            const satuan = tebakSatuan(d.indikator, d.rasio);
-            const lv2 = d.pencapaian !== null && d.target_kpi3 !== null
-              ? tingkat(d.pencapaian, d.target_kpi3, d.target_kpi4 ?? d.target_kpi3, d.target_kpi5 ?? d.target_kpi3)
+            // Nilai untuk ANGKA yang ditampilkan (rupiah/unit apa adanya)
+            const satuanTampil = tebakSatuan(d.indikator, d.pencapaian);
+            // Nilai untuk DIBANDINGKAN dengan target (rasio vs rasio)
+            const band = nilaiBanding(d.pencapaian, d.rasio, d.target_kpi3);
+            const lv2 = band.v !== null && d.target_kpi3 !== null
+              ? tingkat(band.v, d.target_kpi3, d.target_kpi4 ?? d.target_kpi3, d.target_kpi5 ?? d.target_kpi3)
               : null;
             return (
               <article className="card card-pad" key={i}>
@@ -144,12 +147,12 @@ export default async function Dashboard({
                 <div className="ind-figs">
                   <div>
                     <span className="eyebrow">Pencapaian</span>
-                    <b className="v">{nilai(d.pencapaian, satuan)}</b>
+                    <b className="v">{nilai(d.pencapaian, satuanTampil)}</b>
                   </div>
                   {d.saldo_awal ? (
                     <div>
                       <span className="eyebrow">Saldo awal</span>
-                      <b className="v faint">{nilai(d.saldo_awal, satuan)}</b>
+                      <b className="v faint">{nilai(d.saldo_awal, satuanTampil)}</b>
                     </div>
                   ) : null}
                   <div>
@@ -158,12 +161,12 @@ export default async function Dashboard({
                   </div>
                 </div>
 
-                <Ladder v={d.pencapaian} t3={d.target_kpi3} t4={d.target_kpi4}
-                        t5={d.target_kpi5} satuan={satuan} ringkas />
+                <Ladder v={band.v} t3={d.target_kpi3} t4={d.target_kpi4}
+                        t5={d.target_kpi5} satuan={band.satuan} ringkas />
 
-                {d.pencapaian !== null && d.target_kpi3 !== null && d.target_kpi4 !== null && d.target_kpi5 !== null && (
+                {band.v !== null && d.target_kpi3 !== null && d.target_kpi4 !== null && d.target_kpi5 !== null && (
                   <p className="gap-note">
-                    {kalimatJarak(d.pencapaian, d.target_kpi3, d.target_kpi4, d.target_kpi5, satuan)}
+                    {kalimatJarak(band.v, d.target_kpi3, d.target_kpi4, d.target_kpi5, band.satuan)}
                   </p>
                 )}
                 {d.catatan && <p className="faint mt">Catatan tim data: {d.catatan}</p>}

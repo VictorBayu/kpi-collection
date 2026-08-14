@@ -32,11 +32,22 @@ export function keAngka(v: unknown): number | null {
   let s = String(v).trim();
   if (/^(na|n\/a|#n\/a|-|nil|null)$/i.test(s)) return null;
 
+  // Nilai berlabel seperti "Penyelesaian : 1,689,239,025" atau
+  // "Score KPI : 3.20" -> ambil bagian setelah titik dua terakhir.
+  if (s.includes(":")) s = s.slice(s.lastIndexOf(":") + 1).trim();
+  if (/^(na|n\/a|#n\/a|-|nil|null)$/i.test(s)) return null;
+
   const persen = s.includes("%");
   s = s.replace(/rp|idr|\s|%/gi, "");
 
-  // Format Indonesia: titik ribuan, koma desimal
-  if (/,\d{1,2}$/.test(s)) s = s.replace(/\./g, "").replace(",", ".");
+  // Bedakan pemisah ribuan dari titik desimal:
+  //  "1.707.903.780.500" -> titik = ribuan (pola grup 3 digit)
+  //  "4,114,968,296"     -> koma  = ribuan
+  //  "41.05"             -> titik = desimal
+  //  "12,5"              -> koma  = desimal (format Indonesia)
+  if (/^-?\d{1,3}(\.\d{3})+$/.test(s)) s = s.replace(/\./g, "");
+  else if (/^-?\d{1,3}(,\d{3})+$/.test(s)) s = s.replace(/,/g, "");
+  else if (/,\d{1,2}$/.test(s)) s = s.replace(/\./g, "").replace(",", ".");
   else s = s.replace(/,/g, "");
 
   const n = Number(s);

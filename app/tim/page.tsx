@@ -1,14 +1,16 @@
 import { redirect } from "next/navigation";
 import AppShell from "@/components/AppShell";
 import { readSession } from "@/lib/auth";
-import { periodeTersedia, timSaya } from "@/lib/kpi";
-import { rp, angka, namaPeriode, toISODate } from "@/lib/format";
+import { periodeTersedia, timSaya, indikatorBanyakNik } from "@/lib/kpi";
+import Link from "next/link";
+import Ladder, { tingkat } from "@/components/Ladder";
+import { rp, angka, nilai, namaPeriode, toISODate, tebakSatuan, nilaiBanding } from "@/lib/format";
 
 export const metadata = { title: "Tim saya" };
 
 export default async function Tim({
   searchParams,
-}: { searchParams: Promise<{ periode?: string }> }) {
+}: { searchParams: Promise<{ periode?: string; tampilan?: string }> }) {
   const s = await readSession();
   if (!s) redirect("/login");
   if (s.peran === "karyawan") redirect("/dashboard");
@@ -16,7 +18,8 @@ export default async function Tim({
   const daftar = await periodeTersedia();
   if (!daftar.length) redirect("/dashboard");
 
-  const { periode: pilih } = await searchParams;
+  const { periode: pilih, tampilan } = await searchParams;
+  const detail = tampilan === "detail";
   const aktif = daftar.find((p) => toISODate(p.periode) === pilih) ?? daftar[0];
   const periode = toISODate(aktif.periode);
 
@@ -31,6 +34,11 @@ export default async function Tim({
     ember[i]++;
   });
   const maks = Math.max(1, ...ember);
+
+  // Tampilan detail: ambil seluruh indikator tiap anggota sekaligus.
+  const petaInd = detail
+    ? await indikatorBanyakNik(anggota.map((a) => a.nik), periode)
+    : new Map<string, any[]>();
 
   return (
     <AppShell>
@@ -71,11 +79,19 @@ export default async function Tim({
           </div>
         </section>
 
+        <div className="viewswitch mt">
+          <span className="faint">Tampilan:</span>
+          <Link href={`/tim?periode=${periode}`}
+                className={"vbtn" + (detail ? "" : " on")}>Indikator terlemah</Link>
+          <Link href={`/tim?periode=${periode}&tampilan=detail`}
+                className={"vbtn" + (detail ? " on" : "")}>Detail semua indikator</Link>
+        </div>
+
         <section className="card mt">
           <table>
             <thead>
               <tr>
-                <th>Nama</th><th>Indikator terlemah</th>
+                <th>Nama</th><th>{detail ? "Rincian" : "Indikator terlemah"}</th>
                 <th style={{ width: 220 }}>Skor KPI</th><th className="r">Insentif</th>
               </tr>
             </thead>
@@ -83,7 +99,42 @@ export default async function Tim({
               {anggota.map((a) => (
                 <tr key={a.nik}>
                   <td><b>{a.nama}</b><div className="faint num">{a.nik} · {a.jabatan ?? "—"}</div></td>
-                  <td className={a.terlemah ? "" : "faint"}>{a.terlemah ?? "—"}</td>
+                  <td className={a.terlemah ? "" : "faint"}>
+                    {!detail ? (a.terlemah ?? "—") : (
+                      <div className="indlist">
+                        {(petaInd.get(a.nik) ?? []).map((d: any, i: number) => {
+                          const satuanTampil = tebakSatuan(d.indikator, d.pencapaian);
+                          const band = nilaiBanding(d.pencapaian, d.rasio, d.target_kpi3);
+                          const lv = band.v !== null && d.target_kpi3 !== null
+                            ? tingkat(band.v, d.target_kpi3,
+                                      d.target_kpi4 ?? d.target_kpi3, d.target_kpi5 ?? d.target_kpi3)
+                            : null;
+                          return (
+                            <div className="indrow" key={i}>
+                              <div className="indrow-top">
+                                <span className="indnama">
+                                  {d.indikator}
+                                  {d.produk ? <span className="faint"> · {d.produk}</span> : null}
+                                </span>
+                                {lv !== null && (
+                                  <span className={`chip k${lv}`}>{lv === 0 ? "< KPI 3" : `KPI ${lv}`}</span>
+                                )}
+                              </div>
+                              <div className="indrow-figs faint">
+                                <span>Pencapaian <b>{nilai(d.pencapaian, satuanTampil)}</b></span>
+                                <span>Skor <b>{angka(d.skor_kpi)}</b></span>
+                              </div>
+                              <Ladder v={band.v} t3={d.target_kpi3} t4={d.target_kpi4}
+                                      t5={d.target_kpi5} satuan={band.satuan} ringkas />
+                            </div>
+                          );
+                        })}
+                        {!(petaInd.get(a.nik) ?? []).length && (
+                          <span className="faint">Tidak ada indikator.</span>
+                        )}
+                      </div>
+                    )}
+                  </td>
                   <td>
                     <div className="rowbetween small">
                       <span className="num"><b>{angka(a.skor)}</b></span>

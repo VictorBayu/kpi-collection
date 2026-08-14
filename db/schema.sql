@@ -113,9 +113,13 @@ CREATE TABLE IF NOT EXISTS insentif_row (
   nik         VARCHAR(16) NOT NULL,
   kategori    TEXT        NOT NULL,
   produk      TEXT,
+  jabatan     TEXT,
+  cabang      TEXT,
+  bobot       TEXT,
   saldo_awal  NUMERIC(18,2),
   pencapaian  NUMERIC(18,2),
   rasio       NUMERIC(8,4),
+  skor_kpi    NUMERIC(6,2),
   nominal     NUMERIC(18,2) NOT NULL DEFAULT 0,
   keterangan  TEXT
 );

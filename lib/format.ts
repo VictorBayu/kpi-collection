@@ -36,10 +36,14 @@ export function selisih(v: number, satuan: string): string {
 /** Menebak satuan dari nama indikator — dipakai kalau kolom satuan kosong. */
 export function tebakSatuan(indikator: string, nilai: number | null): "rupiah" | "persen" | "unit" {
   const s = indikator.toLowerCase();
-  if (s.includes("rasio") || s.includes("ratio") || s.includes("%")) return "persen";
-  if (s.includes("kunjungan") || s.includes("unit") || s.includes("jumlah")) return "unit";
-  if (nilai !== null && Math.abs(nilai) <= 5) return "persen";
-  return "rupiah";
+  if (s.includes("rasio") || s.includes("ratio") || s.includes("%") || s.includes("persen")) return "persen";
+  if (s.includes("kunjungan") || s.includes("unit") || s.includes("jumlah") || s.includes("staff")) return "unit";
+  if (nilai === null) return "rupiah";
+  const a = Math.abs(nilai);
+  // Rasio biasanya 0–1 (0,4105 = 41%). Nilai finansial jauh lebih besar.
+  if (a > 0 && a <= 1) return "persen";
+  if (a >= 1000) return "rupiah";
+  return "unit";
 }
 
 /**
@@ -60,4 +64,21 @@ export function toISODate(v: unknown): string {
     return `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, "0")}-${String(d.getUTCDate()).padStart(2, "0")}`;
   }
   return s.slice(0, 10);
+}
+
+/**
+ * Memilih nilai yang sebanding dengan Target 3/4/5.
+ * Di berkas KPI, sebagian indikator memakai target berupa RASIO
+ * (mis. Delq: target 0,1415 / 0,1315 / 0,1215) sementara kolom
+ * "Pencapaian" berisi nominal rupiah. Membandingkan rupiah dengan
+ * rasio membuat semua indikator seolah "melewati target tertinggi".
+ * Karena itu: kalau target berskala rasio dan kolom rasio tersedia,
+ * gunakan rasio; selain itu gunakan pencapaian.
+ */
+export function nilaiBanding(
+  pencapaian: number | null, rasio: number | null, t3: number | null,
+): { v: number | null; satuan: "rupiah" | "persen" | "unit" } {
+  const targetRasio = t3 !== null && Math.abs(t3) <= 1.5;
+  if (targetRasio && rasio !== null) return { v: rasio, satuan: "persen" };
+  return { v: pencapaian, satuan: pencapaian === null ? "rupiah" : tebakSatuan("", pencapaian) };
 }

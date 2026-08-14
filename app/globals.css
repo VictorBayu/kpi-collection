@@ -317,3 +317,18 @@ tfoot td{font-weight:700;border-top:1px solid var(--line);background:#FAFBFD}
   .cabang-list{position:static}
   .cabang-scroll{max-height:280px}
 }
+
+/* ============ pemilih tampilan Tim saya ============ */
+.viewswitch{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.vbtn{display:inline-block;padding:7px 13px;border:1px solid var(--line);border-radius:999px;
+  background:#fff;color:var(--ink-soft);text-decoration:none;font-size:12.5px;font-weight:600}
+.vbtn:hover{border-color:#B9CDF8}
+.vbtn.on{background:var(--accent);border-color:var(--accent);color:#fff}
+
+/* ============ daftar indikator dalam baris tim ============ */
+.indlist{display:flex;flex-direction:column;gap:12px;max-width:520px}
+.indrow{padding:10px 12px;border:1px solid var(--line-soft);border-radius:10px;background:#FCFDFF}
+.indrow-top{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:4px}
+.indnama{font-size:12.5px;font-weight:600}
+.indrow-figs{display:flex;gap:14px;font-size:11.5px;margin-bottom:6px}
+.indrow-figs b{font-family:"IBM Plex Mono";color:var(--ink)}

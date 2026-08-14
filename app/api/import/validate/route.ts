@@ -91,9 +91,12 @@ export const POST = handler(async (req) => {
   if (rekamIns.length) {
     await q(
       `INSERT INTO insentif_row
-         (batch_id, periode, nik, kategori, produk, saldo_awal, pencapaian, rasio, nominal, keterangan)
-       SELECT $1, (r->>'periode')::date, r->>'nik', r->>'kategori', r->>'produk',
+         (batch_id, periode, nik, jabatan, cabang, kategori, produk, bobot,
+          saldo_awal, pencapaian, rasio, skor_kpi, nominal, keterangan)
+       SELECT $1, (r->>'periode')::date, r->>'nik', r->>'jabatan',
+              UPPER(TRIM(r->>'cabang')), r->>'kategori', r->>'produk', r->>'bobot',
               (r->>'saldo_awal')::numeric, (r->>'pencapaian')::numeric, (r->>'rasio')::numeric,
+              (r->>'skor_kpi')::numeric,
               COALESCE((r->>'nominal')::numeric, 0), r->>'keterangan'
          FROM jsonb_array_elements($2::jsonb) r`,
       [batchId, JSON.stringify(rekamIns)]);

@@ -5,7 +5,7 @@ import Ladder, { kalimatJarak, tingkat } from "@/components/Ladder";
 import { readSession } from "@/lib/auth";
 import { periodeTersedia, indikatorNik, insentifKaryawan, ringkasan } from "@/lib/kpi";
 import { q } from "@/lib/db";
-import { rp, rpSingkat, angka, nilai, namaPeriode, toISODate, tebakSatuan } from "@/lib/format";
+import { rp, rpSingkat, angka, nilai, namaPeriode, toISODate, tebakSatuan, nilaiBanding } from "@/lib/format";
 
 export const metadata = { title: "Detail KPI karyawan" };
 
@@ -75,9 +75,10 @@ export default async function DetailKpi({
             <div className="sectionhead"><div><h2 style={{ fontSize: 18 }}>Rincian indikator</h2></div></div>
             <section className="grid2">
               {ind.map((d, i) => {
-                const satuan = tebakSatuan(d.indikator, d.rasio);
-                const lv2 = d.pencapaian !== null && d.target_kpi3 !== null
-                  ? tingkat(d.pencapaian, d.target_kpi3, d.target_kpi4 ?? d.target_kpi3, d.target_kpi5 ?? d.target_kpi3)
+                const satuanTampil = tebakSatuan(d.indikator, d.pencapaian);
+                const band = nilaiBanding(d.pencapaian, d.rasio, d.target_kpi3);
+                const lv2 = band.v !== null && d.target_kpi3 !== null
+                  ? tingkat(band.v, d.target_kpi3, d.target_kpi4 ?? d.target_kpi3, d.target_kpi5 ?? d.target_kpi3)
                   : null;
                 return (
                   <article className="card card-pad" key={i}>
@@ -86,11 +87,11 @@ export default async function DetailKpi({
                       {lv2 !== null && <span className={`chip k${lv2}`}>{lv2 === 0 ? "Di bawah KPI 3" : `KPI ${lv2}`}</span>}
                     </div>
                     <div className="ind-figs">
-                      <div><span className="eyebrow">Pencapaian</span><b className="v">{nilai(d.pencapaian, satuan)}</b></div>
-                      {d.saldo_awal ? <div><span className="eyebrow">Saldo awal</span><b className="v faint">{nilai(d.saldo_awal, satuan)}</b></div> : null}
+                      <div><span className="eyebrow">Pencapaian</span><b className="v">{nilai(d.pencapaian, satuanTampil)}</b></div>
+                      {d.saldo_awal ? <div><span className="eyebrow">Saldo awal</span><b className="v faint">{nilai(d.saldo_awal, satuanTampil)}</b></div> : null}
                       <div><span className="eyebrow">Skor</span><b className="v">{angka(d.skor_kpi)}</b></div>
                     </div>
-                    <Ladder v={d.pencapaian} t3={d.target_kpi3} t4={d.target_kpi4} t5={d.target_kpi5} satuan={satuan} ringkas />
+                    <Ladder v={band.v} t3={d.target_kpi3} t4={d.target_kpi4} t5={d.target_kpi5} satuan={band.satuan} ringkas />
                   </article>
                 );
               })}
