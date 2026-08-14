@@ -17,10 +17,10 @@ export const POST = handler(async (req: Request) => {
         throw new Error("Format berkas harus .xlsx atau .xls");
       }
       return {
-        allowedContentTypes: [
-          "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-          "application/vnd.ms-excel",
-        ],
+        // Sengaja tidak membatasi allowedContentTypes: browser kadang
+        // mengirim octet-stream atau tipe kosong untuk .xlsx, yang membuat
+        // Blob menolak dengan 400. Keamanan format dijaga oleh cek ekstensi
+        // .xlsx/.xls di atas dan oleh parser yang menolak isi non-Excel.
         maximumSizeInBytes: 20 * 1024 * 1024,
         addRandomSuffix: true,
         tokenPayload: JSON.stringify({ at: Date.now() }),
