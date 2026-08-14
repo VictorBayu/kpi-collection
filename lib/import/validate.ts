@@ -103,7 +103,10 @@ export function validasiBaris(
     const nilai = kolom ? raw[kolom] : null;
 
     if (def.type === "text") {
-      const s = nilai === null ? null : String(nilai).trim();
+      let s = nilai === null ? null : String(nilai).replace(/\s+/g, " ").trim();
+      // Cabang diseragamkan huruf besar agar "Bch f mix" dan "BCH F MIX"
+      // terhitung satu cabang yang sama di laporan.
+      if (s && def.key === "cabang") s = s.toUpperCase();
       if (def.required && !s) {
         tolak(kolom, `Kolom ${def.label} wajib diisi.`, nilai);
       }

@@ -87,7 +87,10 @@ export async function timSaya(atasanNik: string, periode: string) {
     `SELECT cabang, area, peran FROM app_user WHERE nik = $1`, [atasanNik]);
   if (!me) return { lingkup: "—", anggota: [] as any[] };
 
-  const manajerArea = me.peran === "atasan" && !!me.area;
+  // Utamakan cabang: SPV/BM melihat cabangnya sendiri.
+  // Area hanya dipakai bila atasan tidak terikat satu cabang
+  // (mis. manajer area di HEAD OFFICE dengan kolom cabang kosong).
+  const manajerArea = me.peran === "atasan" && !me.cabang && !!me.area;
   const rows = await q<any>(
     `WITH skor AS (
        SELECT k.nik, SUM(k.skor_terbobot) AS skor
@@ -123,13 +126,13 @@ export async function timSaya(atasanNik: string, periode: string) {
 /** Daftar cabang yang punya data pada satu periode, + ringkasannya. */
 export async function cabangPeriode(periode: string) {
   const rows = await q<any>(
-    `SELECT COALESCE(cabang,'(Tanpa cabang)') AS cabang,
+    `SELECT COALESCE(UPPER(TRIM(cabang)),'(TANPA CABANG)') AS cabang,
             COUNT(DISTINCT nik)::int AS karyawan,
             ROUND(AVG(skor_bykaryawan),2) AS skor_rata
        FROM (
-         SELECT cabang, nik, SUM(skor_terbobot) AS skor_bykaryawan
+         SELECT UPPER(TRIM(cabang)) AS cabang, nik, SUM(skor_terbobot) AS skor_bykaryawan
            FROM v_kpi_aktif WHERE periode = $1
-          GROUP BY cabang, nik
+          GROUP BY UPPER(TRIM(cabang)), nik
        ) t
       GROUP BY cabang
       ORDER BY skor_rata ASC NULLS LAST`, [periode]);
@@ -144,18 +147,18 @@ export async function karyawanCabang(periode: string, cabang: string) {
   const rows = await q<any>(
     `WITH skor AS (
        SELECT nik, SUM(skor_terbobot) AS skor FROM v_kpi_aktif
-        WHERE periode = $1 AND COALESCE(cabang,'(Tanpa cabang)') = $2 GROUP BY nik),
+        WHERE periode = $1 AND COALESCE(UPPER(TRIM(cabang)),'(TANPA CABANG)') = $2 GROUP BY nik),
      ins AS (
        SELECT nik, SUM(nominal) AS insentif FROM v_insentif_aktif
         WHERE periode = $1 GROUP BY nik),
      lemah AS (
        SELECT DISTINCT ON (nik) nik, indikator FROM v_kpi_aktif
-        WHERE periode = $1 AND COALESCE(cabang,'(Tanpa cabang)') = $2
+        WHERE periode = $1 AND COALESCE(UPPER(TRIM(cabang)),'(TANPA CABANG)') = $2
         ORDER BY nik, skor_kpi ASC NULLS LAST)
      SELECT k.nik, u.nama, u.jabatan,
             COALESCE(s.skor,0) AS skor, COALESCE(i.insentif,0) AS insentif, l.indikator AS terlemah
        FROM (SELECT DISTINCT nik FROM v_kpi_aktif
-              WHERE periode=$1 AND COALESCE(cabang,'(Tanpa cabang)')=$2) k
+              WHERE periode=$1 AND COALESCE(UPPER(TRIM(cabang)),'(TANPA CABANG)')=$2) k
        LEFT JOIN app_user u ON u.nik = k.nik
        LEFT JOIN skor s ON s.nik = k.nik
        LEFT JOIN ins  i ON i.nik = k.nik

@@ -21,15 +21,23 @@ export const POST = handler(async (req) => {
 
   const hasil = await parseWorkbook(blobUrl, tipe, sheetName);
 
-  // Berkas yang sama persis tidak boleh masuk dua kali
-  const kembar = await q<{ id: string; diunggah_pada: string; nama_file: string }>(
-    `SELECT b.id, b.diunggah_pada, b.nama_file FROM import_batch b
-      WHERE b.file_sha256 = $1 AND b.status <> 'failed' LIMIT 1`, [hasil.sha256]);
-  if (kembar[0]) {
+  // Berkas identik hanya diblokir kalau sudah pernah DITERBITKAN.
+  // Draf/validated lama dengan hash sama (mis. sisa unggahan yang gagal
+  // di tengah jalan) dihapus otomatis supaya admin bisa mengulang.
+  const kembar = await q<{ id: string; status: string; diunggah_pada: string; nama_file: string }>(
+    `SELECT b.id, b.status, b.diunggah_pada, b.nama_file FROM import_batch b
+      WHERE b.file_sha256 = $1 AND b.status <> 'failed'`, [hasil.sha256]);
+
+  const sudahTerbit = kembar.find((k) => k.status === "published" || k.status === "superseded");
+  if (sudahTerbit) {
     throw new HttpError(409,
-      `Berkas ini sudah pernah diunggah sebagai "${kembar[0].nama_file}" pada ` +
-      `${new Date(kembar[0].diunggah_pada).toLocaleString("id-ID")}. ` +
+      `Berkas ini sudah pernah diterbitkan sebagai "${sudahTerbit.nama_file}" pada ` +
+      `${new Date(sudahTerbit.diunggah_pada).toLocaleString("id-ID")}. ` +
       `Kalau ini revisi, simpan ulang dengan perubahan Anda lalu unggah lagi.`);
+  }
+  for (const k of kembar) {
+    // hapus draf lama beserta staging & baris turunannya (CASCADE)
+    await q(`DELETE FROM import_batch WHERE id = $1`, [k.id]);
   }
 
   const maks = Number(process.env.IMPORT_MAX_ROWS ?? 30000);
