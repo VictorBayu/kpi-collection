@@ -1,37 +1,17 @@
 import Link from "next/link";
 import { readSession } from "@/lib/auth";
-import { q } from "@/lib/db";
 import LogoutButton from "./LogoutButton";
 import AccessBeacon from "./AccessBeacon";
+import NavBadge from "./NavBadge";
 
 /**
- * Jumlah tiket yang punya aktivitas baru bagi pemiliknya:
- * - karyawan/atasan: balasan admin atau perubahan status yang belum ia buka
- * - admin: tiket baru masuk atau balasan karyawan yang belum ia buka
- * Kalau kolom penanda belum ada (schema belum dijalankan), diamkan saja
- * supaya seluruh halaman tetap berfungsi.
+ * Bilah atas yang sama di semua halaman, menu menyesuaikan peran.
+ * Sengaja TIDAK melakukan kueri database di sini: jumlah notifikasi
+ * diambil setelah halaman tampil (NavBadge), supaya perpindahan menu
+ * tidak menunggu perjalanan bolak-balik ke database.
  */
-async function hitungBelumDibaca(userId: string, admin: boolean): Promise<number> {
-  try {
-    const [r] = await q<{ n: number }>(
-      admin
-        ? `SELECT COUNT(*)::int AS n FROM request
-            WHERE status NOT IN ('selesai','ditolak')
-              AND updated_at > COALESCE(dilihat_admin_at, 'epoch')`
-        : `SELECT COUNT(*)::int AS n FROM request
-            WHERE user_id = $1
-              AND updated_at > COALESCE(dilihat_user_at, 'epoch')`,
-      admin ? [] : [userId]);
-    return r?.n ?? 0;
-  } catch {
-    return 0;
-  }
-}
-
-/** Bilah atas yang sama di semua halaman, menu menyesuaikan peran. */
 export default async function AppShell({ children }: { children: React.ReactNode }) {
   const s = await readSession();
-  const belum = s ? await hitungBelumDibaca(s.sub, s.peran === "admin") : 0;
 
   const menu =
     s?.peran === "admin"
@@ -58,11 +38,9 @@ export default async function AppShell({ children }: { children: React.ReactNode
 
           <nav className="mainnav">
             {menu.map(([href, label]) => (
-              <Link key={href} href={href}>
+              <Link key={href} href={href} prefetch>
                 {label}
-                {href === menuRequest && belum > 0 && (
-                  <span className="navbadge" title={`${belum} pembaruan belum dibaca`}>{belum > 9 ? "9+" : belum}</span>
-                )}
+                {href === menuRequest && <NavBadge />}
               </Link>
             ))}
           </nav>

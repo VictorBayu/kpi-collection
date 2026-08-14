@@ -101,6 +101,15 @@ export default async function Tim({
                   <td><b>{a.nama}</b><div className="faint num">{a.nik} · {a.jabatan ?? "—"}</div></td>
                   <td className={a.terlemah ? "" : "faint"}>
                     {!detail ? (a.terlemah ?? "—") : (
+                      <details className="indbox">
+                        <summary>
+                          <span className="sum-lbl">
+                            Lihat {(petaInd.get(a.nik) ?? []).length} indikator
+                          </span>
+                          {a.terlemah && (
+                            <span className="faint sum-weak">terlemah: {a.terlemah}</span>
+                          )}
+                        </summary>
                       <div className="indlist">
                         {(petaInd.get(a.nik) ?? []).map((d: any, i: number) => {
                           const satuanTampil = tebakSatuan(d.indikator, d.pencapaian);
@@ -133,6 +142,7 @@ export default async function Tim({
                           <span className="faint">Tidak ada indikator.</span>
                         )}
                       </div>
+                      </details>
                     )}
                   </td>
                   <td>

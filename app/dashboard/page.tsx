@@ -46,7 +46,6 @@ export default async function Dashboard({
       <div className="ribbon">
         <div className="ribbon-in">
           <span className="pill">● Terbit {waktu(aktif.diterbitkan_pada)}</span>
-          <span className="faint">Sumber: {aktif.nama_file}</span>
           <span className="spacer" />
           <form>
             <label className="faint" htmlFor="periode">Periode</label>{" "}
