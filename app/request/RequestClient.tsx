@@ -1,12 +1,13 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useRef } from "react";
 
 type Tiket = {
   id: string; nomor: string; kategori: string; periode: string | null;
   judul: string; status: string; prioritas: string; hasil: string | null;
   created_at: string; updated_at: string;
   pemohon: string; pemohon_nik: string; petugas: string | null; pesan: number;
+  belum_dibaca?: boolean;
 };
 type Pesan = { peran: "karyawan" | "admin"; pesan: string; created_at: string; nama: string };
 
@@ -45,10 +46,35 @@ export default function RequestClient({
 
   useEffect(() => { muat(); }, [muat]);
 
+  const muatDetail = useCallback(async (id: string) => {
+    try {
+      const d = await fetch(`/api/request/${id}`).then((r) => r.json());
+      setDetail((lama: any) => {
+        // Jangan render ulang kalau tidak ada yang berubah (hemat & anti kedip)
+        if (lama && JSON.stringify(lama) === JSON.stringify(d)) return lama;
+        return d;
+      });
+    } catch {}
+  }, []);
+
+  // Buka tiket -> muat percakapan, lalu perbarui otomatis tiap 5 detik
+  // selama tiket terbuka dan tab aktif — terasa seperti chat.
   useEffect(() => {
     if (!pilih) { setDetail(null); return; }
-    fetch(`/api/request/${pilih}`).then((r) => r.json()).then(setDetail);
-  }, [pilih]);
+    muatDetail(pilih);
+    const t = setInterval(() => {
+      if (document.visibilityState === "visible") muatDetail(pilih);
+    }, 5000);
+    return () => clearInterval(t);
+  }, [pilih, muatDetail]);
+
+  // Daftar tiket ikut segar tiap 15 detik (status & penanda belum dibaca)
+  useEffect(() => {
+    const t = setInterval(() => {
+      if (document.visibilityState === "visible") muat();
+    }, 15000);
+    return () => clearInterval(t);
+  }, [muat]);
 
   async function kirim(url: string, body: unknown, metode = "POST") {
     setGalat(null);
@@ -61,7 +87,7 @@ export default function RequestClient({
       const d = await res.json();
       if (!res.ok) throw new Error(d.error);
       await muat();
-      if (pilih) setDetail(await fetch(`/api/request/${pilih}`).then((r) => r.json()));
+      if (pilih) await muatDetail(pilih);
       return d;
     } catch (e: any) {
       setGalat(e.message);
@@ -69,6 +95,21 @@ export default function RequestClient({
     } finally {
       setSibuk(false);
     }
+  }
+
+
+  /** Kirim balasan dengan tampilan seketika (optimistik), lalu sinkron ke server. */
+  async function kirimPesan(id: string, teks: string) {
+    const bersih = teks.trim();
+    if (!bersih) return;
+    setDetail((d: any) => d ? {
+      ...d,
+      pesan: [...d.pesan, {
+        peran: admin ? "admin" : "karyawan", pesan: bersih,
+        created_at: new Date().toISOString(), nama: "Anda",
+      }],
+    } : d);
+    await kirim(`/api/request/${id}`, { pesan: bersih });
   }
 
   return (
@@ -113,10 +154,19 @@ export default function RequestClient({
       <div className="split">
         <div className="tickets">
           {list.map((t) => (
-            <button key={t.id} className="ticket" aria-selected={pilih === t.id}
-                    onClick={() => setPilih(t.id)}>
+            <button key={t.id}
+                    className={"ticket" + (t.belum_dibaca ? " unread" : "")}
+                    aria-selected={pilih === t.id}
+                    onClick={() => {
+                      setPilih(t.id);
+                      // tandai terbaca secara lokal seketika (server ikut menandai saat detail dibuka)
+                      setList((ls) => ls.map((x) => x.id === t.id ? { ...x, belum_dibaca: false } : x));
+                    }}>
               <div className="rowbetween">
-                <span className="id">{t.nomor}</span>
+                <span className="id">
+                  {t.belum_dibaca && <span className="dot" aria-label="ada pembaruan" />}
+                  {t.nomor}
+                </span>
                 <span className={`chip ${KELAS[t.status]}`}>{LABEL[t.status]}</span>
               </div>
               <b className="judul">{t.judul}</b>
@@ -138,7 +188,7 @@ export default function RequestClient({
         <div className="card card-pad">
           {!detail
             ? <p className="empty">Pilih satu tiket di sebelah kiri untuk melihat percakapannya.</p>
-            : <Detail d={detail} admin={admin} sibuk={sibuk} kirim={kirim} />}
+            : <Detail d={detail} admin={admin} sibuk={sibuk} kirim={kirim} kirimPesan={kirimPesan} />}
         </div>
       </div>
     </>
@@ -147,8 +197,13 @@ export default function RequestClient({
 
 /* ------------------------------------------------------------- detail */
 
-function Detail({ d, admin, sibuk, kirim }: any) {
+function Detail({ d, admin, sibuk, kirim, kirimPesan }: any) {
   const t = d.tiket;
+  const threadRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    // Selalu gulir ke pesan terbaru saat percakapan bertambah
+    threadRef.current?.scrollTo({ top: threadRef.current.scrollHeight, behavior: "smooth" });
+  }, [d.pesan.length]);
   const tertutup = ["selesai", "ditolak"].includes(t.status);
   const [balasan, setBalasan] = useState("");
   const [hasil, setHasil] = useState(t.hasil ?? "");
@@ -169,6 +224,13 @@ function Detail({ d, admin, sibuk, kirim }: any) {
         <span className={`chip ${KELAS[t.status]}`}>{LABEL[t.status]}</span>
       </div>
 
+      {t.status === "selesai" && !admin && (
+        <div className="banner ok">
+          <b>Request Anda sudah selesai ditindaklanjuti</b>
+          Baca hasilnya di bawah. Kalau angka masih belum sesuai, ajukan tiket baru.
+        </div>
+      )}
+
       {t.hasil && (
         <div className="resultbox">
           <b>Hasil tindak lanjut</b>
@@ -177,7 +239,7 @@ function Detail({ d, admin, sibuk, kirim }: any) {
       )}
 
       <span className="eyebrow">Percakapan</span>
-      <div className="thread">
+      <div className="thread" ref={threadRef}>
         {d.pesan.map((m: Pesan, i: number) => {
           const saya = admin ? m.peran === "admin" : m.peran === "karyawan";
           return (
@@ -203,11 +265,11 @@ function Detail({ d, admin, sibuk, kirim }: any) {
                    onChange={(e) => setBalasan(e.target.value)}
                    onKeyDown={(e) => {
                      if (e.key === "Enter" && balasan.trim()) {
-                       kirim(`/api/request/${t.id}`, { pesan: balasan }); setBalasan("");
+                       kirimPesan(t.id, balasan); setBalasan("");
                      }
                    }} />
             <button className="btn" disabled={sibuk || !balasan.trim()}
-                    onClick={() => { kirim(`/api/request/${t.id}`, { pesan: balasan }); setBalasan(""); }}>
+                    onClick={() => { kirimPesan(t.id, balasan); setBalasan(""); }}>
               Kirim
             </button>
           </div>

@@ -218,3 +218,19 @@ Perubahan lain (otomatis setelah deploy):
   kini dinilai terbalik dengan benar.
 * Halaman **Tim saya** punya pilihan tampilan: "Indikator terlemah" (ringkas)
   atau "Detail semua indikator".
+
+---
+
+## Pembaruan: penalty insentif + notifikasi & chat request
+
+Schema baru (jalankan SEKALI di Neon): `db/schema-request-notif.sql`
+— kolom penanda "sudah dibaca" untuk notifikasi request.
+
+Perubahan otomatis setelah deploy:
+* Nominal insentif NEGATIF kini diterima sebagai Penalty (positif = Extra),
+  keduanya diberi label di dashboard. Penalty > Rp 50 juta ditandai untuk dicek.
+* Badge merah di menu Request/Kelola request menunjukkan jumlah tiket dengan
+  aktivitas baru yang belum dibaca. Tiket belum dibaca disorot di daftar.
+* Pemohon melihat banner hijau saat tiketnya selesai ditindaklanjuti.
+* Percakapan tiket memperbarui diri tiap 5 detik (daftar tiap 15 detik),
+  pesan terkirim tampil seketika, dan otomatis menggulir ke pesan terbaru.

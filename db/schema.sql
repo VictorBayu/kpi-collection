@@ -144,7 +144,9 @@ CREATE TABLE IF NOT EXISTS request (
   hasil       TEXT,
   petugas_id  UUID REFERENCES app_user(id),
   created_at  TIMESTAMPTZ NOT NULL DEFAULT now(),
-  updated_at  TIMESTAMPTZ NOT NULL DEFAULT now()
+  updated_at  TIMESTAMPTZ NOT NULL DEFAULT now(),
+  dilihat_user_at  TIMESTAMPTZ,
+  dilihat_admin_at TIMESTAMPTZ
 );
 CREATE INDEX IF NOT EXISTS idx_request_user   ON request (user_id, created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_request_status ON request (status, created_at DESC);

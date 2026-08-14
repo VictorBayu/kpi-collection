@@ -159,12 +159,15 @@ export function validasiBaris(
       tandai(null, "Urutan target tidak menaik (KPI 3 < 4 < 5). Periksa kembali angkanya.");
     }
   } else {
-    if (typeof rec.nominal === "number" && rec.nominal < 0) {
-      tolak(ctx.mapping.nominal ?? null, "Nominal insentif negatif tidak diterima.", rec.nominal);
-    }
+    // Nominal negatif adalah PENALTY yang sah (positif = extra/insentif).
+    // Yang perlu diwaspadai hanya nilai ekstrem di kedua arah.
     if (typeof rec.nominal === "number" && rec.nominal > 50_000_000) {
       tandai(ctx.mapping.nominal ?? null,
         "Nominal di atas Rp 50 juta. Butuh persetujuan manager sebelum terbit.", rec.nominal);
+    }
+    if (typeof rec.nominal === "number" && rec.nominal < -50_000_000) {
+      tandai(ctx.mapping.nominal ?? null,
+        "Penalty di atas Rp 50 juta. Pastikan angkanya benar.", rec.nominal);
     }
   }
 

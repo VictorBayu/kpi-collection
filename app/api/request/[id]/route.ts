@@ -33,6 +33,12 @@ export const GET = handler(async (req) => {
        FROM request_message m JOIN app_user u ON u.id = m.user_id
       WHERE m.request_id = $1 ORDER BY m.created_at`, [id]);
 
+  // Membuka tiket = membacanya. Simpan penanda sesuai peran pembuka.
+  await q(
+    s.peran === "admin"
+      ? `UPDATE request SET dilihat_admin_at = now() WHERE id = $1`
+      : `UPDATE request SET dilihat_user_at = now() WHERE id = $1`, [id]);
+
   return Response.json({ tiket, pesan });
 });
 
@@ -54,10 +60,14 @@ export const POST = handler(async (req) => {
   await q(`INSERT INTO request_message (request_id, user_id, peran, pesan)
            VALUES ($1,$2,$3,$4)`, [id, s.sub, admin ? "admin" : "karyawan", pesan.trim()]);
 
-  // Balasan pertama admin otomatis memindahkan tiket ke Diproses
+  // Balasan pertama admin otomatis memindahkan tiket ke Diproses.
+  // Pengirim otomatis dianggap sudah membaca (agar tiketnya sendiri
+  // tidak tampil sebagai "belum dibaca" untuk dirinya).
   await q(
     `UPDATE request
         SET updated_at = now(),
+            dilihat_admin_at = CASE WHEN $2 THEN now() ELSE dilihat_admin_at END,
+            dilihat_user_at  = CASE WHEN $2 THEN dilihat_user_at ELSE now() END,
             status = CASE WHEN $2 AND status = 'baru' THEN 'diproses' ELSE status END,
             petugas_id = CASE WHEN $2 THEN $3 ELSE petugas_id END
       WHERE id = $1`, [id, admin, s.sub]);
@@ -90,7 +100,7 @@ export const PATCH = handler(async (req) => {
 
   await q(
     `UPDATE request SET status=$2, hasil=COALESCE(NULLIF($3,''), hasil),
-            petugas_id=$4, updated_at=now() WHERE id=$1`,
+            petugas_id=$4, updated_at=now(), dilihat_admin_at=now() WHERE id=$1`,
     [id, status, hasil ?? "", s.sub]);
 
   await q(`INSERT INTO request_message (request_id, user_id, peran, pesan)

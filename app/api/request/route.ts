@@ -19,7 +19,11 @@ export const GET = handler(async (req) => {
     `SELECT r.id, r.nomor, r.kategori, r.periode, r.judul, r.status, r.prioritas,
             r.hasil, r.created_at, r.updated_at,
             u.nama AS pemohon, u.nik AS pemohon_nik, p.nama AS petugas,
-            (SELECT COUNT(*) FROM request_message m WHERE m.request_id = r.id)::int AS pesan
+            (SELECT COUNT(*) FROM request_message m WHERE m.request_id = r.id)::int AS pesan,
+            CASE WHEN $1::boolean
+                 THEN r.updated_at > COALESCE(r.dilihat_admin_at, 'epoch')
+                 ELSE r.updated_at > COALESCE(r.dilihat_user_at,  'epoch')
+            END AS belum_dibaca
        FROM request r
        JOIN app_user u ON u.id = r.user_id
        LEFT JOIN app_user p ON p.id = r.petugas_id

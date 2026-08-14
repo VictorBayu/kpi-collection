@@ -194,11 +194,18 @@ export default async function Dashboard({
             <tbody>
               {ins.map((r) => (
                 <tr key={r.kategori}>
-                  <td><b>{r.kategori}</b></td>
+                  <td>
+                    <b>{r.kategori}</b>{" "}
+                    {r.nominal < 0
+                      ? <span className="chip c-tolak">Penalty</span>
+                      : r.nominal > 0
+                        ? <span className="chip c-selesai">Extra</span>
+                        : null}
+                  </td>
                   <td className="r num faint">{r.saldo_awal ? rpSingkat(r.saldo_awal) : "—"}</td>
                   <td className="r num">{r.saldo_awal ? rpSingkat(r.pencapaian) : angka(r.pencapaian, 0)}</td>
                   <td className="r num">{r.rasio !== null ? Math.round(r.rasio * 100) + "%" : "—"}</td>
-                  <td className="r num"><b>{rp(r.nominal)}</b></td>
+                  <td className={"r num" + (r.nominal < 0 ? " neg" : "")}><b>{rp(r.nominal)}</b></td>
                 </tr>
               ))}
               {!ins.length && (
