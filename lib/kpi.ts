@@ -1,3 +1,4 @@
+import { unstable_cache } from "next/cache";
 import { q } from "./db";
 
 export type Indikator = {
@@ -10,14 +11,25 @@ export type Indikator = {
 
 const num = (v: any) => (v === null || v === undefined ? null : Number(v));
 
-/** Periode yang sudah diterbitkan, terbaru dulu. */
-export async function periodeTersedia() {
-  return q<{ periode: string; diterbitkan_pada: string; nama_file: string; total: number }>(
-    `SELECT b.periode, b.diterbitkan_pada, b.nama_file, b.baris_valid AS total
-       FROM import_batch b
-      WHERE b.tipe = 'kpi' AND b.status = 'published'
-      ORDER BY b.periode DESC LIMIT 12`);
-}
+/**
+ * Periode yang sudah diterbitkan, terbaru dulu.
+ *
+ * Dipanggil hampir di setiap halaman hanya untuk mengisi pemilih periode,
+ * padahal isinya berubah sebulan sekali saat batch baru terbit. Tanpa cache,
+ * setiap kunjungan menambah satu perjalanan bolak-balik ke Neon sebelum
+ * halaman bisa dirender. Cache disegarkan lewat tag "batch-kpi" pada saat
+ * publish/rollback, jadi data tidak pernah basi.
+ */
+export const periodeTersedia = unstable_cache(
+  async () =>
+    q<{ periode: string; diterbitkan_pada: string; nama_file: string; total: number }>(
+      `SELECT b.periode, b.diterbitkan_pada, b.nama_file, b.baris_valid AS total
+         FROM import_batch b
+        WHERE b.tipe = 'kpi' AND b.status = 'published'
+        ORDER BY b.periode DESC LIMIT 12`),
+  ["periode-tersedia"],
+  { revalidate: 3600, tags: ["batch-kpi"] },
+);
 
 export async function indikatorKaryawan(nik: string, periode: string): Promise<Indikator[]> {
   const rows = await q<any>(
@@ -83,38 +95,74 @@ export async function trenKpi(nik: string) {
 
 /** Untuk atasan: anggota tim di cabang atau area yang sama. */
 export async function timSaya(atasanNik: string, periode: string) {
-  const [me] = await q<{ cabang: string; area: string; peran: string }>(
-    `SELECT cabang, area, peran FROM app_user WHERE nik = $1`, [atasanNik]);
-  if (!me) return { lingkup: "—", anggota: [] as any[] };
-
-  // Utamakan cabang: SPV/BM melihat cabangnya sendiri.
-  // Area hanya dipakai bila atasan tidak terikat satu cabang
-  // (mis. manajer area di HEAD OFFICE dengan kolom cabang kosong).
-  const manajerArea = me.peran === "atasan" && !me.cabang && !!me.area;
+  /**
+   * Satu kueri, bukan dua.
+   *
+   * Sebelumnya: kueri pertama mengambil cabang/area atasan, kueri kedua
+   * baru mengambil anggota — dua perjalanan bolak-balik berurutan ke Neon.
+   * Lebih berat lagi, ketiga CTE mengagregasi v_kpi_aktif/v_insentif_aktif
+   * untuk SELURUH karyawan pada periode itu, padahal yang dipakai hanya
+   * satu cabang; penyaringan cabang baru terjadi di akhir.
+   *
+   * Sekarang CTE `tim` menentukan anggota lebih dulu, dan agregasi skor,
+   * insentif, serta indikator terlemah hanya berjalan untuk NIK anggota itu.
+   * Logika lingkup (cabang vs area) dipindah ke SQL agar hasilnya identik:
+   * area hanya dipakai bila atasan tidak terikat satu cabang.
+   */
   const rows = await q<any>(
-    `WITH skor AS (
+    `WITH me AS (
+       SELECT cabang, area, peran,
+              (peran = 'atasan' AND cabang IS NULL AND area IS NOT NULL) AS manajer_area
+         FROM app_user WHERE nik = $1),
+     tim AS (
+       SELECT u.nik, u.nama, u.jabatan, u.cabang
+         FROM app_user u CROSS JOIN me
+        WHERE u.aktif AND u.nik <> $1
+          AND CASE WHEN me.manajer_area THEN u.area = me.area
+                   ELSE u.cabang = me.cabang END),
+     skor AS (
        SELECT k.nik, SUM(k.skor_terbobot) AS skor
-         FROM v_kpi_aktif k WHERE k.periode = $2 GROUP BY k.nik),
+         FROM v_kpi_aktif k JOIN tim t ON t.nik = k.nik
+        WHERE k.periode = $2 GROUP BY k.nik),
      ins AS (
-       SELECT nik, SUM(nominal) AS insentif FROM v_insentif_aktif WHERE periode = $2 GROUP BY nik),
+       SELECT v.nik, SUM(v.nominal) AS insentif
+         FROM v_insentif_aktif v JOIN tim t ON t.nik = v.nik
+        WHERE v.periode = $2 GROUP BY v.nik),
      lemah AS (
-       SELECT DISTINCT ON (nik) nik, indikator
-         FROM v_kpi_aktif WHERE periode = $2 ORDER BY nik, skor_kpi ASC NULLS LAST)
-     SELECT u.nik, u.nama, u.jabatan, u.cabang,
-            COALESCE(s.skor,0) AS skor, COALESCE(i.insentif,0) AS insentif, l.indikator AS terlemah
-       FROM app_user u
-       LEFT JOIN skor s ON s.nik = u.nik
-       LEFT JOIN ins  i ON i.nik = u.nik
-       LEFT JOIN lemah l ON l.nik = u.nik
-      WHERE u.aktif AND u.nik <> $1
-        AND ${manajerArea ? "u.area = $3" : "u.cabang = $3"}
+       SELECT DISTINCT ON (k.nik) k.nik, k.indikator
+         FROM v_kpi_aktif k JOIN tim t ON t.nik = k.nik
+        WHERE k.periode = $2 ORDER BY k.nik, k.skor_kpi ASC NULLS LAST)
+     SELECT t.nik, t.nama, t.jabatan, t.cabang,
+            COALESCE(s.skor,0) AS skor, COALESCE(i.insentif,0) AS insentif,
+            l.indikator AS terlemah,
+            me.manajer_area, me.area AS me_area, me.cabang AS me_cabang
+       FROM tim t CROSS JOIN me
+       LEFT JOIN skor s ON s.nik = t.nik
+       LEFT JOIN ins  i ON i.nik = t.nik
+       LEFT JOIN lemah l ON l.nik = t.nik
       ORDER BY COALESCE(s.skor,0) ASC`,
-    [atasanNik, periode, manajerArea ? me.area : me.cabang]);
+    [atasanNik, periode]);
 
+  // Tidak ada baris bisa berarti atasan tidak ditemukan ATAU timnya kosong.
+  // Keduanya ditampilkan sebagai daftar kosong, sama seperti perilaku lama.
+  if (!rows.length) {
+    const [me] = await q<{ cabang: string; area: string; peran: string }>(
+      `SELECT cabang, area, peran FROM app_user WHERE nik = $1`, [atasanNik]);
+    if (!me) return { lingkup: "—", anggota: [] as any[] };
+    const manajerArea = me.peran === "atasan" && !me.cabang && !!me.area;
+    return {
+      lingkup: manajerArea ? `Area ${me.area}` : `Cabang ${me.cabang}`,
+      anggota: [] as any[],
+    };
+  }
+
+  const k = rows[0];
   return {
-    lingkup: manajerArea ? `Area ${me.area}` : `Cabang ${me.cabang}`,
+    lingkup: k.manajer_area ? `Area ${k.me_area}` : `Cabang ${k.me_cabang}`,
     anggota: rows.map((r) => ({
-      ...r, skor: Number(r.skor), insentif: Number(r.insentif),
+      nik: r.nik, nama: r.nama, jabatan: r.jabatan, cabang: r.cabang,
+      terlemah: r.terlemah,
+      skor: Number(r.skor), insentif: Number(r.insentif),
     })),
   };
 }

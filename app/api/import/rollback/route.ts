@@ -20,6 +20,7 @@ export const POST = handler(async (req) => {
   await auditLog(s.sub, "rollback_batch", batchId, { periode: batch.periode, alasan: alasan ?? null });
 
   revalidateTag("login-info");
+  revalidateTag("batch-kpi");
 
   return Response.json({ ok: true, barisAktif: Number(batch.baris_valid) });
 });

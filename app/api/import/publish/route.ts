@@ -45,6 +45,7 @@ export const POST = handler(async (req) => {
   // Statistik di halaman login di-cache; segarkan agar periode terbit
   // langsung ikut berubah, tidak menunggu masa cache habis.
   revalidateTag("login-info");
+  revalidateTag("batch-kpi");
 
   return Response.json({
     ok: true,
