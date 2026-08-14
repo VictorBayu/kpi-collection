@@ -171,3 +171,16 @@ Paket gratis cukup untuk ratusan karyawan. Pertimbangkan **Vercel Pro** hanya ka
 berkas rutin di atas 5.000 baris (butuh durasi eksekusi 60 detik, bukan 10),
 atau Anda ingin domain perusahaan sendiri seperti `kpi.perusahaan.co.id`.
 Domain diatur di **Settings → Domains** pada proyek.
+
+---
+
+## Riwayat perbaikan build
+
+**Gagal build "KATEGORI is not a valid Route export field".**
+Next.js melarang route handler meng-export apa pun selain fungsi HTTP.
+Konstanta `KATEGORI` sudah dipindahkan ke `lib/request.ts`. Sudah diperbaiki.
+
+**Peringatan bcryptjs di Edge Runtime.**
+Middleware sempat menyeret bcrypt lewat impor `COOKIE` dari `lib/auth.ts`.
+Konstanta itu dipindah ke `lib/session-const.ts` yang ringan, sehingga middleware
+hanya memakai `jose` (aman di Edge). Sudah diperbaiki.

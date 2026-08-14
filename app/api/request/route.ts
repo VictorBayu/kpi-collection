@@ -1,12 +1,9 @@
 import { readSession, handler, HttpError } from "@/lib/auth";
 import { q, auditLog } from "@/lib/db";
+import { KATEGORI } from "@/lib/request";
 
 export const runtime = "nodejs";
 
-export const KATEGORI = [
-  "Koreksi data KPI", "Koreksi data insentif", "Data tidak muncul",
-  "Perubahan target", "Akses aplikasi", "Lainnya",
-];
 
 /** Daftar tiket. Karyawan melihat miliknya, admin melihat semua. */
 export const GET = handler(async (req) => {

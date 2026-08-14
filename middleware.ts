@@ -1,6 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { jwtVerify } from "jose";
-import { COOKIE } from "./lib/auth";
+import { COOKIE } from "./lib/session-const";
 
 const secret = () => new TextEncoder().encode(process.env.JWT_SECRET!);
 

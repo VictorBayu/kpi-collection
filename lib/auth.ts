@@ -3,7 +3,7 @@ import { cookies } from "next/headers";
 import bcrypt from "bcryptjs";
 import { q } from "./db";
 
-export const COOKIE = "kpi_session";
+export { COOKIE } from "./session-const";
 const secret = () => new TextEncoder().encode(process.env.JWT_SECRET!);
 
 export type Session = {
