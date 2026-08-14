@@ -2,7 +2,7 @@ import { redirect } from "next/navigation";
 import AppShell from "@/components/AppShell";
 import { readSession } from "@/lib/auth";
 import { periodeTersedia, timSaya } from "@/lib/kpi";
-import { rp, angka, namaPeriode } from "@/lib/format";
+import { rp, angka, namaPeriode, toISODate } from "@/lib/format";
 
 export const metadata = { title: "Tim saya" };
 
@@ -17,8 +17,8 @@ export default async function Tim({
   if (!daftar.length) redirect("/dashboard");
 
   const { periode: pilih } = await searchParams;
-  const aktif = daftar.find((p) => String(p.periode).slice(0, 10) === pilih) ?? daftar[0];
-  const periode = String(aktif.periode).slice(0, 10);
+  const aktif = daftar.find((p) => toISODate(p.periode) === pilih) ?? daftar[0];
+  const periode = toISODate(aktif.periode);
 
   const { lingkup, anggota } = await timSaya(s.nik, periode);
   const rata = anggota.length

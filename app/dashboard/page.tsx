@@ -7,7 +7,7 @@ import {
   periodeTersedia, indikatorKaryawan, insentifKaryawan, ringkasan, trenKpi,
 } from "@/lib/kpi";
 import {
-  rp, rpSingkat, angka, nilai, namaPeriode, waktu, tebakSatuan,
+  rp, rpSingkat, angka, nilai, namaPeriode, waktu, tebakSatuan, toISODate,
 } from "@/lib/format";
 
 export const metadata = { title: "Dasbor saya" };
@@ -22,8 +22,8 @@ export default async function Dashboard({
   if (!daftarPeriode.length) return <AppShell><KosongTotal /></AppShell>;
 
   const { periode: pilih } = await searchParams;
-  const aktif = daftarPeriode.find((p) => String(p.periode).slice(0, 10) === pilih) ?? daftarPeriode[0];
-  const periode = String(aktif.periode).slice(0, 10);
+  const aktif = daftarPeriode.find((p) => toISODate(p.periode) === pilih) ?? daftarPeriode[0];
+  const periode = toISODate(aktif.periode);
 
   const [ind, ins, ring, tren] = await Promise.all([
     indikatorKaryawan(s.nik, periode),
@@ -54,7 +54,7 @@ export default async function Dashboard({
                     // form dikirim ulang saat pilihan berubah, tanpa JavaScript tambahan
                     >
               {daftarPeriode.map((p) => (
-                <option key={String(p.periode)} value={String(p.periode).slice(0, 10)}>
+                <option key={String(p.periode)} value={toISODate(p.periode)}>
                   {namaPeriode(p.periode)}
                 </option>
               ))}

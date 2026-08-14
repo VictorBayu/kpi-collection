@@ -1,4 +1,5 @@
 import { requireAdmin, handler, HttpError } from "@/lib/auth";
+import { toISODate } from "@/lib/format";
 import { q } from "@/lib/db";
 import { validasiBaris, type Issue } from "@/lib/import/validate";
 import { FIELDS } from "@/lib/import/fields";
@@ -46,7 +47,7 @@ export const POST = handler(async (req) => {
     mapping,
     nikDikenal: new Set(karyawan.map((k) => k.nik)),
     namaByNik: new Map(karyawan.map((k) => [k.nik, k.nama])),
-    periode: String(batch.periode).slice(0, 10),
+    periode: toISODate(batch.periode),
   };
 
   const staging = await q<{ row_no: number; data: Record<string, any> }>(

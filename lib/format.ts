@@ -41,3 +41,23 @@ export function tebakSatuan(indikator: string, nilai: number | null): "rupiah" |
   if (nilai !== null && Math.abs(nilai) <= 5) return "persen";
   return "rupiah";
 }
+
+/**
+ * Ubah nilai tanggal apa pun (Date dari driver, string ISO, dsb.)
+ * menjadi "YYYY-MM-DD" yang aman untuk dikirim ke kolom Postgres `date`.
+ * Menghindari bug String(Date) -> "Wed Jul 01 2026 ...".
+ */
+export function toISODate(v: unknown): string {
+  if (v instanceof Date) {
+    return `${v.getUTCFullYear()}-${String(v.getUTCMonth() + 1).padStart(2, "0")}-${String(v.getUTCDate()).padStart(2, "0")}`;
+  }
+  const s = String(v ?? "");
+  // sudah berbentuk 2026-07-01... -> ambil 10 karakter pertama
+  if (/^\d{4}-\d{2}-\d{2}/.test(s)) return s.slice(0, 10);
+  // fallback: coba parse
+  const d = new Date(s);
+  if (!isNaN(d.getTime())) {
+    return `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, "0")}-${String(d.getUTCDate()).padStart(2, "0")}`;
+  }
+  return s.slice(0, 10);
+}
