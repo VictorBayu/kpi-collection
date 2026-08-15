@@ -2,6 +2,8 @@
 
 import { useEffect, useState, useCallback } from "react";
 import Pilih from "@/components/Pilih";
+import Penyaring, { type Aturan, type Skema } from "./Penyaring";
+import ImporPengguna from "./ImporPengguna";
 
 type User = {
   id: string; nik: string; nama: string; peran: string;
@@ -30,9 +32,13 @@ export default function PenggunaClient() {
   const [list, setList] = useState<User[]>([]);
   const [stat, setStat] = useState({ total: 0, aktif: 0, suspend: 0, jarang: 0 });
   const [cari, setCari] = useState("");
-  const [peran, setPeran] = useState("");
   const [status, setStatus] = useState("");
   const [urut, setUrut] = useState("akses");
+  const [aturan, setAturan] = useState<Aturan[]>([]);
+  const [gabung, setGabung] = useState<"dan" | "atau">("dan");
+  const [skema, setSkema] = useState<Skema | null>(null);
+  const [cocok, setCocok] = useState(0);
+  const [impor, setImpor] = useState(false);
   const [hal, setHal] = useState(0);
   const [galat, setGalat] = useState<string | null>(null);
   const [kabar, setKabar] = useState<string | null>(null);
@@ -69,12 +75,22 @@ export default function PenggunaClient() {
   }, []);
 
   const muat = useCallback(async () => {
-    const p = new URLSearchParams({ cari, peran, status, urut });
+    // Kartu status di atas tetap bekerja sebagai jalan pintas: nilainya
+    // diterjemahkan menjadi satu aturan filter, jadi hanya ada satu
+    // mekanisme penyaringan di server.
+    const semua: Aturan[] = [...aturan];
+    if (status) semua.push({ kolom: "status", operator: "sama", nilai: status });
+
+    const p = new URLSearchParams({
+      cari, urut, gabung, filter: JSON.stringify(semua),
+    });
     const d = await fetch(`/api/admin/pengguna?${p}`).then((r) => r.json());
     setList(d.list ?? []);
     setStat(d.stat ?? stat);
+    setSkema(d.skema ?? null);
+    setCocok(d.cocok ?? (d.list?.length ?? 0));
     setHal(0);
-  }, [cari, peran, status, urut]);
+  }, [cari, status, urut, aturan, gabung]);
 
   useEffect(() => { muat(); }, [muat]);
 
@@ -183,8 +199,15 @@ export default function PenggunaClient() {
           <h2>Pengguna & Akses</h2>
           <p>Kelola akun login dan pantau seberapa sering tiap akun dipakai.</p>
         </div>
-        <button className="btn" onClick={bukaTambah} disabled={sibuk}>+ Tambah pengguna</button>
+        <div className="rowact">
+          <button className="btn ghost" onClick={() => setImpor(!impor)} disabled={sibuk}>
+            {impor ? "Tutup impor" : "↑ Impor Excel"}
+          </button>
+          <button className="btn nowrap" onClick={bukaTambah} disabled={sibuk}>+ Tambah pengguna</button>
+        </div>
       </div>
+
+      {impor && <ImporPengguna onSelesai={muat} />}
 
       <div className="statgrid">
         <button className={"statcard" + (status === "" ? " on" : "")} onClick={() => setStatus("")}>
@@ -295,34 +318,33 @@ export default function PenggunaClient() {
         <input className="cari" placeholder="Cari NIK atau nama" value={cari}
                onChange={(e) => setCari(e.target.value)} style={{ marginLeft: 0 }} />
         <div className="filter-pilih">
-          <Pilih nilai={peran} onPilih={setPeran} cari={false}
-                 opsi={[
-                   { nilai: "", label: "Semua peran" },
-                   { nilai: "karyawan", label: "Karyawan" },
-                   { nilai: "atasan", label: "Atasan" },
-                   { nilai: "admin", label: "Admin" },
-                 ]} />
-        </div>
-        <div className="filter-pilih">
           <Pilih nilai={urut} onPilih={setUrut} cari={false}
                  opsi={[
                    { nilai: "akses", label: "Urut: akses tersedikit" },
+                   { nilai: "akses_turun", label: "Urut: akses terbanyak" },
                    { nilai: "login", label: "Urut: login tersedikit" },
                    { nilai: "nama",  label: "Urut: nama" },
+                   { nilai: "cabang", label: "Urut: cabang" },
                  ]} />
         </div>
       </div>
 
+      <Penyaring
+        skema={skema} aturan={aturan} gabung={gabung}
+        onUbah={setAturan} onGabung={setGabung}
+        hasil={cocok} total={stat.total}
+      />
+
       <section className="card">
-        <table>
+        <table className="tabel-padat">
           <thead>
             <tr>
               <th>Pengguna</th>
-              <th style={{ width: 150 }}>Jabatan</th>
-              <th style={{ width: 90 }}>Peran</th>
-              <th className="r" style={{ width: 90 }}>Akses 30h</th>
-              <th style={{ width: 110 }}>Status</th>
-              <th className="r" style={{ width: 200 }}>Tindakan</th>
+              <th>Jabatan &amp; penempatan</th>
+              <th style={{ width: 88 }}>Peran</th>
+              <th className="r" style={{ width: 96 }}>Akses 30h</th>
+              <th style={{ width: 88 }}>Status</th>
+              <th className="r" style={{ width: 44 }}></th>
             </tr>
           </thead>
           <tbody>
@@ -331,44 +353,46 @@ export default function PenggunaClient() {
               const jarang = u.akses_30h < 3 && !suspended;
               return (
                 <tr key={u.id}>
-                  <td><b>{u.nama}</b><div className="faint num">{u.nik} · {u.cabang ?? "—"}</div></td>
-                  <td style={{ fontSize: 12.5 }}>
-                    {u.jabatan ?? <span className="faint">—</span>}
-                    {u.jabatan && !u.level && (
-                      <div className="faint" style={{ fontSize: 11, color: "var(--warn)" }}>
-                        belum ada di master hierarki
-                      </div>
-                    )}
-                    {u.level && <div className="faint" style={{ fontSize: 11 }}>{u.level}</div>}
+                  <td>
+                    <div className="pg-nama">{u.nama}</div>
+                    <div className="pg-sub num">{u.nik}</div>
                   </td>
-                  <td style={{ fontSize: 12.5 }}>{labelPeran(u.peran)}</td>
-                  <td className="r num">
-                    <span className={jarang ? "warnnum" : ""}>{u.akses_30h}</span>
-                    <div className="faint" style={{ fontSize: 11 }}>
-                      login {u.login_count} · {fmt(u.last_access_at)}
+                  <td>
+                    <div className="pg-jab">
+                      {u.jabatan ?? <span className="faint">tanpa jabatan</span>}
+                      {u.jabatan && !u.level && (
+                        <span className="tag-warn" title="Belum terdaftar di Master Hierarki">?</span>
+                      )}
                     </div>
+                    <div className="pg-sub">{u.cabang ?? u.area ?? "—"}</div>
+                  </td>
+                  <td><span className={"pg-peran " + u.peran}>{labelPeran(u.peran)}</span></td>
+                  <td className="r">
+                    <span className={"pg-akses num" + (jarang ? " jarang" : "")}>{u.akses_30h}</span>
+                    <div className="pg-sub">{fmt(u.last_access_at)}</div>
                   </td>
                   <td>
                     {suspended
-                      ? <span className="chip c-tolak" title={u.suspended_reason ?? ""}>Nonaktif</span>
+                      ? <span className="titik bad" title={u.suspended_reason ?? "Nonaktif"}>Nonaktif</span>
                       : jarang
-                        ? <span className="chip c-proses">Jarang</span>
-                        : <span className="chip c-selesai">Aktif</span>}
+                        ? <span className="titik warn">Jarang</span>
+                        : <span className="titik good">Aktif</span>}
                   </td>
                   <td className="r">
-                    <div className="rowact">
-                      <button className="btn ghost sm" disabled={sibuk}
-                              onClick={() => bukaEdit(u)}>Ubah</button>
-                      <button className="btn hati sm" disabled={sibuk}
-                              onClick={() => resetPassword(u)}>Reset PW</button>
-                      {suspended
-                        ? <button className="btn pulih sm" disabled={sibuk}
-                                  onClick={() => aksi(u.id, "aktifkan", u.nama)}>Aktifkan</button>
-                        : <button className="btn hati sm" disabled={sibuk}
-                                  onClick={() => aksi(u.id, "suspend", u.nama)}>Nonaktifkan</button>}
-                      <button className="btn danger sm" disabled={sibuk}
-                              onClick={() => hapus(u)}>Hapus</button>
-                    </div>
+                    {/* Tindakan disembunyikan di balik satu tombol: empat tombol
+                        sejajar membuat tiap baris jadi tinggi, dan yang sering
+                        dipakai sebenarnya cuma satu-dua. */}
+                    <details className="menu">
+                      <summary title="Tindakan">⋯</summary>
+                      <div className="menu-isi">
+                        <button onClick={() => bukaEdit(u)}>Ubah data</button>
+                        <button onClick={() => resetPassword(u)}>Reset password</button>
+                        {suspended
+                          ? <button className="baik" onClick={() => aksi(u.id, "aktifkan", u.nama)}>Aktifkan</button>
+                          : <button className="hati" onClick={() => aksi(u.id, "suspend", u.nama)}>Nonaktifkan</button>}
+                        <button className="bahaya" onClick={() => hapus(u)}>Hapus</button>
+                      </div>
+                    </details>
                   </td>
                 </tr>
               );

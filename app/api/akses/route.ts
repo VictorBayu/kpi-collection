@@ -12,3 +12,18 @@ export const POST = handler(async (req) => {
   await catatAkses(s.sub, path);
   return Response.json({ ok: true });
 });
+
+/**
+ * Denyut ringan untuk memastikan server masih menjawab.
+ *
+ * Dipakai penanda loading saat perpindahan halaman terasa macet: yang
+ * ditanyakan hanya "kamu masih di sana?", jadi sengaja tidak menyentuh
+ * database sama sekali supaya jawabannya cepat dan tidak menambah beban
+ * saat server memang sedang sibuk.
+ */
+export async function HEAD() {
+  return new Response(null, {
+    status: 204,
+    headers: { "Cache-Control": "no-store" },
+  });
+}

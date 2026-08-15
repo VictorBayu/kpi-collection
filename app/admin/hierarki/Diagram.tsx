@@ -10,21 +10,16 @@ export type JabatanDiagram = {
 
 type Props = {
   list: JabatanDiagram[];
+  /** Daftar level dari master; menentukan lapisan dan urutannya. */
+  levelRef: LevelRef[];
   sibuk: boolean;
   /** Menyimpan rantai baru untuk satu jabatan. */
   onSimpanRantai: (jabatan: string, rantai: string[]) => Promise<void> | void;
   onEdit: (jabatan: string) => void;
 };
 
-const URUT_LEVEL = [
-  "manager_1", "manager_2", "manager_3",
-  "spv_level_2", "spv_level_1", "staff", "admin",
-];
-
-const LEVEL_LABEL: Record<string, string> = {
-  manager_1: "Manager 1", manager_2: "Manager 2", manager_3: "Manager 3",
-  spv_level_2: "SPV level 2", spv_level_1: "SPV level 1",
-  staff: "Staff", admin: "Admin",
+export type LevelRef = {
+  kode: string; nama: string; urutan: number; se_area: boolean; aktif: boolean;
 };
 
 /**
@@ -39,7 +34,7 @@ const LEVEL_LABEL: Record<string, string> = {
  * ditelusuri sebagai jalur yang menyala saat jabatannya dipilih. Penyusunan
  * ulang dilakukan dengan menyeret kartu di panel rantai.
  */
-export default function Diagram({ list, sibuk, onSimpanRantai, onEdit }: Props) {
+export default function Diagram({ list, levelRef, sibuk, onSimpanRantai, onEdit }: Props) {
   const [fokus, setFokus] = useState<string | null>(null);
   const [draf, setDraf] = useState<string[] | null>(null);
   const [seret, setSeret] = useState<number | null>(null);
@@ -52,14 +47,16 @@ export default function Diagram({ list, sibuk, onSimpanRantai, onEdit }: Props) 
       arr.push(j);
       peta.set(j.level, arr);
     }
-    return URUT_LEVEL
-      .filter((lv) => peta.has(lv))
-      .map((lv) => ({
-        level: lv,
-        label: LEVEL_LABEL[lv] ?? lv,
-        isi: (peta.get(lv) ?? []).sort((a, b) => a.jabatan.localeCompare(b.jabatan)),
+    // Lapisan mengikuti urutan level dari master, tertinggi di atas.
+    const urut = levelRef.slice().sort((a, b) => b.urutan - a.urutan);
+    return urut
+      .filter((l) => peta.has(l.kode))
+      .map((l) => ({
+        level: l.kode,
+        label: l.nama,
+        isi: (peta.get(l.kode) ?? []).sort((a, b) => a.jabatan.localeCompare(b.jabatan)),
       }));
-  }, [list]);
+  }, [list, levelRef]);
 
   const terpilih = fokus ? list.find((j) => j.jabatan === fokus) ?? null : null;
   const rantaiAktif = draf ?? terpilih?.rantai.map((r) => r.atasan) ?? [];

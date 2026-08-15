@@ -34,7 +34,29 @@ export default async function AdminKpi({
   const periode = toISODate(aktif.periode);
 
   const cabang = await cabangPeriode(periode);
-  const cabangDipilih = sp.cabang || (cabang[0]?.cabang ?? "");
+
+  /**
+   * Kelompokkan per area, cabang berurut abjad di dalam tiap area.
+   * "(TANPA AREA)" sengaja ditaruh paling bawah supaya tidak mengganggu
+   * pembacaan, tapi tetap terlihat agar bisa ditindaklanjuti admin.
+   */
+  const perArea = Array.from(
+    cabang.reduce((peta, c) => {
+      const arr = peta.get(c.area) ?? [];
+      arr.push(c);
+      peta.set(c.area, arr);
+      return peta;
+    }, new Map<string, typeof cabang>()),
+  )
+    .map(([area, isi]) => ({
+      area,
+      cabang: isi.slice().sort((a, b) => a.cabang.localeCompare(b.cabang, "id")),
+    }))
+    .sort((a, b) =>
+      (a.area === "(TANPA AREA)" ? 1 : 0) - (b.area === "(TANPA AREA)" ? 1 : 0) ||
+      a.area.localeCompare(b.area, "id"));
+
+  const cabangDipilih = sp.cabang || (perArea[0]?.cabang[0]?.cabang ?? "");
   const karyawan = cabangDipilih ? await karyawanCabang(periode, cabangDipilih) : [];
 
   return (
@@ -61,21 +83,42 @@ export default async function AdminKpi({
         <div className="split-kpi">
           {/* daftar cabang */}
           <aside className="card cabang-list">
-            <div className="cardhead"><h3 style={{ fontSize: "14px" }}>Cabang ({cabang.length})</h3></div>
+            <div className="cardhead">
+              <h3 style={{ fontSize: "14px" }}>
+                {perArea.length} area · {cabang.length} cabang
+              </h3>
+            </div>
             <div className="cabang-scroll">
-              {cabang.map((c) => (
-                <Link key={c.cabang}
-                      href={`/admin/kpi?periode=${periode}&cabang=${encodeURIComponent(c.cabang)}`}
-                      className={"cabang-item" + (c.cabang === cabangDipilih ? " on" : "")}>
-                  <div>
-                    <b>{c.cabang}</b>
-                    <div className="faint">{c.karyawan} karyawan</div>
+              {/* Dikelompokkan per area, cabang berurut abjad di dalamnya.
+                  Dengan 65 cabang, daftar datar membuat admin harus mengingat
+                  cabang mana milik area mana. */}
+              {perArea.map((a) => {
+                const rataArea = a.cabang.reduce((s, c) => s + (c.skorRata ?? 0), 0)
+                  / Math.max(1, a.cabang.filter((c) => c.skorRata !== null).length);
+                return (
+                  <div className="area-grup" key={a.area}>
+                    <div className="area-judul">
+                      <span>{a.area}</span>
+                      <span className="faint">
+                        {a.cabang.length} cabang · {angka(rataArea)}
+                      </span>
+                    </div>
+                    {a.cabang.map((c) => (
+                      <Link key={c.cabang}
+                            href={`/admin/kpi?periode=${periode}&cabang=${encodeURIComponent(c.cabang)}`}
+                            className={"cabang-item" + (c.cabang === cabangDipilih ? " on" : "")}>
+                        <div>
+                          <b>{c.cabang}</b>
+                          <div className="faint">{c.karyawan} karyawan</div>
+                        </div>
+                        <span className={"skorpill " + (c.skorRata === null ? "" : c.skorRata >= 4 ? "hi" : c.skorRata < 3 ? "lo" : "")}>
+                          {c.skorRata === null ? "—" : angka(c.skorRata)}
+                        </span>
+                      </Link>
+                    ))}
                   </div>
-                  <span className={"skorpill " + (c.skorRata === null ? "" : c.skorRata >= 4 ? "hi" : c.skorRata < 3 ? "lo" : "")}>
-                    {c.skorRata === null ? "—" : angka(c.skorRata)}
-                  </span>
-                </Link>
-              ))}
+                );
+              })}
               {!cabang.length && <p className="empty">Tidak ada data cabang di periode ini.</p>}
             </div>
           </aside>

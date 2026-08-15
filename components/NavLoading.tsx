@@ -6,79 +6,132 @@ import { usePathname, useSearchParams } from "next/navigation";
 /**
  * Penanda "sedang memuat" saat berpindah halaman.
  *
- * Next.js sudah melakukan streaming, jadi sebagian besar perpindahan terasa
- * instan dan penanda ini tidak pernah muncul. Yang ditangani di sini adalah
- * kasus sebaliknya: server sedang dingin atau kueri sedang lambat, dan tanpa
- * umpan balik pengguna mengira kliknya tidak terbaca lalu menekan berulang.
+ * Perpindahan yang cepat tidak menampilkan apa pun — penanda baru muncul
+ * setelah 300 ms, karena kedipan singkat justru membuat aplikasi terasa
+ * lebih lambat.
  *
- * Karena itu penanda sengaja DITUNDA 300 ms. Perpindahan cepat tidak
- * memunculkan kedipan yang justru terasa lambat; hanya yang benar-benar
- * lama yang menampilkannya.
+ * Yang ditangani serius di sini adalah perpindahan yang macet. Server bisa
+ * dingin, jaringan bisa putus sebentar, dan tanpa umpan balik pengguna
+ * hanya melihat layar diam lalu menekan refresh sendiri. Karena itu:
  *
- * Cara kerjanya: menyimak klik pada tautan internal, lalu berhenti begitu
- * alamat halaman berubah.
+ *   - setelah 3 detik, lama menunggu ditampilkan;
+ *   - setiap 4 detik aplikasi menyentuh server untuk memastikan masih
+ *     tersambung, dan hasilnya diberitahukan apa adanya;
+ *   - setelah 12 detik disediakan tombol muat ulang, jadi pengguna tidak
+ *     perlu menebak sendiri harus berbuat apa.
  */
 export default function NavLoading() {
   const [tampil, setTampil] = useState(false);
+  const [detik, setDetik] = useState(0);
+  const [server, setServer] = useState<"belum" | "hidup" | "diam">("belum");
+
   const jeda = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const jam = useRef<ReturnType<typeof setInterval> | null>(null);
+  const denyut = useRef<ReturnType<typeof setInterval> | null>(null);
+
   const path = usePathname();
   const query = useSearchParams();
 
-  // Alamat berubah = halaman baru sudah tampil. Hentikan penanda.
-  useEffect(() => {
+  function berhenti() {
     if (jeda.current) { clearTimeout(jeda.current); jeda.current = null; }
+    if (jam.current) { clearInterval(jam.current); jam.current = null; }
+    if (denyut.current) { clearInterval(denyut.current); denyut.current = null; }
     setTampil(false);
-  }, [path, query]);
+    setDetik(0);
+    setServer("belum");
+  }
+
+  // Alamat berubah = halaman baru sudah tampil.
+  useEffect(() => { berhenti(); }, [path, query]);
 
   useEffect(() => {
+    /** Memastikan server masih menjawab, tanpa mengganggu perpindahan. */
+    async function sentuhServer() {
+      try {
+        const r = await fetch("/api/akses", {
+          method: "HEAD",
+          cache: "no-store",
+          signal: AbortSignal.timeout(6000),
+        });
+        // Status apa pun berarti server menjawab — yang penting bukan
+        // isinya, melainkan bahwa sambungannya hidup.
+        setServer(r ? "hidup" : "diam");
+      } catch {
+        setServer("diam");
+      }
+    }
+
     function mulai() {
       if (jeda.current) clearTimeout(jeda.current);
-      jeda.current = setTimeout(() => setTampil(true), 300);
+      jeda.current = setTimeout(() => {
+        setTampil(true);
+        setDetik(0);
+        jam.current = setInterval(() => setDetik((d) => d + 1), 1000);
+        // Denyut pertama setelah 3 detik, lalu tiap 4 detik.
+        setTimeout(() => {
+          sentuhServer();
+          denyut.current = setInterval(sentuhServer, 4000);
+        }, 3000);
+      }, 300);
     }
 
     function klik(e: MouseEvent) {
-      // Abaikan klik yang memang tidak berpindah halaman di tab ini
       if (e.defaultPrevented || e.button !== 0) return;
       if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
 
       const a = (e.target as HTMLElement)?.closest?.("a");
       if (!a) return;
-
       const href = a.getAttribute("href");
       if (!href || href.startsWith("#") || href.startsWith("mailto:")) return;
       if (a.target && a.target !== "_self") return;
       if (a.hasAttribute("download")) return;
 
-      // Hanya tautan di dalam aplikasi ini
       const tujuan = new URL(a.href, window.location.href);
       if (tujuan.origin !== window.location.origin) return;
-      // Alamat yang sama persis tidak memuat apa pun
       if (tujuan.pathname + tujuan.search === window.location.pathname + window.location.search) return;
 
       mulai();
     }
 
-    // Tombol "Lihat" pada pemilih periode memakai pengiriman form biasa
-    function kirimForm() { mulai(); }
+    const kirimForm = () => mulai();
+    const sembunyi = () => berhenti();
 
     document.addEventListener("click", klik);
     document.addEventListener("submit", kirimForm);
-    window.addEventListener("pagehide", () => setTampil(false));
+    window.addEventListener("pagehide", sembunyi);
     return () => {
       document.removeEventListener("click", klik);
       document.removeEventListener("submit", kirimForm);
-      if (jeda.current) clearTimeout(jeda.current);
+      window.removeEventListener("pagehide", sembunyi);
+      berhenti();
     };
   }, []);
 
   if (!tampil) return null;
 
+  const lama = detik >= 12;
+  const pesan =
+    server === "diam"
+      ? "Server belum menjawab. Menunggu sambungan…"
+      : lama
+      ? "Masih diproses, lebih lama dari biasanya"
+      : detik >= 3
+      ? `Memuat halaman… ${detik} detik`
+      : "Memuat halaman…";
+
   return (
     <>
       <div className="navbar-load" aria-hidden />
-      <div className="navpop" role="status" aria-live="polite">
+      <div className={"navpop" + (lama || server === "diam" ? " lama" : "")}
+           role="status" aria-live="polite">
         <span className="navpop-spin" aria-hidden />
-        <span>Memuat halaman…</span>
+        <span className="navpop-teks">{pesan}</span>
+
+        {(lama || server === "diam") && (
+          <button className="navpop-btn" onClick={() => window.location.reload()}>
+            Muat ulang
+          </button>
+        )}
       </div>
     </>
   );

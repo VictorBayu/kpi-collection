@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import Pilih from "@/components/Pilih";
 import Diagram from "./Diagram";
 import Diagnosa from "./Diagnosa";
+import KelolaLevel from "./KelolaLevel";
 
 type Rantai = { tingkat: number; atasan: string };
 type Jabatan = {
@@ -21,14 +22,8 @@ type Form = {
   rantai: string[];
 };
 
-const LEVEL_LABEL: Record<string, string> = {
-  staff: "Staff",
-  spv_level_1: "SPV level 1",
-  spv_level_2: "SPV level 2",
-  manager_3: "Manager 3 (BM/DBM/P)",
-  manager_2: "Manager 2 (ACH)",
-  manager_1: "Manager 1 (AM)",
-  admin: "Admin",
+type LevelRef = {
+  kode: string; nama: string; urutan: number; se_area: boolean; aktif: boolean;
 };
 
 const FORM_KOSONG: Form = {
@@ -42,13 +37,23 @@ export default function HierarkiClient() {
   const [galat, setGalat] = useState<string | null>(null);
   const [kabar, setKabar] = useState<string | null>(null);
   const [sibuk, setSibuk] = useState(false);
-  const [tampilan, setTampilan] = useState<"diagram" | "tabel" | "uji">("diagram");
+  const [tampilan, setTampilan] = useState<"diagram" | "tabel" | "level" | "uji">("diagram");
+  const [levelRef, setLevelRef] = useState<LevelRef[]>([]);
 
   const muat = useCallback(async () => {
     const d = await fetch("/api/admin/hierarki").then((r) => r.json());
     setList(d.jabatan ?? []);
     setYatim(d.yatim ?? []);
+    setLevelRef(d.level ?? []);
   }, []);
+
+  // Nama level untuk ditampilkan; ikut berubah begitu admin mengubahnya.
+  const namaLevel = (kode: string) =>
+    levelRef.find((l) => l.kode === kode)?.nama ?? kode;
+
+  // Urutan level dari yang tertinggi, dipakai mengelompokkan daftar.
+  const urutLevel = levelRef
+    .slice().sort((a, b) => b.urutan - a.urutan).map((l) => l.kode);
 
   useEffect(() => { muat(); }, [muat]);
 
@@ -159,8 +164,6 @@ export default function HierarkiClient() {
     setForm({ ...form, rantai: r });
   };
 
-  const URUT_LEVEL = ["manager_1","manager_2","manager_3","spv_level_2","spv_level_1","staff","admin"];
-
   /**
    * Pilihan atasan untuk satu jabatan: semua jabatan lain, dikelompokkan
    * per level dan diurutkan dari yang tertinggi. Jabatan itu sendiri
@@ -172,13 +175,13 @@ export default function HierarkiClient() {
       .filter((j) => j.jabatan !== bandingkan)
       .slice()
       .sort((a, b) =>
-        URUT_LEVEL.indexOf(a.level) - URUT_LEVEL.indexOf(b.level) ||
+        urutLevel.indexOf(a.level) - urutLevel.indexOf(b.level) ||
         a.jabatan.localeCompare(b.jabatan))
       .map((j) => ({
         nilai: j.jabatan,
         label: j.jabatan,
         ket: j.pemakai ? `${j.pemakai} orang` : undefined,
-        grup: LEVEL_LABEL[j.level] ?? j.level,
+        grup: namaLevel(j.level),
       }));
   }
 
@@ -230,7 +233,11 @@ export default function HierarkiClient() {
                   nilai={form.level}
                   onPilih={(v) => setForm({ ...form, level: v })}
                   cari={false}
-                  opsi={Object.entries(LEVEL_LABEL).map(([k, v]) => ({ nilai: k, label: v }))}
+                  opsi={levelRef.filter((l) => l.aktif)
+                    .map((l) => ({
+                      nilai: l.kode, label: l.nama,
+                      ket: l.se_area ? "se-area" : undefined,
+                    }))}
                 />
               </label>
               <label className="field">
@@ -289,15 +296,20 @@ export default function HierarkiClient() {
                 onClick={() => setTampilan("diagram")}>Diagram</button>
         <button className={"vbtn" + (tampilan === "tabel" ? " on" : "")}
                 onClick={() => setTampilan("tabel")}>Tabel</button>
+        <button className={"vbtn" + (tampilan === "level" ? " on" : "")}
+                onClick={() => setTampilan("level")}>Tingkatan</button>
         <button className={"vbtn" + (tampilan === "uji" ? " on" : "")}
                 onClick={() => setTampilan("uji")}>Uji visibilitas</button>
       </div>
+
+      {tampilan === "level" && <KelolaLevel onBerubah={muat} />}
 
       {tampilan === "uji" && <Diagnosa />}
 
       {tampilan === "diagram" && (
         <Diagram
           list={list}
+          levelRef={levelRef}
           sibuk={sibuk}
           onSimpanRantai={simpanRantai}
           onEdit={(nama) => {
@@ -335,7 +347,7 @@ export default function HierarkiClient() {
                     </div>
                   )}
                 </td>
-                <td style={{ fontSize: 12.5 }}>{LEVEL_LABEL[j.level] ?? j.level}</td>
+                <td style={{ fontSize: 12.5 }}>{namaLevel(j.level)}</td>
                 <td>
                   {j.rantai.length === 0
                     ? <span className="faint">— tidak punya atasan —</span>

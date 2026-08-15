@@ -5,6 +5,7 @@ import LogoutButton from "./LogoutButton";
 import AccessBeacon from "./AccessBeacon";
 import NavLoading from "./NavLoading";
 import NavBadge from "./NavBadge";
+import IkonTarget from "./IkonTarget";
 
 /**
  * Bilah atas yang sama di semua halaman, menu menyesuaikan peran.
@@ -31,7 +32,7 @@ export default async function AppShell({ children }: { children: React.ReactNode
       <header className="topbar">
         <div className="topbar-in">
           <div className="brand">
-            <span className="mark">KC</span>
+            <span className="mark"><IkonTarget ukuran={19} /></span>
             <span>
               <b>KPI Collection</b>
               <small>Smart Multi Finance</small>

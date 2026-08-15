@@ -6,16 +6,16 @@ export const runtime = "nodejs";
 // Selalu dijalankan saat ada permintaan, tidak pernah dibekukan saat build.
 export const dynamic = "force-dynamic";
 
-const LEVEL_SAH = [
-  "staff", "spv_level_1", "spv_level_2",
-  "manager_3", "manager_2", "manager_1", "admin",
-] as const;
-
-/** Urutan bawaan tiap level, dipakai bila admin tidak mengisinya sendiri. */
-const URUTAN_BAWAAN: Record<string, number> = {
-  staff: 10, spv_level_1: 20, spv_level_2: 30,
-  manager_3: 40, manager_2: 50, manager_1: 60, admin: 99,
-};
+/**
+ * Daftar level tidak lagi ditulis di kode — diambil dari tabel
+ * jabatan_level_ref supaya admin bisa menambah tingkat baru saat struktur
+ * organisasi berubah, tanpa menunggu perubahan kode dan deploy ulang.
+ */
+async function levelSah(): Promise<Map<string, number>> {
+  const rows = await q<{ kode: string; urutan: number }>(
+    `SELECT kode, urutan FROM jabatan_level_ref WHERE aktif ORDER BY urutan`);
+  return new Map(rows.map((r) => [r.kode, Number(r.urutan)]));
+}
 
 const rapikan = (v: unknown) =>
   String(v ?? "").trim().replace(/\s+/g, " ").toUpperCase();
@@ -28,6 +28,14 @@ const rapikan = (v: unknown) =>
  */
 export const GET = handler(async () => {
   await requireAdmin();
+
+  const level = await q<any>(
+    `SELECT r.kode, r.nama, r.urutan, r.se_area, r.aktif,
+            COUNT(jl.jabatan)::int AS jabatan
+       FROM jabatan_level_ref r
+       LEFT JOIN jabatan_level jl ON jl.level = r.kode
+      GROUP BY r.kode, r.nama, r.urutan, r.se_area, r.aktif
+      ORDER BY r.urutan DESC, r.nama`);
 
   const jabatan = await q<any>(
     `SELECT jl.jabatan, jl.level, jl.urutan, jl.aktif,
@@ -63,7 +71,7 @@ export const GET = handler(async () => {
       WHERE u.aktif AND u.jabatan IS NOT NULL AND jl.jabatan IS NULL
       GROUP BY 1 ORDER BY 2 DESC`);
 
-  return Response.json({ jabatan, yatim, level: LEVEL_SAH });
+  return Response.json({ jabatan, yatim, level });
 });
 
 /** Tambah atau ubah satu jabatan beserta rantai atasannya. */
@@ -76,10 +84,14 @@ export const POST = handler(async (req) => {
   const asli = rapikan(b.jabatanAsli);   // diisi saat mengganti nama jabatan
 
   if (!jabatan) throw new HttpError(400, "Nama jabatan belum diisi.");
-  if (!LEVEL_SAH.includes(level as any)) throw new HttpError(400, "Level tidak dikenal.");
+  const daftarLevel = await levelSah();
+  if (!daftarLevel.has(level)) {
+    throw new HttpError(400,
+      `Level "${level}" tidak dikenal. Tambahkan dulu lewat pengaturan level.`);
+  }
 
   const urutan = Number.isFinite(Number(b.urutan)) && b.urutan !== null && b.urutan !== ""
-    ? Number(b.urutan) : (URUTAN_BAWAAN[level] ?? 0);
+    ? Number(b.urutan) : (daftarLevel.get(level) ?? 0);
 
   // Rantai atasan: daftar nama, urut dari atasan langsung ke paling atas.
   const rantai: string[] = Array.isArray(b.rantai)

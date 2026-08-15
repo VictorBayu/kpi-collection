@@ -5,6 +5,7 @@ import { readSession } from "@/lib/auth";
 import { q } from "@/lib/db";
 import { namaPeriode, waktu } from "@/lib/format";
 import RollbackButton from "./RollbackButton";
+import HapusButton from "./HapusButton";
 
 export const metadata = { title: "Riwayat impor" };
 
@@ -35,12 +36,12 @@ export default async function Riwayat() {
   return (
     <AppShell>
       <main className="shell">
-        <div className="sectionhead">
+        <div className="sectionhead rowbetween">
           <div>
             <h2>Riwayat impor</h2>
             <p>Setiap unggahan tersimpan lengkap dengan berkas aslinya selama 24 bulan.</p>
           </div>
-          <Link className="btn" href="/admin/import">+ Unggah berkas baru</Link>
+          <Link className="btn nowrap" href="/admin/import">+ Unggah berkas baru</Link>
         </div>
 
         {aktif && (
@@ -83,14 +84,26 @@ export default async function Riwayat() {
                         <i style={{ background: st.warna }} />{st.label}
                       </span>
                     </td>
-                    <td className="r nowrap">
-                      {b.status === "superseded" && (
-                        <RollbackButton batchId={b.id} periode={namaPeriode(b.periode)} />
-                      )}
-                      {b.status === "draft" && (
-                        <Link className="btn ghost sm" href="/admin/import">Lanjutkan</Link>
-                      )}
-                      <a className="btn ghost sm" href={b.blob_url} download>Unduh berkas</a>
+                    <td className="r">
+                      <div className="rowact">
+                        {b.status === "superseded" && (
+                          <RollbackButton batchId={b.id} periode={namaPeriode(b.periode)} />
+                        )}
+                        {b.status === "draft" && (
+                          <Link className="btn ghost sm" href="/admin/import">Lanjutkan</Link>
+                        )}
+                        <a className="btn ghost sm" href={b.blob_url} download>Unduh</a>
+                        {/* Batch yang sedang terbit dilindungi: menghapusnya
+                            akan mengosongkan layar seluruh karyawan. */}
+                        {b.status !== "published" && (
+                          <HapusButton
+                            batchId={b.id}
+                            periode={namaPeriode(b.periode)}
+                            namaFile={b.nama_file}
+                            baris={Number(b.baris_valid)}
+                          />
+                        )}
+                      </div>
                     </td>
                   </tr>
                 );

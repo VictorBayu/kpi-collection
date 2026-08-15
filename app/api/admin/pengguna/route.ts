@@ -36,43 +36,201 @@ function bacaForm(b: any, wajibPassword: boolean) {
   };
 }
 
-/** Daftar pengguna + statistik akses. Filter: cari, peran, status, urut. */
+/**
+ * Kolom yang boleh disaring, beserta jenis nilainya.
+ *
+ * Daftar ini juga dikirim ke browser sebagai penentu operator apa yang
+ * masuk akal untuk tiap kolom — jadi hanya ada satu sumber kebenaran, dan
+ * penyaring di layar tidak pernah menawarkan sesuatu yang tidak didukung
+ * server.
+ */
+const KOLOM: Record<string, { label: string; jenis: "teks" | "angka" | "pilihan" | "tanggal"; sql: string; opsi?: string[] }> = {
+  nama:      { label: "Nama",        jenis: "teks",    sql: "nama" },
+  nik:       { label: "NIK",         jenis: "teks",    sql: "nik" },
+  jabatan:   { label: "Jabatan",     jenis: "teks",    sql: "COALESCE(jabatan_master, jabatan)" },
+  cabang:    { label: "Cabang",      jenis: "teks",    sql: "cabang" },
+  area:      { label: "Area",        jenis: "teks",    sql: "area" },
+  peran:     { label: "Peran",       jenis: "pilihan", sql: "peran", opsi: ["karyawan", "atasan", "admin"] },
+  level:     { label: "Level",       jenis: "teks",    sql: "level" },
+  akses_30h: { label: "Akses 30 hari", jenis: "angka", sql: "akses_30h" },
+  akses_7h:  { label: "Akses 7 hari",  jenis: "angka", sql: "akses_7h" },
+  login_count: { label: "Jumlah login", jenis: "angka", sql: "login_count" },
+  status:    { label: "Status akun", jenis: "pilihan", sql: "status_akun",
+               opsi: ["aktif", "nonaktif", "jarang"] },
+  last_access_at: { label: "Terakhir akses", jenis: "tanggal", sql: "last_access_at" },
+};
+
+/** Operator per jenis kolom. */
+const OPERATOR: Record<string, { kode: string; label: string }[]> = {
+  teks: [
+    { kode: "mengandung", label: "mengandung" },
+    { kode: "tidak_mengandung", label: "tidak mengandung" },
+    { kode: "sama", label: "sama persis" },
+    { kode: "mulai", label: "diawali" },
+    { kode: "kosong", label: "kosong" },
+    { kode: "terisi", label: "terisi" },
+  ],
+  angka: [
+    { kode: "sama", label: "sama dengan" },
+    { kode: "lebih", label: "lebih dari" },
+    { kode: "lebih_sama", label: "minimal" },
+    { kode: "kurang", label: "kurang dari" },
+    { kode: "kurang_sama", label: "maksimal" },
+    { kode: "antara", label: "antara" },
+  ],
+  pilihan: [
+    { kode: "sama", label: "adalah" },
+    { kode: "bukan", label: "bukan" },
+  ],
+  tanggal: [
+    { kode: "sebelum", label: "sebelum" },
+    { kode: "sesudah", label: "sesudah" },
+    { kode: "kosong", label: "belum pernah" },
+    { kode: "terisi", label: "pernah" },
+  ],
+};
+
+type Aturan = { kolom: string; operator: string; nilai?: string; nilai2?: string };
+
+/**
+ * Menyusun potongan WHERE dari aturan penyaring.
+ *
+ * Nilai TIDAK PERNAH disisipkan langsung ke teks kueri — hanya nama kolom
+ * dan operator yang berasal dari daftar tetap di atas, sedangkan nilai dari
+ * pengguna selalu lewat parameter. Dengan begitu isian apa pun di kotak
+ * filter tidak bisa mengubah arti kueri.
+ */
+function susunFilter(aturan: Aturan[], params: any[]) {
+  const bagian: string[] = [];
+
+  for (const a of aturan) {
+    const def = KOLOM[a.kolom];
+    if (!def) continue;
+    const ops = OPERATOR[def.jenis].map((o) => o.kode);
+    if (!ops.includes(a.operator)) continue;
+
+    const kol = def.sql;
+    const nilai = String(a.nilai ?? "").trim();
+
+    switch (a.operator) {
+      case "kosong":
+        bagian.push(`(${kol} IS NULL OR ${kol}::text = '')`); break;
+      case "terisi":
+        bagian.push(`(${kol} IS NOT NULL AND ${kol}::text <> '')`); break;
+      case "mengandung":
+        params.push(`%${nilai}%`); bagian.push(`${kol} ILIKE $${params.length}`); break;
+      case "tidak_mengandung":
+        params.push(`%${nilai}%`);
+        bagian.push(`(${kol} IS NULL OR ${kol} NOT ILIKE $${params.length})`); break;
+      case "mulai":
+        params.push(`${nilai}%`); bagian.push(`${kol} ILIKE $${params.length}`); break;
+      case "sama":
+        if (def.jenis === "angka") { params.push(Number(nilai) || 0); bagian.push(`${kol} = $${params.length}`); }
+        else { params.push(nilai); bagian.push(`${kol} ILIKE $${params.length}`); }
+        break;
+      case "bukan":
+        params.push(nilai); bagian.push(`(${kol} IS NULL OR ${kol} <> $${params.length})`); break;
+      case "lebih":       params.push(Number(nilai) || 0); bagian.push(`${kol} > $${params.length}`); break;
+      case "lebih_sama":  params.push(Number(nilai) || 0); bagian.push(`${kol} >= $${params.length}`); break;
+      case "kurang":      params.push(Number(nilai) || 0); bagian.push(`${kol} < $${params.length}`); break;
+      case "kurang_sama": params.push(Number(nilai) || 0); bagian.push(`${kol} <= $${params.length}`); break;
+      case "antara":
+        params.push(Number(nilai) || 0, Number(a.nilai2) || 0);
+        bagian.push(`${kol} BETWEEN $${params.length - 1} AND $${params.length}`); break;
+      case "sebelum":
+        params.push(nilai); bagian.push(`${kol} < $${params.length}::timestamptz`); break;
+      case "sesudah":
+        params.push(nilai); bagian.push(`${kol} > $${params.length}::timestamptz`); break;
+    }
+  }
+  return bagian;
+}
+
+/** Daftar pengguna + statistik akses, dengan penyaring bersusun. */
 export const GET = handler(async (req) => {
   await requireAdmin();
   const url = new URL(req.url);
+
+  // Bentuk lama (cari/peran/status) tetap didukung supaya tautan yang sudah
+  // beredar tidak rusak.
   const cari = url.searchParams.get("cari") || "";
-  const peran = url.searchParams.get("peran") || "";
-  const status = url.searchParams.get("status") || ""; // aktif | suspend | jarang
-  const urut = url.searchParams.get("urut") || "akses"; // akses | login | nama
+  const urut = url.searchParams.get("urut") || "akses";
+  const gabung = url.searchParams.get("gabung") === "atau" ? " OR " : " AND ";
+
+  let aturan: Aturan[] = [];
+  try {
+    aturan = JSON.parse(url.searchParams.get("filter") || "[]");
+    if (!Array.isArray(aturan)) aturan = [];
+  } catch { aturan = [] }
+
+  const params: any[] = [];
+  const kondisi: string[] = [];
+
+  if (cari) {
+    params.push(`%${cari}%`);
+    kondisi.push(`(nik ILIKE $${params.length} OR nama ILIKE $${params.length})`);
+  }
+
+  const dariFilter = susunFilter(aturan.slice(0, 8), params);
+  if (dariFilter.length) kondisi.push(`(${dariFilter.join(gabung)})`);
+
+  const where = kondisi.length ? `WHERE ${kondisi.join(" AND ")}` : "";
 
   const orderBy =
     urut === "login" ? "login_count ASC"
     : urut === "nama" ? "nama ASC"
+    : urut === "cabang" ? "cabang ASC NULLS LAST, nama ASC"
+    : urut === "akses_turun" ? "akses_30h DESC"
     : "akses_30h ASC";
+
+  // status_akun diturunkan di sini supaya bisa disaring seperti kolom biasa.
+  const sumber = `(
+    SELECT v.*,
+           CASE WHEN NOT v.aktif OR v.suspended_at IS NOT NULL THEN 'nonaktif'
+                WHEN v.akses_30h < 3 THEN 'jarang'
+                ELSE 'aktif' END AS status_akun
+      FROM v_akses_ringkas v
+  ) t`;
 
   const rows = await q<any>(
     `SELECT id, nik, nama, peran, jabatan, jabatan_master, level, cabang, area, aktif,
             login_count, access_count, akses_7h, akses_30h,
-            last_login_at, last_access_at, suspended_at, suspended_reason
-       FROM v_akses_ringkas
-      WHERE ($1 = '' OR nik ILIKE '%'||$1||'%' OR nama ILIKE '%'||$1||'%')
-        AND ($2 = '' OR peran = $2)
-        AND ($3 = '' OR
-             ($3 = 'aktif'   AND aktif AND suspended_at IS NULL) OR
-             ($3 = 'suspend' AND (NOT aktif OR suspended_at IS NOT NULL)) OR
-             ($3 = 'jarang'  AND akses_30h < 3 AND suspended_at IS NULL))
+            last_login_at, last_access_at, suspended_at, suspended_reason, status_akun
+       FROM ${sumber} ${where}
       ORDER BY ${orderBy}
-      LIMIT 500`,
-    [cari, peran, status]);
+      LIMIT 500`, params);
 
   const [stat] = await q<any>(
     `SELECT COUNT(*)::int AS total,
-            COUNT(*) FILTER (WHERE aktif AND suspended_at IS NULL)::int AS aktif,
-            COUNT(*) FILTER (WHERE NOT aktif OR suspended_at IS NOT NULL)::int AS suspend,
-            COUNT(*) FILTER (WHERE akses_30h < 3 AND suspended_at IS NULL AND aktif)::int AS jarang
-       FROM v_akses_ringkas`);
+            COUNT(*) FILTER (WHERE status_akun = 'aktif')::int    AS aktif,
+            COUNT(*) FILTER (WHERE status_akun = 'nonaktif')::int AS suspend,
+            COUNT(*) FILTER (WHERE status_akun = 'jarang')::int   AS jarang
+       FROM ${sumber}`);
 
-  return Response.json({ list: rows, stat });
+  const [cocok] = await q<{ n: number }>(
+    `SELECT COUNT(*)::int AS n FROM ${sumber} ${where}`, params);
+
+  // Nilai unik untuk kolom yang enak dipilih daripada diketik
+  const pilihan = await q<any>(
+    `SELECT
+       (SELECT COALESCE(json_agg(DISTINCT cabang ORDER BY cabang), '[]'::json)
+          FROM v_akses_ringkas WHERE cabang IS NOT NULL) AS cabang,
+       (SELECT COALESCE(json_agg(DISTINCT area ORDER BY area), '[]'::json)
+          FROM v_akses_ringkas WHERE area IS NOT NULL) AS area,
+       (SELECT COALESCE(json_agg(DISTINCT COALESCE(jabatan_master, jabatan)
+               ORDER BY COALESCE(jabatan_master, jabatan)), '[]'::json)
+          FROM v_akses_ringkas WHERE jabatan IS NOT NULL) AS jabatan`);
+
+  return Response.json({
+    list: rows, stat, cocok: cocok.n,
+    skema: {
+      kolom: Object.entries(KOLOM).map(([k, v]) => ({
+        kode: k, label: v.label, jenis: v.jenis, opsi: v.opsi,
+      })),
+      operator: OPERATOR,
+      pilihan: pilihan[0] ?? {},
+    },
+  });
 });
 
 /** Tambah pengguna baru. */

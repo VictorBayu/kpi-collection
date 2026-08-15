@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 import { readSession } from "@/lib/auth";
 import LoginForm from "./LoginForm";
+import IkonTarget from "@/components/IkonTarget";
 
 export const metadata = { title: "Masuk — KPI Collection" };
 
@@ -18,7 +19,7 @@ export default async function LoginPage() {
       <aside className="loginside">
         <span className="glow" />
         <div className="z">
-          <span className="mark big">KC</span>
+          <span className="mark big"><IkonTarget ukuran={23} /></span>
           <h1>Lihat skor dan insentif Anda bulan ini.</h1>
           <p>
             Data KPI diterbitkan tim data setiap awal bulan. Kalau ada angka yang tidak sesuai

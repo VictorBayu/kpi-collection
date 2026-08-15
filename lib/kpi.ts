@@ -271,19 +271,40 @@ export async function ringkasanUnit(atasanNik: string, periode: string) {
 
 /** Daftar cabang yang punya data pada satu periode, + ringkasannya. */
 export async function cabangPeriode(periode: string) {
+  /**
+   * Cabang beserta areanya.
+   *
+   * Area diambil dari data pegawai (app_user), bukan dari berkas KPI, karena
+   * berkas impor tidak memuat kolom area. Cabang yang tidak punya satu pun
+   * pegawai terdaftar tetap ditampilkan di kelompok "(TANPA AREA)" supaya
+   * datanya tidak hilang diam-diam dari layar admin.
+   */
   const rows = await q<any>(
-    `SELECT COALESCE(UPPER(TRIM(cabang)),'(TANPA CABANG)') AS cabang,
-            COUNT(DISTINCT nik)::int AS karyawan,
-            ROUND(AVG(skor_bykaryawan),2) AS skor_rata
-       FROM (
-         SELECT UPPER(TRIM(cabang)) AS cabang, nik, SUM(skor_terbobot) AS skor_bykaryawan
-           FROM v_kpi_aktif WHERE periode = $1
-          GROUP BY UPPER(TRIM(cabang)), nik
-       ) t
-      GROUP BY cabang
-      ORDER BY skor_rata ASC NULLS LAST`, [periode]);
+    `WITH per_karyawan AS (
+       SELECT norm_wilayah(cabang) AS cabang, nik, SUM(skor_terbobot) AS skor
+         FROM v_kpi_aktif WHERE periode = $1
+        GROUP BY norm_wilayah(cabang), nik
+     ),
+     area_cabang AS (
+       -- Area yang paling banyak dipakai pegawai di cabang itu
+       SELECT DISTINCT ON (norm_wilayah(cabang))
+              norm_wilayah(cabang) AS cabang, norm_wilayah(area) AS area
+         FROM app_user
+        WHERE cabang IS NOT NULL AND area IS NOT NULL
+        GROUP BY norm_wilayah(cabang), norm_wilayah(area)
+        ORDER BY norm_wilayah(cabang), COUNT(*) DESC
+     )
+     SELECT COALESCE(p.cabang,'(TANPA CABANG)') AS cabang,
+            COALESCE(a.area,'(TANPA AREA)')     AS area,
+            COUNT(DISTINCT p.nik)::int          AS karyawan,
+            ROUND(AVG(p.skor),2)                AS skor_rata
+       FROM per_karyawan p
+       LEFT JOIN area_cabang a ON a.cabang = p.cabang
+      GROUP BY 1, 2
+      ORDER BY 2, 1`, [periode]);
+
   return rows.map((r) => ({
-    cabang: r.cabang, karyawan: r.karyawan,
+    cabang: r.cabang, area: r.area, karyawan: r.karyawan,
     skorRata: r.skor_rata === null ? null : Number(r.skor_rata),
   }));
 }
