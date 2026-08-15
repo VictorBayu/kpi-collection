@@ -3,6 +3,8 @@ import { Suspense } from "react";
 import Link from "next/link";
 import AppShell from "@/components/AppShell";
 import Ladder, { kalimatJarak, tingkat } from "@/components/Ladder";
+import RincianIndikator from "./RincianIndikator";
+import TabelInsentif from "./TabelInsentif";
 import { readSession } from "@/lib/auth";
 import {
   periodeTersedia, indikatorKaryawan, insentifKaryawan, ringkasan, trenKpi,
@@ -151,113 +153,9 @@ async function IsiDasbor({ nik, periode }: { nik: string; periode: string }) {
           </details>
         </section>
 
-        {/* indikator */}
-        <div className="sectionhead">
-          <div>
-            <h2>Rincian per indikator</h2>
-            <p>Garis di bawah tiap indikator menunjukkan posisi Anda terhadap target KPI 3, 4, dan 5.</p>
-          </div>
-        </div>
+        <RincianIndikator data={ind} />
 
-        <section className="grid2">
-          {ind.map((d, i) => {
-            // Nilai untuk ANGKA yang ditampilkan (rupiah/unit apa adanya)
-            const satuanTampil = tebakSatuan(d.indikator, d.pencapaian);
-            // Nilai untuk DIBANDINGKAN dengan target (rasio vs rasio)
-            const band = nilaiBanding(d.pencapaian, d.rasio, d.target_kpi3);
-            const lv2 = band.v !== null && d.target_kpi3 !== null
-              ? tingkat(band.v, d.target_kpi3, d.target_kpi4 ?? d.target_kpi3, d.target_kpi5 ?? d.target_kpi3)
-              : null;
-            return (
-              <article className="card card-pad" key={i}>
-                <div className="ind-top">
-                  <div>
-                    <h3>{d.indikator}</h3>
-                    <p className="faint">{d.produk ?? "Semua produk"}</p>
-                  </div>
-                  {lv2 !== null && (
-                    <span className={`chip k${lv2}`}>{lv2 === 0 ? "Di bawah KPI 3" : `KPI ${lv2}`}</span>
-                  )}
-                </div>
-
-                <div className="ind-figs">
-                  <div>
-                    <span className="eyebrow">Pencapaian</span>
-                    <b className="v">{nilai(d.pencapaian, satuanTampil)}</b>
-                  </div>
-                  {d.saldo_awal ? (
-                    <div>
-                      <span className="eyebrow">Saldo awal</span>
-                      <b className="v faint">{nilai(d.saldo_awal, satuanTampil)}</b>
-                    </div>
-                  ) : null}
-                  <div>
-                    <span className="eyebrow">Skor</span>
-                    <b className="v">{angka(d.skor_kpi)}</b>
-                  </div>
-                </div>
-
-                <Ladder v={band.v} t3={d.target_kpi3} t4={d.target_kpi4}
-                        t5={d.target_kpi5} satuan={band.satuan} ringkas />
-
-                {band.v !== null && d.target_kpi3 !== null && d.target_kpi4 !== null && d.target_kpi5 !== null && (
-                  <p className="gap-note">
-                    {kalimatJarak(band.v, d.target_kpi3, d.target_kpi4, d.target_kpi5, band.satuan)}
-                  </p>
-                )}
-                {d.catatan && <p className="faint mt">Catatan tim data: {d.catatan}</p>}
-              </article>
-            );
-          })}
-        </section>
-
-        {/* insentif */}
-        <div className="sectionhead">
-          <div>
-            <h2>Dari mana insentif ini datang</h2>
-            <p>Setiap baris dihitung dari pencapaian yang sudah diverifikasi tim data.</p>
-          </div>
-        </div>
-
-        {/* Tabel untuk layar lebar; di layar kecil dibaca sebagai daftar
-            kartu supaya tidak perlu geser ke samping. */}
-        <section className="card tabel-responsif">
-          <table>
-            <thead>
-              <tr>
-                <th>Kategori</th><th className="r">Saldo awal</th><th className="r">Pencapaian</th>
-                <th className="r">Rasio</th><th className="r">Insentif</th>
-              </tr>
-            </thead>
-            <tbody>
-              {ins.map((r) => (
-                <tr key={r.kategori}>
-                  <td data-label="Kategori">
-                    <b>{r.kategori}</b>{" "}
-                    {r.nominal < 0
-                      ? <span className="chip c-tolak">Penalty</span>
-                      : r.nominal > 0
-                        ? <span className="chip c-selesai">Extra</span>
-                        : null}
-                  </td>
-                  <td className="r num faint" data-label="Saldo awal">{r.saldo_awal ? rpSingkat(r.saldo_awal) : "—"}</td>
-                  <td className="r num" data-label="Pencapaian">{r.saldo_awal ? rpSingkat(r.pencapaian) : angka(r.pencapaian, 0)}</td>
-                  <td className="r num" data-label="Rasio">{r.rasio !== null ? Math.round(r.rasio * 100) + "%" : "—"}</td>
-                  <td className={"r num utama" + (r.nominal < 0 ? " neg" : "")} data-label="Insentif"><b>{rp(r.nominal)}</b></td>
-                </tr>
-              ))}
-              {!ins.length && (
-                <tr><td colSpan={5} className="empty">Belum ada rincian insentif untuk periode ini.</td></tr>
-              )}
-            </tbody>
-            <tfoot>
-              <tr>
-                <td colSpan={4}>Total perkiraan insentif {namaPeriode(periode)}</td>
-                <td className="r num">{rp(totalInsentif)}</td>
-              </tr>
-            </tfoot>
-          </table>
-        </section>
+        <TabelInsentif data={ins} periode={periode} total={totalInsentif} />
 
         <div className="banner info mt">
           <b>Ada angka yang menurut Anda keliru?</b>

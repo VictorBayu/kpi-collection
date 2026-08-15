@@ -1,7 +1,9 @@
 import Link from "next/link";
+import { Suspense } from "react";
 import { readSession } from "@/lib/auth";
 import LogoutButton from "./LogoutButton";
 import AccessBeacon from "./AccessBeacon";
+import NavLoading from "./NavLoading";
 import NavBadge from "./NavBadge";
 
 /**
@@ -56,6 +58,7 @@ export default async function AppShell({ children }: { children: React.ReactNode
         </div>
       </header>
       <AccessBeacon />
+      <Suspense fallback={null}><NavLoading /></Suspense>
       {children}
     </>
   );

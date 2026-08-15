@@ -104,11 +104,16 @@ async function IsiTim({
                 className={"vbtn" + (detail ? " on" : "")}>Detail semua indikator</Link>
         </div>
 
+        {/* Mode ringkas tetap tabel — padat dan mudah dibandingkan.
+            Mode detail keluar dari tabel: kolom "Rincian" terlalu sempit
+            untuk menampung puluhan indikator, sehingga kartunya menumpuk
+            ke bawah dan halaman jadi sangat panjang. */}
+        {!detail ? (
         <section className="card mt">
           <table>
             <thead>
               <tr>
-                <th>Nama</th><th>{detail ? "Rincian" : "Indikator terlemah"}</th>
+                <th>Nama</th><th>Indikator terlemah</th>
                 <th style={{ width: 220 }}>Skor KPI</th><th className="r">Insentif</th>
               </tr>
             </thead>
@@ -116,59 +121,7 @@ async function IsiTim({
               {anggota.map((a) => (
                 <tr key={a.nik}>
                   <td><b>{a.nama}</b><div className="faint num">{a.nik} · {a.jabatan ?? "—"}</div></td>
-                  <td className={a.terlemah ? "" : "faint"}>
-                    {!detail ? (a.terlemah ?? "—") : (
-                      <details className="indbox">
-                        <summary>
-                          <span className="sum-lbl">
-                            {(petaInd.get(a.nik) ?? []).length} indikator
-                          </span>
-                          {a.terlemah && (
-                            <span className="faint sum-weak">terlemah: {a.terlemah}</span>
-                          )}
-                        </summary>
-                      {/* Satu indikator = satu baris padat: nama, angka, dan
-                          tingkat KPI sejajar. Bilah target hanya muncul saat
-                          disorot agar daftar tidak memanjang ke bawah. */}
-                      <div className="indgrid">
-                        {(petaInd.get(a.nik) ?? []).map((d: any, i: number) => {
-                          const satuanTampil = tebakSatuan(d.indikator, d.pencapaian);
-                          const band = nilaiBanding(d.pencapaian, d.rasio, d.target_kpi3);
-                          const lv = band.v !== null && d.target_kpi3 !== null
-                            ? tingkat(band.v, d.target_kpi3,
-                                      d.target_kpi4 ?? d.target_kpi3, d.target_kpi5 ?? d.target_kpi3)
-                            : null;
-                          return (
-                            <div className={"indcell" + (lv === 0 ? " kurang" : "")} key={i}>
-                              <div className="indcell-head">
-                                <span className="indcell-nama" title={d.indikator}>
-                                  {d.indikator}
-                                  {d.produk ? <em> · {d.produk}</em> : null}
-                                </span>
-                                {lv !== null && (
-                                  <span className={`dot k${lv}`} title={lv === 0 ? "Di bawah KPI 3" : `KPI ${lv}`}>
-                                    {lv === 0 ? "!" : lv}
-                                  </span>
-                                )}
-                              </div>
-                              <div className="indcell-figs">
-                                <b>{nilai(d.pencapaian, satuanTampil)}</b>
-                                <span className="faint">skor {angka(d.skor_kpi)}</span>
-                              </div>
-                              <div className="indcell-bar">
-                                <Ladder v={band.v} t3={d.target_kpi3} t4={d.target_kpi4}
-                                        t5={d.target_kpi5} satuan={band.satuan} ringkas />
-                              </div>
-                            </div>
-                          );
-                        })}
-                        {!(petaInd.get(a.nik) ?? []).length && (
-                          <span className="faint">Tidak ada indikator.</span>
-                        )}
-                      </div>
-                      </details>
-                    )}
-                  </td>
+                  <td className={a.terlemah ? "" : "faint"}>{a.terlemah ?? "—"}</td>
                   <td>
                     <div className="rowbetween small">
                       <span className="num"><b>{angka(a.skor)}</b></span>
@@ -192,6 +145,77 @@ async function IsiTim({
             </tbody>
           </table>
         </section>
+        ) : (
+        <section className="timdetail mt">
+          {anggota.map((a) => {
+            const ind = petaInd.get(a.nik) ?? [];
+            const lemah = ind.filter((d: any) => {
+              const b = nilaiBanding(d.pencapaian, d.rasio, d.target_kpi3);
+              return b.v !== null && d.target_kpi3 !== null &&
+                tingkat(b.v, d.target_kpi3, d.target_kpi4 ?? d.target_kpi3,
+                        d.target_kpi5 ?? d.target_kpi3) === 0;
+            }).length;
+            return (
+              <details className="orang" key={a.nik} open={a.skor < 3}>
+                <summary className="orang-head">
+                  <span className="orang-id">
+                    <b>{a.nama}</b>
+                    <span className="faint num">{a.nik} · {a.jabatan ?? "—"}</span>
+                  </span>
+                  <span className="orang-angka">
+                    <span className={"orang-skor" + (a.skor < 3 ? " lo" : a.skor >= 4 ? " hi" : "")}>
+                      {angka(a.skor)}
+                    </span>
+                    <span className="faint">{rp(a.insentif)}</span>
+                    {lemah > 0 && <span className="orang-lemah">{lemah} di bawah KPI 3</span>}
+                    <span className="orang-jml faint">{ind.length} indikator</span>
+                  </span>
+                </summary>
+
+                <div className="indgrid">
+                  {ind.map((d: any, i: number) => {
+                    const satuanTampil = tebakSatuan(d.indikator, d.pencapaian);
+                    const band = nilaiBanding(d.pencapaian, d.rasio, d.target_kpi3);
+                    const lv = band.v !== null && d.target_kpi3 !== null
+                      ? tingkat(band.v, d.target_kpi3,
+                                d.target_kpi4 ?? d.target_kpi3, d.target_kpi5 ?? d.target_kpi3)
+                      : null;
+                    return (
+                      <div className={"indcell" + (lv === 0 ? " kurang" : "")} key={i}>
+                        <div className="indcell-head">
+                          <span className="indcell-nama" title={d.indikator}>
+                            {d.indikator}
+                            {d.produk ? <em> · {d.produk}</em> : null}
+                          </span>
+                          {lv !== null && (
+                            <span className={`dot k${lv}`} title={lv === 0 ? "Di bawah KPI 3" : `KPI ${lv}`}>
+                              {lv === 0 ? "!" : lv}
+                            </span>
+                          )}
+                        </div>
+                        <div className="indcell-figs">
+                          <b>{nilai(d.pencapaian, satuanTampil)}</b>
+                          <span className="faint">skor {angka(d.skor_kpi)}</span>
+                        </div>
+                        <div className="indcell-bar">
+                          <Ladder v={band.v} t3={d.target_kpi3} t4={d.target_kpi4}
+                                  t5={d.target_kpi5} satuan={band.satuan} ringkas />
+                        </div>
+                      </div>
+                    );
+                  })}
+                  {!ind.length && <span className="faint">Tidak ada indikator.</span>}
+                </div>
+              </details>
+            );
+          })}
+          {!anggota.length && (
+            <div className="card card-pad empty">
+              Belum ada anggota tim dengan data di periode ini.
+            </div>
+          )}
+        </section>
+        )}
       </main>
   );
 }
