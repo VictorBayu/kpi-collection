@@ -1,6 +1,8 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import Pilih from "@/components/Pilih";
+import Diagram from "./Diagram";
 
 type Rantai = { tingkat: number; atasan: string };
 type Jabatan = {
@@ -39,7 +41,7 @@ export default function HierarkiClient() {
   const [galat, setGalat] = useState<string | null>(null);
   const [kabar, setKabar] = useState<string | null>(null);
   const [sibuk, setSibuk] = useState(false);
-  const [buka, setBuka] = useState<string | null>(null);
+  const [tampilan, setTampilan] = useState<"diagram" | "tabel">("diagram");
 
   const muat = useCallback(async () => {
     const d = await fetch("/api/admin/hierarki").then((r) => r.json());
@@ -80,6 +82,25 @@ export default function HierarkiClient() {
     if (!res.ok) { setGalat(d.error); return; }
     setKabar(`Jabatan ${form.jabatan.toUpperCase()} tersimpan.`);
     setForm(null);
+    muat();
+  }
+
+  /** Dipanggil diagram setelah admin menyusun ulang rantai dengan seret. */
+  async function simpanRantai(jabatan: string, rantai: string[]) {
+    const j = list.find((x) => x.jabatan === jabatan);
+    if (!j) return;
+    setSibuk(true); setGalat(null); setKabar(null);
+    const res = await fetch("/api/admin/hierarki", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        jabatan: j.jabatan, jabatanAsli: j.jabatan,
+        level: j.level, urutan: j.urutan, aktif: j.aktif, rantai,
+      }),
+    });
+    const d = await res.json();
+    setSibuk(false);
+    if (!res.ok) { setGalat(d.error); return; }
+    setKabar(`Rantai atasan ${j.jabatan} diperbarui.`);
     muat();
   }
 
@@ -137,6 +158,29 @@ export default function HierarkiClient() {
     setForm({ ...form, rantai: r });
   };
 
+  const URUT_LEVEL = ["manager_1","manager_2","manager_3","spv_level_2","spv_level_1","staff","admin"];
+
+  /**
+   * Pilihan atasan untuk satu jabatan: semua jabatan lain, dikelompokkan
+   * per level dan diurutkan dari yang tertinggi. Jabatan itu sendiri
+   * dikeluarkan agar tidak bisa menjadi atasan dirinya sendiri.
+   */
+  function opsiAtasan(kecuali: string) {
+    const bandingkan = String(kecuali ?? "").trim().toUpperCase();
+    return list
+      .filter((j) => j.jabatan !== bandingkan)
+      .slice()
+      .sort((a, b) =>
+        URUT_LEVEL.indexOf(a.level) - URUT_LEVEL.indexOf(b.level) ||
+        a.jabatan.localeCompare(b.jabatan))
+      .map((j) => ({
+        nilai: j.jabatan,
+        label: j.jabatan,
+        ket: j.pemakai ? `${j.pemakai} orang` : undefined,
+        grup: LEVEL_LABEL[j.level] ?? j.level,
+      }));
+  }
+
   return (
     <>
       <div className="sectionhead rowbetween">
@@ -181,12 +225,12 @@ export default function HierarkiClient() {
               </label>
               <label className="field">
                 <span>Level</span>
-                <select value={form.level}
-                        onChange={(e) => setForm({ ...form, level: e.target.value })}>
-                  {Object.entries(LEVEL_LABEL).map(([k, v]) => (
-                    <option key={k} value={k}>{v}</option>
-                  ))}
-                </select>
+                <Pilih
+                  nilai={form.level}
+                  onPilih={(v) => setForm({ ...form, level: v })}
+                  cari={false}
+                  opsi={Object.entries(LEVEL_LABEL).map(([k, v]) => ({ nilai: k, label: v }))}
+                />
               </label>
               <label className="field">
                 <span>Urutan (opsional)</span>
@@ -202,8 +246,11 @@ export default function HierarkiClient() {
                 {form.rantai.map((r, i) => (
                   <div className="rantai-item" key={i}>
                     <span className="rantai-no">{i + 1}</span>
-                    <input list="daftar-jabatan" value={r} placeholder={i === 0 ? "atasan langsung" : "atasan berikutnya"}
-                           onChange={(e) => ubahRantai(i, e.target.value)} />
+                    <div className="rantai-pilih">
+                      <Pilih nilai={r} onPilih={(v) => ubahRantai(i, v)} bebas
+                             placeholder={i === 0 ? "atasan langsung" : "atasan berikutnya"}
+                             opsi={opsiAtasan(form.jabatan)} />
+                    </div>
                     <button type="button" className="btn ghost sm"
                             onClick={() => setForm({
                               ...form, rantai: form.rantai.filter((_, x) => x !== i),
@@ -215,9 +262,6 @@ export default function HierarkiClient() {
                       onClick={() => setForm({ ...form, rantai: [...form.rantai, ""] })}>
                 + Tambah tingkat
               </button>
-              <datalist id="daftar-jabatan">
-                {list.map((j) => <option key={j.jabatan} value={j.jabatan} />)}
-              </datalist>
             </div>
 
             <div className="formcheck">
@@ -238,6 +282,27 @@ export default function HierarkiClient() {
         </section>
       )}
 
+      <div className="viewswitch mb">
+        <span className="faint">Tampilan:</span>
+        <button className={"vbtn" + (tampilan === "diagram" ? " on" : "")}
+                onClick={() => setTampilan("diagram")}>Diagram</button>
+        <button className={"vbtn" + (tampilan === "tabel" ? " on" : "")}
+                onClick={() => setTampilan("tabel")}>Tabel</button>
+      </div>
+
+      {tampilan === "diagram" && (
+        <Diagram
+          list={list}
+          sibuk={sibuk}
+          onSimpanRantai={simpanRantai}
+          onEdit={(nama) => {
+            const j = list.find((x) => x.jabatan === nama);
+            if (j) bukaEdit(j);
+          }}
+        />
+      )}
+
+      {tampilan === "tabel" && (
       <section className="card">
         <table>
           <thead>
@@ -295,6 +360,7 @@ export default function HierarkiClient() {
           </tbody>
         </table>
       </section>
+      )}
 
       <p className="faint mt">
         Contoh membaca rantai: FC TT R2 → BCS TT → BCH F → BCH FE → ACH → BM → AM.

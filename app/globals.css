@@ -283,8 +283,16 @@ tfoot td{font-weight:700;border-top:1px solid var(--line);background:#FAFBFD}
   padding:14px 16px;border-top:1px solid var(--line-soft);flex-wrap:wrap}
 .pager-btns{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
 .pager-num{font-size:12px;font-weight:600;color:var(--ink-soft);font-family:var(--font-plex-mono),"IBM Plex Mono"}
-.btn.danger{background:#fff;color:var(--bad);border:1px solid var(--line)}
-.btn.danger:hover{background:var(--bad-soft);border-color:#F5C2C2}
+/* Warna tombol mengikuti besar dampaknya, bukan sekadar hiasan:
+   makin sulit dibatalkan sebuah tindakan, makin tegas warnanya. */
+.btn.danger{background:#fff;color:var(--bad);border:1px solid #F0C9C9}
+.btn.danger:hover{background:var(--bad);border-color:var(--bad);color:#fff}
+/* tindakan yang mengubah akses/kredensial — bisa dipulihkan, tapi terasa */
+.btn.hati{background:#fff;color:var(--warn);border:1px solid #F2DCBC}
+.btn.hati:hover{background:var(--warn-soft);border-color:var(--warn)}
+/* tindakan memulihkan */
+.btn.pulih{background:#fff;color:var(--good);border:1px solid #C6E7DA}
+.btn.pulih:hover{background:var(--good-soft);border-color:var(--good)}
 
 /* ================= kartu statistik pengguna ================= */
 .statgrid{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:16px}
@@ -489,4 +497,97 @@ tfoot td{font-weight:700;border-top:1px solid var(--line);background:#FAFBFD}
 }
 @media (max-width:420px){
   .indgrid{grid-template-columns:1fr}
+}
+
+/* ================= Dropdown modern (components/Pilih.tsx) ================= */
+.pilih{position:relative}
+.pilih-tombol{width:100%;display:flex;align-items:center;gap:8px;text-align:left;
+  border:1px solid var(--line);border-radius:10px;padding:10px 13px;background:#fff;
+  font-family:inherit;font-size:13.5px;color:var(--ink);cursor:pointer;transition:.12s}
+.pilih-tombol:hover{border-color:#B9CDF8}
+.pilih.buka .pilih-tombol{border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-soft)}
+.pilih-nilai{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.pilih-kosong{flex:1;color:var(--ink-faint)}
+.pilih-ket{font-size:11px;color:var(--ink-faint);white-space:nowrap}
+.pilih-panah{color:var(--ink-faint);font-size:11px;flex:none;transition:transform .15s}
+.pilih.buka .pilih-panah{transform:rotate(180deg)}
+.pilih-bayangan{position:absolute;opacity:0;width:1px;height:1px;pointer-events:none;border:0;padding:0}
+
+.pilih-panel{position:absolute;z-index:40;top:calc(100% + 5px);left:0;right:0;
+  background:#fff;border:1px solid var(--line);border-radius:12px;
+  box-shadow:0 12px 32px rgba(12,22,38,.14);overflow:hidden}
+.pilih-cari{padding:9px;border-bottom:1px solid var(--line-soft);background:#FBFCFE}
+.pilih-cari input{width:100%;border:1px solid var(--line);border-radius:8px;
+  padding:8px 11px;font-family:inherit;font-size:13px;background:#fff}
+.pilih-cari input:focus{outline:none;border-color:var(--accent)}
+.pilih-daftar{max-height:270px;overflow-y:auto;padding:5px}
+.pilih-grup{padding:8px 10px 4px;font-size:10px;font-weight:700;letter-spacing:.08em;
+  text-transform:uppercase;color:var(--ink-faint)}
+.pilih-opsi{width:100%;display:flex;align-items:center;gap:9px;text-align:left;
+  border:0;background:transparent;border-radius:8px;padding:8px 10px;cursor:pointer;
+  font-family:inherit;font-size:13px;color:var(--ink)}
+.pilih-opsi.sorot{background:var(--line-soft)}
+.pilih-opsi.aktif{background:var(--accent-soft);color:var(--accent);font-weight:600}
+.pilih-opsi-label{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.pilih-opsi-ket{font-size:11px;color:var(--ink-faint);white-space:nowrap}
+.pilih-opsi.aktif .pilih-opsi-ket{color:var(--accent)}
+.pilih-centang{color:var(--accent);font-size:12px}
+.pilih-nihil{padding:14px 12px;font-size:12.5px;color:var(--ink-faint);text-align:center}
+.pilih-baru{color:var(--accent)}
+.field .pilih-tombol{font-size:13.5px}
+.filter-pilih{min-width:190px}
+
+/* ================= Diagram master hierarki ================= */
+.diagram{background:var(--surface);border:1px solid var(--line);border-radius:var(--r);
+  margin-bottom:16px;overflow:hidden}
+.diagram-bar{display:flex;align-items:center;justify-content:space-between;gap:12px;
+  padding:14px 16px;border-bottom:1px solid var(--line-soft);font-size:13px;flex-wrap:wrap}
+.diagram-lapis{padding:6px 16px 16px}
+.lapis{display:grid;grid-template-columns:118px 1fr;gap:14px;align-items:start;
+  padding:11px 0;border-bottom:1px dashed var(--line-soft)}
+.lapis:last-child{border-bottom:0}
+.lapis-judul{font-size:10.5px;font-weight:700;letter-spacing:.07em;text-transform:uppercase;
+  color:var(--ink-faint);padding-top:7px}
+.lapis-isi{display:flex;flex-wrap:wrap;gap:7px}
+.jkartu{display:inline-flex;align-items:center;gap:8px;border:1px solid var(--line);
+  background:#fff;border-radius:9px;padding:7px 11px;cursor:pointer;font-family:inherit;
+  font-size:12.5px;color:var(--ink);transition:.13s}
+.jkartu:hover{border-color:#B9CDF8;transform:translateY(-1px)}
+.jkartu-nama{font-weight:600}
+.jkartu-jml{font-family:var(--font-plex-mono),"IBM Plex Mono";font-size:10.5px;
+  color:var(--ink-faint);background:var(--line-soft);border-radius:999px;padding:1px 7px}
+.jkartu.ini{border-color:var(--accent);background:var(--accent);color:#fff;
+  box-shadow:0 3px 10px rgba(29,78,216,.28)}
+.jkartu.ini .jkartu-jml{background:rgba(255,255,255,.22);color:#fff}
+.jkartu.nyala{border-color:var(--accent);background:var(--accent-soft);color:var(--accent)}
+.jkartu.nyala .jkartu-jml{background:#fff;color:var(--accent)}
+.jkartu.redup{opacity:.4}
+.jkartu.redup:hover{opacity:.85}
+.jkartu[draggable="true"]{cursor:grab}
+
+.rantai-panel{border-top:1px solid var(--line);background:#FBFCFE;padding:15px 16px}
+.rantai-panel-head{display:flex;justify-content:space-between;align-items:flex-start;
+  gap:12px;margin-bottom:12px;flex-wrap:wrap}
+.rantai-seret{display:flex;flex-wrap:wrap;gap:8px}
+.rseret{display:inline-flex;align-items:center;gap:9px;background:#fff;
+  border:1px solid var(--line);border-radius:10px;padding:7px 9px 7px 7px;
+  font-size:12.5px;cursor:grab;transition:.12s;user-select:none}
+.rseret:hover{border-color:#B9CDF8}
+.rseret.diangkat{opacity:.4}
+.rseret.sasaran{border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-soft)}
+.rseret-no{width:20px;height:20px;border-radius:50%;background:var(--accent-soft);
+  color:var(--accent);display:grid;place-items:center;font-size:10.5px;font-weight:700;flex:none}
+.rseret-nama{font-weight:600}
+.rseret-x{border:0;background:transparent;color:var(--ink-faint);cursor:pointer;
+  font-size:15px;line-height:1;padding:0 2px}
+.rseret-x:hover{color:var(--bad)}
+.rseret-grip{color:var(--line);font-size:11px;letter-spacing:-2px}
+.rantai-simpan{display:flex;align-items:center;justify-content:space-between;gap:12px;
+  margin-top:13px;padding-top:12px;border-top:1px dashed var(--line);flex-wrap:wrap}
+.rantai-pilih{flex:1;min-width:0}
+
+@media (max-width:700px){
+  .lapis{grid-template-columns:1fr;gap:6px}
+  .lapis-judul{padding-top:0}
+  .diagram-lapis{padding:6px 13px 13px}
 }

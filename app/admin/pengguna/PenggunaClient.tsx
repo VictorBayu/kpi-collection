@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
+import Pilih from "@/components/Pilih";
 
 type User = {
   id: string; nik: string; nama: string; peran: string;
@@ -39,6 +40,33 @@ export default function PenggunaClient() {
 
   // null = form tertutup. { id: null } = tambah baru, { id: "..." } = edit.
   const [form, setForm] = useState<(FormUser & { id: string | null }) | null>(null);
+
+  // Daftar jabatan diambil dari master hierarki supaya admin memilih, bukan
+  // mengetik bebas — salah ketik satu huruf membuat KPI orang itu tak terlihat.
+  const [jabatanOpsi, setJabatanOpsi] = useState<
+    { nilai: string; label: string; ket?: string; grup?: string }[]>([]);
+
+  useEffect(() => {
+    fetch("/api/admin/hierarki").then((r) => r.json()).then((d) => {
+      const urutLevel = ["manager_1","manager_2","manager_3","spv_level_2","spv_level_1","staff","admin"];
+      const namaLevel: Record<string,string> = {
+        manager_1:"Manager 1", manager_2:"Manager 2", manager_3:"Manager 3",
+        spv_level_2:"SPV level 2", spv_level_1:"SPV level 1", staff:"Staff", admin:"Admin",
+      };
+      const list = (d.jabatan ?? [])
+        .slice()
+        .sort((a: any, b: any) =>
+          urutLevel.indexOf(a.level) - urutLevel.indexOf(b.level) ||
+          a.jabatan.localeCompare(b.jabatan))
+        .map((j: any) => ({
+          nilai: j.jabatan,
+          label: j.jabatan,
+          ket: j.alias?.length ? `alias: ${j.alias.join(", ")}` : undefined,
+          grup: namaLevel[j.level] ?? j.level,
+        }));
+      setJabatanOpsi(list);
+    }).catch(() => {});
+  }, []);
 
   const muat = useCallback(async () => {
     const p = new URLSearchParams({ cari, peran, status, urut });
@@ -196,17 +224,25 @@ export default function PenggunaClient() {
               </label>
               <label className="field">
                 <span>Jabatan</span>
-                <input value={form.jabatan} placeholder="FC TT R2"
-                       onChange={(e) => setForm({ ...form, jabatan: e.target.value })} />
+                <Pilih
+                  nilai={form.jabatan}
+                  onPilih={(v) => setForm({ ...form, jabatan: v })}
+                  opsi={jabatanOpsi}
+                  placeholder="Pilih jabatan"
+                  bebas
+                />
               </label>
               <label className="field">
                 <span>Peran aplikasi</span>
-                <select value={form.peran}
-                        onChange={(e) => setForm({ ...form, peran: e.target.value })}>
-                  <option value="karyawan">Karyawan</option>
-                  <option value="atasan">Atasan</option>
-                  <option value="admin">Admin</option>
-                </select>
+                <Pilih
+                  nilai={form.peran}
+                  onPilih={(v) => setForm({ ...form, peran: v })}
+                  opsi={[
+                    { nilai: "karyawan", label: "Karyawan", ket: "dasbor sendiri" },
+                    { nilai: "atasan",   label: "Atasan",   ket: "+ menu Tim Saya" },
+                    { nilai: "admin",    label: "Admin",    ket: "akses penuh" },
+                  ]}
+                />
               </label>
               <label className="field">
                 <span>Cabang</span>
@@ -258,17 +294,23 @@ export default function PenggunaClient() {
       <div className="filterbar">
         <input className="cari" placeholder="Cari NIK atau nama" value={cari}
                onChange={(e) => setCari(e.target.value)} style={{ marginLeft: 0 }} />
-        <select className="select" value={peran} onChange={(e) => setPeran(e.target.value)}>
-          <option value="">Semua peran</option>
-          <option value="karyawan">Karyawan</option>
-          <option value="atasan">Atasan</option>
-          <option value="admin">Admin</option>
-        </select>
-        <select className="select" value={urut} onChange={(e) => setUrut(e.target.value)}>
-          <option value="akses">Urut: akses tersedikit</option>
-          <option value="login">Urut: login tersedikit</option>
-          <option value="nama">Urut: nama</option>
-        </select>
+        <div className="filter-pilih">
+          <Pilih nilai={peran} onPilih={setPeran} cari={false}
+                 opsi={[
+                   { nilai: "", label: "Semua peran" },
+                   { nilai: "karyawan", label: "Karyawan" },
+                   { nilai: "atasan", label: "Atasan" },
+                   { nilai: "admin", label: "Admin" },
+                 ]} />
+        </div>
+        <div className="filter-pilih">
+          <Pilih nilai={urut} onPilih={setUrut} cari={false}
+                 opsi={[
+                   { nilai: "akses", label: "Urut: akses tersedikit" },
+                   { nilai: "login", label: "Urut: login tersedikit" },
+                   { nilai: "nama",  label: "Urut: nama" },
+                 ]} />
+        </div>
       </div>
 
       <section className="card">
@@ -317,12 +359,12 @@ export default function PenggunaClient() {
                     <div className="rowact">
                       <button className="btn ghost sm" disabled={sibuk}
                               onClick={() => bukaEdit(u)}>Ubah</button>
-                      <button className="btn ghost sm" disabled={sibuk}
+                      <button className="btn hati sm" disabled={sibuk}
                               onClick={() => resetPassword(u)}>Reset PW</button>
                       {suspended
-                        ? <button className="btn ghost sm" disabled={sibuk}
+                        ? <button className="btn pulih sm" disabled={sibuk}
                                   onClick={() => aksi(u.id, "aktifkan", u.nama)}>Aktifkan</button>
-                        : <button className="btn ghost sm" disabled={sibuk}
+                        : <button className="btn hati sm" disabled={sibuk}
                                   onClick={() => aksi(u.id, "suspend", u.nama)}>Nonaktifkan</button>}
                       <button className="btn danger sm" disabled={sibuk}
                               onClick={() => hapus(u)}>Hapus</button>

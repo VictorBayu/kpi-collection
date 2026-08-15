@@ -6,10 +6,11 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "db:push": "psql $DATABASE_URL -f db/schema.sql -f db/schema-addendum.sql -f db/schema-access.sql -f db/schema-hierarki.sql",
+    "db:push": "psql $DATABASE_URL -f db/schema.sql -f db/schema-addendum.sql -f db/schema-access.sql -f db/schema-hierarki.sql -f db/schema-hierarki-v2.sql",
     "db:seed": "tsx db/seed.ts"
   },
   "dependencies": {
+    "20": "^3.1.9",
     "@neondatabase/serverless": "^0.10.4",
     "@vercel/blob": "^0.27.0",
     "@vercel/speed-insights": "^2.0.0",
