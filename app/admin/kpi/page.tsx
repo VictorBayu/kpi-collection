@@ -100,6 +100,11 @@ export default async function AdminKpi({
                       <Link href={`/admin/kpi/${k.nik}?periode=${periode}`} className="lnk">
                         <b>{k.nama}</b>
                       </Link>
+                      {k.tanpaAkun && (
+                        <span className="tag-warn" title="NIK ini ada di data KPI tapi belum punya akun login">
+                          tanpa akun
+                        </span>
+                      )}
                       <div className="faint num">{k.nik} · {k.jabatan ?? "—"}</div>
                     </td>
                     <td className={k.terlemah ? "" : "faint"}>{k.terlemah ?? "—"}</td>

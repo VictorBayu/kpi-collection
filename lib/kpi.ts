@@ -1,5 +1,6 @@
 import { unstable_cache } from "next/cache";
 import { q } from "./db";
+import { SQL_TIM_TERLIHAT, profilHierarki } from "./hierarki";
 
 export type Indikator = {
   produk: string | null; indikator: string;
@@ -93,74 +94,57 @@ export async function trenKpi(nik: string) {
   return rows.reverse().map((r) => ({ periode: r.periode, skor: Number(r.skor ?? 0) }));
 }
 
-/** Untuk atasan: anggota tim di cabang atau area yang sama. */
+/**
+ * Untuk atasan: anggota yang boleh dilihat menurut hierarki jabatan.
+ *
+ * Bukan lagi "semua orang satu cabang". Syaratnya dua, lihat lib/hierarki.ts:
+ * jabatan pengamat harus ada di rantai atasan si target (dan hanya melihat
+ * ke bawah), DAN wilayahnya cocok — cabang untuk atasan cabang, area untuk
+ * AM/ACH.
+ *
+ * Anggota dikelompokkan per level supaya atasan bisa membedakan mana
+ * stafnya sendiri dan mana atasan di bawahnya.
+ */
 export async function timSaya(atasanNik: string, periode: string) {
-  /**
-   * Satu kueri, bukan dua.
-   *
-   * Sebelumnya: kueri pertama mengambil cabang/area atasan, kueri kedua
-   * baru mengambil anggota — dua perjalanan bolak-balik berurutan ke Neon.
-   * Lebih berat lagi, ketiga CTE mengagregasi v_kpi_aktif/v_insentif_aktif
-   * untuk SELURUH karyawan pada periode itu, padahal yang dipakai hanya
-   * satu cabang; penyaringan cabang baru terjadi di akhir.
-   *
-   * Sekarang CTE `tim` menentukan anggota lebih dulu, dan agregasi skor,
-   * insentif, serta indikator terlemah hanya berjalan untuk NIK anggota itu.
-   * Logika lingkup (cabang vs area) dipindah ke SQL agar hasilnya identik:
-   * area hanya dipakai bila atasan tidak terikat satu cabang.
-   */
   const rows = await q<any>(
-    `WITH me AS (
-       SELECT cabang, area, peran,
-              (peran = 'atasan' AND cabang IS NULL AND area IS NOT NULL) AS manajer_area
-         FROM app_user WHERE nik = $1),
-     tim AS (
-       SELECT u.nik, u.nama, u.jabatan, u.cabang
-         FROM app_user u CROSS JOIN me
-        WHERE u.aktif AND u.nik <> $1
-          AND CASE WHEN me.manajer_area THEN u.area = me.area
-                   ELSE u.cabang = me.cabang END),
-     skor AS (
+    `WITH tim AS (${SQL_TIM_TERLIHAT})
+     , skor AS (
        SELECT k.nik, SUM(k.skor_terbobot) AS skor
          FROM v_kpi_aktif k JOIN tim t ON t.nik = k.nik
-        WHERE k.periode = $2 GROUP BY k.nik),
-     ins AS (
+        WHERE k.periode = $2 GROUP BY k.nik)
+     , ins AS (
        SELECT v.nik, SUM(v.nominal) AS insentif
          FROM v_insentif_aktif v JOIN tim t ON t.nik = v.nik
-        WHERE v.periode = $2 GROUP BY v.nik),
-     lemah AS (
+        WHERE v.periode = $2 GROUP BY v.nik)
+     , lemah AS (
        SELECT DISTINCT ON (k.nik) k.nik, k.indikator
          FROM v_kpi_aktif k JOIN tim t ON t.nik = k.nik
         WHERE k.periode = $2 ORDER BY k.nik, k.skor_kpi ASC NULLS LAST)
-     SELECT t.nik, t.nama, t.jabatan, t.cabang,
+     SELECT t.nik, t.nama, t.jabatan, t.jabatan_master, t.cabang, t.area,
+            t.level, COALESCE(t.urutan,0) AS urutan,
             COALESCE(s.skor,0) AS skor, COALESCE(i.insentif,0) AS insentif,
-            l.indikator AS terlemah,
-            me.manajer_area, me.area AS me_area, me.cabang AS me_cabang
-       FROM tim t CROSS JOIN me
+            l.indikator AS terlemah
+       FROM tim t
        LEFT JOIN skor s ON s.nik = t.nik
        LEFT JOIN ins  i ON i.nik = t.nik
        LEFT JOIN lemah l ON l.nik = t.nik
-      ORDER BY COALESCE(s.skor,0) ASC`,
+      ORDER BY COALESCE(t.urutan,0) DESC, COALESCE(s.skor,0) ASC`,
     [atasanNik, periode]);
 
-  // Tidak ada baris bisa berarti atasan tidak ditemukan ATAU timnya kosong.
-  // Keduanya ditampilkan sebagai daftar kosong, sama seperti perilaku lama.
-  if (!rows.length) {
-    const [me] = await q<{ cabang: string; area: string; peran: string }>(
-      `SELECT cabang, area, peran FROM app_user WHERE nik = $1`, [atasanNik]);
-    if (!me) return { lingkup: "—", anggota: [] as any[] };
-    const manajerArea = me.peran === "atasan" && !me.cabang && !!me.area;
-    return {
-      lingkup: manajerArea ? `Area ${me.area}` : `Cabang ${me.cabang}`,
-      anggota: [] as any[],
-    };
-  }
+  const profil = await profilHierarki(atasanNik);
+  const lingkup = !profil ? "—"
+    : profil.lingkup.jenis === "semua" ? "Semua cabang"
+    : profil.lingkup.jenis === "area" ? `Area ${profil.lingkup.nilai}`
+    : `Cabang ${profil.lingkup.nilai}`;
 
-  const k = rows[0];
   return {
-    lingkup: k.manajer_area ? `Area ${k.me_area}` : `Cabang ${k.me_cabang}`,
+    lingkup,
+    jabatanSaya: profil?.jabatanMaster ?? null,
+    levelSaya: profil?.level ?? null,
     anggota: rows.map((r) => ({
-      nik: r.nik, nama: r.nama, jabatan: r.jabatan, cabang: r.cabang,
+      nik: r.nik, nama: r.nama, jabatan: r.jabatan,
+      jabatanMaster: r.jabatan_master, cabang: r.cabang, area: r.area,
+      level: r.level, urutan: Number(r.urutan),
       terlemah: r.terlemah,
       skor: Number(r.skor), insentif: Number(r.insentif),
     })),
@@ -203,10 +187,14 @@ export async function karyawanCabang(periode: string, cabang: string) {
        SELECT DISTINCT ON (nik) nik, indikator FROM v_kpi_aktif
         WHERE periode = $1 AND COALESCE(UPPER(TRIM(cabang)),'(TANPA CABANG)') = $2
         ORDER BY nik, skor_kpi ASC NULLS LAST)
-     SELECT k.nik, u.nama, u.jabatan,
+     SELECT k.nik, COALESCE(u.nama, k.nama_file) AS nama,
+            COALESCE(u.jabatan, k.jabatan_file) AS jabatan,
+            (u.nik IS NULL) AS tanpa_akun,
             COALESCE(s.skor,0) AS skor, COALESCE(i.insentif,0) AS insentif, l.indikator AS terlemah
-       FROM (SELECT DISTINCT nik FROM v_kpi_aktif
-              WHERE periode=$1 AND COALESCE(UPPER(TRIM(cabang)),'(TANPA CABANG)')=$2) k
+       FROM (SELECT DISTINCT ON (nik) nik, nama AS nama_file, jabatan AS jabatan_file
+               FROM v_kpi_aktif
+              WHERE periode=$1 AND COALESCE(UPPER(TRIM(cabang)),'(TANPA CABANG)')=$2
+              ORDER BY nik) k
        LEFT JOIN app_user u ON u.nik = k.nik
        LEFT JOIN skor s ON s.nik = k.nik
        LEFT JOIN ins  i ON i.nik = k.nik
@@ -214,6 +202,9 @@ export async function karyawanCabang(periode: string, cabang: string) {
       ORDER BY COALESCE(s.skor,0) ASC`, [periode, cabang]);
   return rows.map((r) => ({
     nik: r.nik, nama: r.nama ?? r.nik, jabatan: r.jabatan,
+    // Baris dari Excel yang NIK-nya belum punya akun login. Datanya tetap
+    // tersimpan dan terlihat admin, ditandai agar mudah ditindaklanjuti.
+    tanpaAkun: Boolean(r.tanpa_akun),
     skor: Number(r.skor), insentif: Number(r.insentif), terlemah: r.terlemah,
   }));
 }

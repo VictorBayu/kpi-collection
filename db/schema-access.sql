@@ -24,7 +24,11 @@ CREATE INDEX IF NOT EXISTS idx_access_user ON access_log (user_id, created_at DE
 CREATE INDEX IF NOT EXISTS idx_access_time ON access_log (created_at DESC);
 
 -- Ringkasan akses 30 hari terakhir per user (dipakai laporan admin)
-CREATE OR REPLACE VIEW v_akses_ringkas AS
+-- Catatan: db/schema-hierarki.sql membuat ulang view ini dengan kolom
+-- jabatan & level. DROP dulu agar urutan kolom yang berbeda tidak menolak
+-- perintah di bawah saat skrip dijalankan ulang.
+DROP VIEW IF EXISTS v_akses_ringkas;
+CREATE VIEW v_akses_ringkas AS
 SELECT
   u.id, u.nik, u.nama, u.peran, u.cabang, u.area, u.aktif,
   u.login_count, u.access_count, u.last_login_at, u.last_access_at,

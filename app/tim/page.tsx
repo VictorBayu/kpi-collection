@@ -104,13 +104,16 @@ export default async function Tim({
                       <details className="indbox">
                         <summary>
                           <span className="sum-lbl">
-                            Lihat {(petaInd.get(a.nik) ?? []).length} indikator
+                            {(petaInd.get(a.nik) ?? []).length} indikator
                           </span>
                           {a.terlemah && (
                             <span className="faint sum-weak">terlemah: {a.terlemah}</span>
                           )}
                         </summary>
-                      <div className="indlist">
+                      {/* Satu indikator = satu baris padat: nama, angka, dan
+                          tingkat KPI sejajar. Bilah target hanya muncul saat
+                          disorot agar daftar tidak memanjang ke bawah. */}
+                      <div className="indgrid">
                         {(petaInd.get(a.nik) ?? []).map((d: any, i: number) => {
                           const satuanTampil = tebakSatuan(d.indikator, d.pencapaian);
                           const band = nilaiBanding(d.pencapaian, d.rasio, d.target_kpi3);
@@ -119,22 +122,26 @@ export default async function Tim({
                                       d.target_kpi4 ?? d.target_kpi3, d.target_kpi5 ?? d.target_kpi3)
                             : null;
                           return (
-                            <div className="indrow" key={i}>
-                              <div className="indrow-top">
-                                <span className="indnama">
+                            <div className={"indcell" + (lv === 0 ? " kurang" : "")} key={i}>
+                              <div className="indcell-head">
+                                <span className="indcell-nama" title={d.indikator}>
                                   {d.indikator}
-                                  {d.produk ? <span className="faint"> · {d.produk}</span> : null}
+                                  {d.produk ? <em> · {d.produk}</em> : null}
                                 </span>
                                 {lv !== null && (
-                                  <span className={`chip k${lv}`}>{lv === 0 ? "< KPI 3" : `KPI ${lv}`}</span>
+                                  <span className={`dot k${lv}`} title={lv === 0 ? "Di bawah KPI 3" : `KPI ${lv}`}>
+                                    {lv === 0 ? "!" : lv}
+                                  </span>
                                 )}
                               </div>
-                              <div className="indrow-figs faint">
-                                <span>Pencapaian <b>{nilai(d.pencapaian, satuanTampil)}</b></span>
-                                <span>Skor <b>{angka(d.skor_kpi)}</b></span>
+                              <div className="indcell-figs">
+                                <b>{nilai(d.pencapaian, satuanTampil)}</b>
+                                <span className="faint">skor {angka(d.skor_kpi)}</span>
                               </div>
-                              <Ladder v={band.v} t3={d.target_kpi3} t4={d.target_kpi4}
-                                      t5={d.target_kpi5} satuan={band.satuan} ringkas />
+                              <div className="indcell-bar">
+                                <Ladder v={band.v} t3={d.target_kpi3} t4={d.target_kpi4}
+                                        t5={d.target_kpi5} satuan={band.satuan} ringkas />
+                              </div>
                             </div>
                           );
                         })}

@@ -64,39 +64,55 @@ export default async function Dashboard({
       </div>
 
       <main className="shell">
-        {/* ringkasan */}
-        <section className="hero">
-          <div className="card card-pad">
-            <span className="eyebrow">Skor KPI Anda bulan ini</span>
-            <div className="scorewrap">
-              <b className="score">{angka(ring.skor)}</b>
-              <span className="scoreof">dari 5,00</span>
+        {/* Ringkasan: dua angka utama disatukan dalam satu kartu supaya di
+            layar kecil keduanya terbaca tanpa scroll. */}
+        <section className="card card-pad dash-ring">
+          <div className="dash-metrik">
+            <div className="metrik">
+              <span className="eyebrow">Skor KPI {namaPeriode(periode)}</span>
+              <div className="scorewrap">
+                <b className="score">{angka(ring.skor)}</b>
+                <span className="scoreof">dari 5,00</span>
+                {naikSkor !== null && naikSkor !== 0 && (
+                  <span className={naikSkor > 0 ? "delta up" : "delta down"}>
+                    {naikSkor > 0 ? "▲" : "▼"} {angka(Math.abs(naikSkor))}
+                  </span>
+                )}
+              </div>
+              <span className={`chip k${lv} chip-lv`}>
+                {lv === 0 ? "Di bawah KPI 3" : `KPI ${lv}`}
+              </span>
             </div>
-            <p className="verdict">
-              {lv > 0 ? <>Anda berada di tingkat <b>KPI {lv}</b>. </> : <>Anda masih di bawah KPI 3. </>}
-              {kalimatJarak(ring.skor, 3, 4, 5, "unit").replace(" unit", " poin")}
-            </p>
-            <Ladder v={ring.skor} t3={3} t4={4} t5={5} satuan="skor" />
+
+            <div className="metrik">
+              <span className="eyebrow">Perkiraan insentif</span>
+              <div className="moneyrow">
+                <b className="money">{rp(totalInsentif)}</b>
+                {naikIns !== null && naikIns !== 0 && (
+                  <span className={naikIns > 0 ? "delta up" : "delta down"}>
+                    {naikIns > 0 ? "▲" : "▼"} {rpSingkat(Math.abs(naikIns))}
+                  </span>
+                )}
+              </div>
+              <p className="muted small nomargin">
+                {ring.insentifLalu !== null
+                  ? <>Bulan lalu {rpSingkat(ring.insentifLalu)} · final menunggu tutup buku</>
+                  : <>Final menunggu penutupan buku</>}
+              </p>
+            </div>
           </div>
 
-          <div className="card card-pad">
-            <span className="eyebrow">Perkiraan insentif</span>
-            <div className="moneyrow">
-              <b className="money">{rp(totalInsentif)}</b>
-              {naikIns !== null && naikIns !== 0 && (
-                <span className={naikIns > 0 ? "delta up" : "delta down"}>
-                  {naikIns > 0 ? "▲" : "▼"} {rpSingkat(Math.abs(naikIns))}
-                </span>
-              )}
-            </div>
-            <p className="muted small">
-              {ring.insentifLalu !== null
-                ? <>Bulan lalu {rp(ring.insentifLalu)}. Angka final menunggu penutupan buku.</>
-                : <>Belum ada pembanding bulan lalu. Angka final menunggu penutupan buku.</>}
-            </p>
+          <Ladder v={ring.skor} t3={3} t4={4} t5={5} satuan="skor" />
 
-            <hr />
-            <span className="eyebrow">Skor enam periode terakhir</span>
+          <p className="verdict">
+            {kalimatJarak(ring.skor, 3, 4, 5, "unit").replace(" unit", " poin")}
+          </p>
+
+          <details className="dash-tren">
+            <summary>
+              <span>Tren enam periode terakhir</span>
+              <span className="faint num">{angka(ring.skor)} sekarang</span>
+            </summary>
             <div className="trend">
               {tren.map((t, i) => (
                 <i key={String(t.periode)} className={i === tren.length - 1 ? "bar now" : "bar"}
@@ -111,7 +127,7 @@ export default async function Dashboard({
                 </span>
               ))}
             </div>
-          </div>
+          </details>
         </section>
 
         {/* indikator */}
@@ -182,7 +198,9 @@ export default async function Dashboard({
           </div>
         </div>
 
-        <section className="card">
+        {/* Tabel untuk layar lebar; di layar kecil dibaca sebagai daftar
+            kartu supaya tidak perlu geser ke samping. */}
+        <section className="card tabel-responsif">
           <table>
             <thead>
               <tr>
@@ -193,7 +211,7 @@ export default async function Dashboard({
             <tbody>
               {ins.map((r) => (
                 <tr key={r.kategori}>
-                  <td>
+                  <td data-label="Kategori">
                     <b>{r.kategori}</b>{" "}
                     {r.nominal < 0
                       ? <span className="chip c-tolak">Penalty</span>
@@ -201,10 +219,10 @@ export default async function Dashboard({
                         ? <span className="chip c-selesai">Extra</span>
                         : null}
                   </td>
-                  <td className="r num faint">{r.saldo_awal ? rpSingkat(r.saldo_awal) : "—"}</td>
-                  <td className="r num">{r.saldo_awal ? rpSingkat(r.pencapaian) : angka(r.pencapaian, 0)}</td>
-                  <td className="r num">{r.rasio !== null ? Math.round(r.rasio * 100) + "%" : "—"}</td>
-                  <td className={"r num" + (r.nominal < 0 ? " neg" : "")}><b>{rp(r.nominal)}</b></td>
+                  <td className="r num faint" data-label="Saldo awal">{r.saldo_awal ? rpSingkat(r.saldo_awal) : "—"}</td>
+                  <td className="r num" data-label="Pencapaian">{r.saldo_awal ? rpSingkat(r.pencapaian) : angka(r.pencapaian, 0)}</td>
+                  <td className="r num" data-label="Rasio">{r.rasio !== null ? Math.round(r.rasio * 100) + "%" : "—"}</td>
+                  <td className={"r num utama" + (r.nominal < 0 ? " neg" : "")} data-label="Insentif"><b>{rp(r.nominal)}</b></td>
                 </tr>
               ))}
               {!ins.length && (

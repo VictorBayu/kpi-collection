@@ -93,17 +93,25 @@ export function validasiBaris(
   const nik = keNik(rawNik);
   if (!nik) {
     tolak(ctx.mapping.nik ?? null, "NIK tidak terbaca di baris ini. Pastikan kolom NIK terisi.", rawNik);
-  } else if (!ctx.nikDikenal.has(nik)) {
-    tolak(ctx.mapping.nik ?? null,
-      `NIK ${nik} tidak ada di daftar karyawan aktif. Baris tidak akan diterbitkan.`, rawNik);
   } else {
     rec.nik = nik;
     const namaFile = keNama(ambil("nama") ?? rawNik);
     const namaDb = ctx.namaByNik.get(nik);
-    if (namaFile && namaDb && !miripNama(namaFile, namaDb)) {
+
+    if (!ctx.nikDikenal.has(nik)) {
+      // NIK belum punya akun login. Datanya TETAP disimpan supaya angka
+      // periode ini utuh; yang bersangkutan baru bisa melihatnya setelah
+      // admin membuatkan akun dengan NIK yang sama.
+      tandai(ctx.mapping.nik ?? null,
+        `NIK ${nik} belum terdaftar di pengguna login. Data tetap disimpan, ` +
+        `tapi belum ada yang bisa membukanya sampai akunnya dibuat.`, rawNik);
+    } else if (namaFile && namaDb && !miripNama(namaFile, namaDb)) {
       tandai(ctx.mapping.nama ?? ctx.mapping.nik ?? null,
         `Nama berbeda dari data karyawan: "${namaFile}" vs "${namaDb}". Data karyawan yang dipakai.`, namaFile);
     }
+
+    // Nama dari database dipakai kalau ada; kalau NIK belum terdaftar,
+    // nama dari file yang disimpan agar barisnya tetap bisa dikenali.
     rec.nama = namaDb ?? namaFile;
   }
 

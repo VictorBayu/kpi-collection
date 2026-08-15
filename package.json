@@ -6,7 +6,7 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "db:push": "psql $DATABASE_URL -f db/schema.sql -f db/schema-addendum.sql",
+    "db:push": "psql $DATABASE_URL -f db/schema.sql -f db/schema-addendum.sql -f db/schema-access.sql -f db/schema-hierarki.sql",
     "db:seed": "tsx db/seed.ts"
   },
   "dependencies": {

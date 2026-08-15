@@ -42,9 +42,7 @@ export const POST = handler(async (req) => {
     periode: batch.periode, menggantikan: sebelum?.id ?? null, karyawan: dampak.karyawan,
   });
 
-  // Statistik di halaman login di-cache; segarkan agar periode terbit
-  // langsung ikut berubah, tidak menunggu masa cache habis.
-  revalidateTag("login-info");
+  // Daftar periode di-cache; segarkan agar batch baru langsung tampil.
   revalidateTag("batch-kpi");
 
   return Response.json({

@@ -17,7 +17,7 @@ export default async function AppShell({ children }: { children: React.ReactNode
     s?.peran === "admin"
       ? [["/admin/import", "Unggah data"], ["/admin/kpi", "Data KPI"],
          ["/admin/riwayat", "Riwayat impor"], ["/admin/request", "Kelola request"],
-         ["/admin/pengguna", "Pengguna & Akses"]]
+         ["/admin/pengguna", "Pengguna & Akses"], ["/admin/hierarki", "Master Hierarki"]]
       : s?.peran === "atasan"
       ? [["/dashboard", "Dasbor saya"], ["/tim", "Tim saya"], ["/request", "Request"]]
       : [["/dashboard", "Dasbor saya"], ["/request", "Request"]];

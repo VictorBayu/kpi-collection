@@ -378,3 +378,115 @@ tfoot td{font-weight:700;border-top:1px solid var(--line);background:#FAFBFD}
 .indbox[open] > summary{margin-bottom:10px;border-color:var(--accent);
   background:var(--accent-soft)}
 .indbox .indlist{padding-left:2px}
+
+/* ---- Form pengguna & master hierarki (layar admin) ---- */
+.formtitle{font-family:var(--font-archivo),Archivo,sans-serif;font-size:15px;margin:0 0 14px}
+.formgrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:13px}
+.formcheck{display:flex;flex-wrap:wrap;gap:18px;margin:15px 0 4px}
+.formcheck label{display:flex;align-items:center;gap:8px;font-size:13px;cursor:pointer}
+.formcheck input{width:16px;height:16px;accent-color:var(--accent);flex:none}
+.formact{display:flex;gap:10px;margin-top:16px}
+.rowact{display:inline-flex;gap:6px;flex-wrap:wrap;justify-content:flex-end}
+.tag-warn{display:inline-block;margin-left:7px;padding:1px 7px;border-radius:999px;
+  background:var(--warn-soft);color:var(--warn);font-size:10.5px;font-weight:700;
+  letter-spacing:.04em;text-transform:uppercase;vertical-align:middle}
+.small{font-size:12.5px}
+
+/* ---- Master hierarki ---- */
+.chiprow{display:flex;flex-wrap:wrap;gap:7px}
+.chipbtn{border:1px solid currentColor;background:transparent;color:inherit;cursor:pointer;
+  border-radius:999px;padding:4px 11px;font-size:12px;font-family:inherit;opacity:.85}
+.chipbtn:hover{opacity:1;background:rgba(0,0,0,.05)}
+.aliaschip{border:1px solid var(--line);background:var(--line-soft);color:var(--ink-soft);
+  border-radius:999px;padding:1px 8px;font-size:10.5px;font-family:inherit;cursor:pointer;
+  margin-right:4px}
+.aliaschip:hover{background:var(--bad-soft);color:var(--bad);border-color:var(--bad-soft)}
+.rantai{display:flex;flex-direction:column;gap:8px;margin-top:8px}
+.rantai-item{display:flex;align-items:center;gap:9px}
+.rantai-no{width:22px;height:22px;border-radius:50%;background:var(--accent-soft);
+  color:var(--accent);display:grid;place-items:center;font-size:11px;font-weight:700;flex:none}
+.rantai-item input{flex:1;border:1px solid var(--line);border-radius:10px;padding:9px 12px;
+  font-family:inherit;font-size:13px;background:#fff;min-width:0}
+.rantai-view{display:flex;flex-wrap:wrap;gap:5px;align-items:center}
+.rantai-step{background:var(--line-soft);border:1px solid var(--line);border-radius:7px;
+  padding:2px 8px;font-size:11.5px;white-space:nowrap}
+.rantai-step + .rantai-step::before{content:"→";margin-right:6px;color:var(--ink-faint)}
+
+/* ================= Dasbor Saya — susunan ringkas ================= */
+.dash-ring{margin-top:20px}
+.dash-metrik{display:grid;grid-template-columns:1fr 1fr;gap:20px;margin-bottom:16px}
+.dash-metrik .metrik{min-width:0}
+.chip-lv{display:inline-block;margin-top:8px}
+.nomargin{margin:0}
+.dash-tren{margin-top:16px;border-top:1px solid var(--line-soft);padding-top:12px}
+.dash-tren summary{display:flex;justify-content:space-between;align-items:center;gap:10px;
+  cursor:pointer;list-style:none;font-size:12.5px;font-weight:600;color:var(--ink-soft)}
+.dash-tren summary::-webkit-details-marker{display:none}
+.dash-tren summary::after{content:"▾";color:var(--ink-faint);font-size:11px;order:3}
+.dash-tren[open] summary::after{content:"▴"}
+.dash-tren summary > span:first-child{flex:1}
+.verdict{margin:12px 0 0;font-size:13px;color:var(--ink-soft)}
+
+/* Tabel yang berubah jadi daftar kartu di layar kecil */
+@media (max-width:700px){
+  .tabel-responsif thead{display:none}
+  .tabel-responsif table,.tabel-responsif tbody,.tabel-responsif tr,.tabel-responsif td{display:block;width:100%}
+  .tabel-responsif tr{padding:12px 15px;border-bottom:1px solid var(--line-soft)}
+  .tabel-responsif td{border:0;padding:3px 0;display:flex;justify-content:space-between;
+    align-items:baseline;gap:14px;text-align:right}
+  .tabel-responsif td::before{content:attr(data-label);font-size:11px;font-weight:700;
+    letter-spacing:.06em;text-transform:uppercase;color:var(--ink-faint);text-align:left;flex:none}
+  .tabel-responsif td:first-child{text-align:left;margin-bottom:5px}
+  .tabel-responsif td:first-child::before{display:none}
+  .tabel-responsif td.utama{font-size:15px;margin-top:4px;padding-top:7px;
+    border-top:1px dashed var(--line)}
+  .tabel-responsif td.empty::before{display:none}
+  .tabel-responsif tfoot tr{display:flex;justify-content:space-between;gap:12px}
+  .tabel-responsif tfoot td{display:inline;padding:0}
+  .tabel-responsif tfoot td::before{display:none}
+}
+
+@media (max-width:640px){
+  .dash-metrik{grid-template-columns:1fr;gap:14px}
+  .dash-ring{margin-top:14px}
+  .card-pad{padding:16px}
+  .score{font-size:40px}
+  .money{font-size:26px}
+  .shell{padding:0 14px 44px}
+  .sectionhead{margin:20px 0 11px}
+  .ind-figs{gap:18px;flex-wrap:wrap}
+  .ribbon-in{padding:9px 14px}
+}
+
+/* ====== Tim saya — detail indikator versi padat ====== */
+.indgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(215px,1fr));gap:8px;
+  max-width:none}
+.indcell{border:1px solid var(--line-soft);border-radius:9px;background:#FCFDFF;
+  padding:8px 10px;min-width:0}
+.indcell.kurang{border-color:#F3D3D3;background:#FEFBFB}
+.indcell-head{display:flex;align-items:flex-start;justify-content:space-between;gap:7px}
+.indcell-nama{font-size:11.5px;line-height:1.35;font-weight:600;color:var(--ink-soft);
+  display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.indcell-nama em{font-style:normal;color:var(--ink-faint);font-weight:500}
+.indcell-figs{display:flex;align-items:baseline;justify-content:space-between;gap:8px;
+  margin-top:3px}
+.indcell-figs b{font-family:var(--font-plex-mono),"IBM Plex Mono";font-size:13px;font-weight:600}
+.indcell-figs span{font-size:10.5px;white-space:nowrap}
+.indcell-bar{margin-top:5px;opacity:.55;transition:opacity .15s}
+.indcell:hover .indcell-bar{opacity:1}
+.dot{width:18px;height:18px;border-radius:50%;flex:none;display:grid;place-items:center;
+  font-size:10.5px;font-weight:700;font-family:var(--font-plex-mono),"IBM Plex Mono";
+  background:var(--line-soft);color:var(--ink-soft)}
+.dot.k0{background:var(--bad-soft);color:var(--bad)}
+.dot.k3{background:var(--warn-soft);color:var(--warn)}
+.dot.k4,.dot.k5{background:var(--good-soft);color:var(--good)}
+.indbox summary{padding:5px 10px;font-size:12px}
+
+@media (max-width:700px){
+  .indgrid{grid-template-columns:1fr 1fr;gap:6px}
+  .indcell{padding:7px 8px}
+  .indcell-bar{opacity:1}
+}
+@media (max-width:420px){
+  .indgrid{grid-template-columns:1fr}
+}
