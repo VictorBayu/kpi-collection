@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import Pilih from "@/components/Pilih";
 import Diagram from "./Diagram";
+import Diagnosa from "./Diagnosa";
 
 type Rantai = { tingkat: number; atasan: string };
 type Jabatan = {
@@ -41,7 +42,7 @@ export default function HierarkiClient() {
   const [galat, setGalat] = useState<string | null>(null);
   const [kabar, setKabar] = useState<string | null>(null);
   const [sibuk, setSibuk] = useState(false);
-  const [tampilan, setTampilan] = useState<"diagram" | "tabel">("diagram");
+  const [tampilan, setTampilan] = useState<"diagram" | "tabel" | "uji">("diagram");
 
   const muat = useCallback(async () => {
     const d = await fetch("/api/admin/hierarki").then((r) => r.json());
@@ -288,7 +289,11 @@ export default function HierarkiClient() {
                 onClick={() => setTampilan("diagram")}>Diagram</button>
         <button className={"vbtn" + (tampilan === "tabel" ? " on" : "")}
                 onClick={() => setTampilan("tabel")}>Tabel</button>
+        <button className={"vbtn" + (tampilan === "uji" ? " on" : "")}
+                onClick={() => setTampilan("uji")}>Uji visibilitas</button>
       </div>
+
+      {tampilan === "uji" && <Diagnosa />}
 
       {tampilan === "diagram" && (
         <Diagram

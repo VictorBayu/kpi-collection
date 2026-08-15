@@ -76,7 +76,9 @@ export async function profilHierarki(nik: string): Promise<ProfilHierarki | null
  */
 export const SQL_TIM_TERLIHAT = `
   WITH pengamat AS (
-    SELECT v.nik, v.jabatan_master, v.cabang, v.area, v.peran, jl.level,
+    SELECT v.nik, v.jabatan_master,
+           norm_wilayah(v.cabang) AS cabang, norm_wilayah(v.area) AS area,
+           v.peran, jl.level,
            (v.peran = 'admin') AS is_admin,
            (jl.level IN ('manager_1','manager_2') OR (v.cabang IS NULL AND v.area IS NOT NULL))
              AS se_area
@@ -101,9 +103,20 @@ export const SQL_TIM_TERLIHAT = `
             WHERE vis.pengamat = p.jabatan_master
               AND vis.target   = t.jabatan_master
          )
-         -- Syarat 2: wilayah
-         AND CASE WHEN p.se_area THEN t.area = p.area
-                  ELSE t.cabang = p.cabang END
+         -- Syarat 2: wilayah.
+         -- Nama wilayah dinormalkan lebih dulu supaya spasi berlebih atau
+         -- beda huruf besar-kecil tidak diam-diam menyembunyikan orang.
+         AND CASE
+               -- Pengamat manajer area: bandingkan area
+               WHEN p.se_area
+                 THEN norm_wilayah(t.area) IS NOT DISTINCT FROM p.area
+               -- Target tidak terikat cabang (ACH/AM biasanya begitu):
+               -- cocokkan lewat area, kalau tidak dia tak pernah terlihat
+               -- oleh BM mana pun padahal memang atasan di area itu.
+               WHEN t.cabang IS NULL AND t.area IS NOT NULL
+                 THEN norm_wilayah(t.area) IS NOT DISTINCT FROM p.area
+               ELSE norm_wilayah(t.cabang) IS NOT DISTINCT FROM p.cabang
+             END
        )
      )
 `;

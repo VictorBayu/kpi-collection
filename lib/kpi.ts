@@ -152,6 +152,9 @@ export async function timSaya(atasanNik: string, periode: string) {
 
   return {
     lingkup,
+    // Pengamat yang membawahi banyak cabang (AM/ACH) butuh tampilan yang
+    // dikelompokkan; yang hanya satu cabang tidak perlu.
+    seArea: profil?.lingkup.jenis === "area" || profil?.lingkup.jenis === "semua",
     jabatanSaya: profil?.jabatanMaster ?? null,
     levelSaya: profil?.level ?? null,
     anggota: rows.map((r) => ({

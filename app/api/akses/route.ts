@@ -1,6 +1,8 @@
 import { readSession, catatAkses, handler } from "@/lib/auth";
 
 export const runtime = "nodejs";
+// Selalu dijalankan saat ada permintaan, tidak pernah dibekukan saat build.
+export const dynamic = "force-dynamic";
 
 export const POST = handler(async (req) => {
   const s = await readSession();

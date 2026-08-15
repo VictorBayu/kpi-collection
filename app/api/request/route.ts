@@ -3,6 +3,8 @@ import { q, auditLog } from "@/lib/db";
 import { KATEGORI } from "@/lib/request";
 
 export const runtime = "nodejs";
+// Selalu dijalankan saat ada permintaan, tidak pernah dibekukan saat build.
+export const dynamic = "force-dynamic";
 
 
 /** Daftar tiket. Karyawan melihat miliknya, admin melihat semua. */

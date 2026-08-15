@@ -3,6 +3,8 @@ import { verifyLogin, signSession, handler, HttpError, COOKIE } from "@/lib/auth
 import { auditLog } from "@/lib/db";
 
 export const runtime = "nodejs";
+// Selalu dijalankan saat ada permintaan, tidak pernah dibekukan saat build.
+export const dynamic = "force-dynamic";
 
 export const POST = handler(async (req) => {
   const { nik, password } = await req.json();

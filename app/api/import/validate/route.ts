@@ -5,6 +5,8 @@ import { validasiBaris, type Issue } from "@/lib/import/validate";
 import { FIELDS } from "@/lib/import/fields";
 
 export const runtime = "nodejs";
+// Selalu dijalankan saat ada permintaan, tidak pernah dibekukan saat build.
+export const dynamic = "force-dynamic";
 export const maxDuration = 60;
 
 const UKURAN_POTONGAN = 1000;

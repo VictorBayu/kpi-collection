@@ -2,6 +2,8 @@ import { requireAdmin, handler } from "@/lib/auth";
 import { q } from "@/lib/db";
 
 export const runtime = "nodejs";
+// Selalu dijalankan saat ada permintaan, tidak pernah dibekukan saat build.
+export const dynamic = "force-dynamic";
 
 /** Daftar riwayat impor + temuan satu batch (?batchId=...). */
 export const GET = handler(async (req) => {

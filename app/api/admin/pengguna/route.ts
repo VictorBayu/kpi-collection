@@ -2,6 +2,8 @@ import { requireAdmin, handler, HttpError, hashPassword } from "@/lib/auth";
 import { q, auditLog } from "@/lib/db";
 
 export const runtime = "nodejs";
+// Selalu dijalankan saat ada permintaan, tidak pernah dibekukan saat build.
+export const dynamic = "force-dynamic";
 
 const PERAN_SAH = ["karyawan", "atasan", "admin"] as const;
 

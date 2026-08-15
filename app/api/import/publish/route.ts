@@ -3,6 +3,8 @@ import { requireAdmin, handler, HttpError } from "@/lib/auth";
 import { q, sql, auditLog } from "@/lib/db";
 
 export const runtime = "nodejs";
+// Selalu dijalankan saat ada permintaan, tidak pernah dibekukan saat build.
+export const dynamic = "force-dynamic";
 
 /** Langkah 4: satu-satunya titik di mana data karyawan berubah. */
 export const POST = handler(async (req) => {

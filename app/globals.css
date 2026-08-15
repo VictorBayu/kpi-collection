@@ -721,3 +721,84 @@ tfoot td{font-weight:700;border-top:1px solid var(--line);background:#FAFBFD}
   .sbar{padding:11px 12px 13px}
   .sbar b{font-size:20px}
 }
+
+/* ================= Alat uji visibilitas ================= */
+.diag-form{display:flex;gap:12px;align-items:flex-end;flex-wrap:wrap;margin-top:12px}
+.diag-form .field{flex:1;min-width:190px}
+.diag-list{list-style:none;margin:14px 0 0;padding:0;display:flex;flex-direction:column;gap:7px}
+.diag-list li{display:flex;gap:11px;align-items:flex-start;padding:10px 12px;
+  border:1px solid var(--line);border-radius:10px;background:#fff}
+.diag-list li.ok{border-color:#C6E7DA;background:#FBFEFD}
+.diag-list li.no{border-color:#F0C9C9;background:#FFFBFB}
+.diag-ikon{width:20px;height:20px;border-radius:50%;flex:none;display:grid;place-items:center;
+  font-size:11px;font-weight:700}
+.diag-list li.ok .diag-ikon{background:var(--good-soft);color:var(--good)}
+.diag-list li.no .diag-ikon{background:var(--bad-soft);color:var(--bad)}
+.diag-isi{display:flex;flex-direction:column;gap:2px;min-width:0}
+.diag-isi b{font-size:13px}
+.diag-isi span{font-size:12px}
+
+/* ================= Peta cabang (Tim saya untuk AM/ACH) ================= */
+.pc-ikhtisar{display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap;
+  font-size:13px;margin-bottom:11px;color:var(--ink-soft)}
+.angka-bahaya{color:var(--bad)}
+.angka-baik{color:var(--good)}
+.pc-grid{display:flex;flex-direction:column;gap:9px}
+.pc-kartu{background:var(--surface);border:1px solid var(--line);border-radius:12px;
+  overflow:hidden;border-left:3px solid var(--line)}
+.pc-kartu.bahaya{border-left-color:var(--bad)}
+.pc-kartu.sedang{border-left-color:var(--warn)}
+.pc-kartu.baik{border-left-color:var(--good)}
+.pc-head{display:grid;grid-template-columns:1fr auto auto auto;gap:20px;align-items:center;
+  padding:13px 16px;cursor:pointer;list-style:none;position:relative}
+.pc-head::-webkit-details-marker{display:none}
+.pc-kartu[open] .pc-head{border-bottom:1px solid var(--line-soft);background:#FBFCFE}
+.pc-judul{display:flex;flex-direction:column;gap:2px;min-width:0}
+.pc-judul b{font-family:var(--font-archivo),Archivo,sans-serif;font-size:14px}
+.pc-judul span{font-size:11px}
+.pc-angka{display:flex;flex-direction:column;align-items:flex-end;gap:1px;min-width:64px}
+.pc-label{font-size:10px;text-transform:uppercase;letter-spacing:.05em}
+.pc-skor{font-family:var(--font-plex-mono),"IBM Plex Mono";font-size:20px;font-weight:600}
+.pc-bawah{font-family:var(--font-plex-mono),"IBM Plex Mono";font-size:20px;font-weight:600;
+  color:var(--ink-faint)}
+.pc-bawah.ada{color:var(--bad)}
+.pc-insentif{font-family:var(--font-plex-mono),"IBM Plex Mono";font-size:14px;font-weight:600}
+.pc-meter{position:absolute;left:0;right:0;bottom:0;height:2px;background:var(--line-soft)}
+.pc-meter i{display:block;height:100%;background:var(--bad)}
+.pc-isi{padding:0}
+.pc-tabel{width:100%;border-collapse:collapse;font-size:12.5px}
+.pc-tabel th{text-align:left;font-size:10px;letter-spacing:.06em;text-transform:uppercase;
+  color:var(--ink-faint);font-weight:700;padding:9px 16px;border-bottom:1px solid var(--line-soft)}
+.pc-tabel td{padding:9px 16px;border-bottom:1px solid var(--line-soft);vertical-align:top}
+.pc-tabel tr:last-child td{border-bottom:0}
+.pc-tabel tr.kurang{background:#FFFBFB}
+.pc-tabel .r{text-align:right}
+
+@media (max-width:800px){
+  .pc-head{grid-template-columns:1fr auto;gap:10px 14px}
+  .pc-judul{grid-column:1/-1}
+  .pc-uang{display:none}
+  .pc-tabel thead{display:none}
+  .pc-tabel tr{display:grid;grid-template-columns:1fr auto;gap:2px 10px;padding:10px 14px;
+    border-bottom:1px solid var(--line-soft)}
+  .pc-tabel td{border:0;padding:0}
+  .pc-tabel td:nth-child(2),.pc-tabel td:nth-child(3){grid-column:1;font-size:11.5px}
+  .pc-tabel td:nth-child(4){grid-row:1;grid-column:2;text-align:right}
+  .pc-tabel td:nth-child(5){grid-column:2;text-align:right;font-size:11.5px}
+}
+
+/* ================= Gaya khusus saat dicetak ================= */
+@media print{
+  @page{margin:12mm}
+  .topbar,.ribbon,.navpop,.navbar-load,.tanpa-cetak,.viewswitch,.banner.info{display:none!important}
+  body{background:#fff}
+  .shell{max-width:none;padding:0}
+  .card,.pc-kartu,.orang{break-inside:avoid;box-shadow:none;border-color:#CCC}
+  .pc-kartu{margin-bottom:6px}
+  .pc-head{background:#F5F5F5!important}
+  details{display:block}
+  details > summary{list-style:none}
+  .hero{grid-template-columns:1fr 1fr}
+  a{text-decoration:none;color:inherit}
+  .indcell-bar{opacity:1}
+}

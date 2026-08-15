@@ -1,5 +1,6 @@
 import Link from "next/link";
 import Ladder from "@/components/Ladder";
+import TombolCetak from "@/components/TombolCetak";
 import { rp, rpSingkat, angka } from "@/lib/format";
 
 type Unit = {
@@ -26,7 +27,7 @@ export default function DasborUnit({ u, periode }: { u: Unit; periode: string })
 
   return (
     <main className="shell">
-      <div className="sectionhead">
+      <div className="sectionhead rowbetween">
         <div>
           <h2>Kinerja tim — {u.lingkup}</h2>
           <p>
@@ -34,6 +35,7 @@ export default function DasborUnit({ u, periode }: { u: Unit; periode: string })
             termasuk dalam KPI bulanan, jadi halaman ini menampilkan kondisi unit.
           </p>
         </div>
+        <TombolCetak />
       </div>
 
       {/* Dua angka utama */}

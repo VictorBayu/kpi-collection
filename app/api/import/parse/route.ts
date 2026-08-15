@@ -5,6 +5,8 @@ import { FIELDS } from "@/lib/import/fields";
 import { toISODate } from "@/lib/format";
 
 export const runtime = "nodejs";
+// Selalu dijalankan saat ada permintaan, tidak pernah dibekukan saat build.
+export const dynamic = "force-dynamic";
 export const maxDuration = 60;
 
 /**

@@ -3,6 +3,8 @@ import { requireAdmin, handler, HttpError } from "@/lib/auth";
 import { q, auditLog } from "@/lib/db";
 
 export const runtime = "nodejs";
+// Selalu dijalankan saat ada permintaan, tidak pernah dibekukan saat build.
+export const dynamic = "force-dynamic";
 
 const LEVEL_SAH = [
   "staff", "spv_level_1", "spv_level_2",

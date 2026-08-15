@@ -6,6 +6,8 @@ import { periodeTersedia, timSaya, indikatorBanyakNik } from "@/lib/kpi";
 import Link from "next/link";
 import Ladder, { tingkat } from "@/components/Ladder";
 import KontrolDetail from "./KontrolDetail";
+import PetaCabang from "./PetaCabang";
+import TombolCetak from "@/components/TombolCetak";
 import { rp, angka, nilai, namaPeriode, toISODate, tebakSatuan, nilaiBanding } from "@/lib/format";
 
 export const metadata = { title: "Tim saya" };
@@ -21,14 +23,13 @@ export default async function Tim({
   if (!daftar.length) redirect("/dashboard");
 
   const { periode: pilih, tampilan } = await searchParams;
-  const detail = tampilan === "detail";
   const aktif = daftar.find((p) => toISODate(p.periode) === pilih) ?? daftar[0];
   const periode = toISODate(aktif.periode);
 
   return (
     <AppShell>
       <Suspense fallback={<RangkaTim />}>
-        <IsiTim nik={s.nik} periode={periode} detail={detail} />
+        <IsiTim nik={s.nik} periode={periode} tampilan={tampilan} />
       </Suspense>
     </AppShell>
   );
@@ -40,9 +41,20 @@ export default async function Tim({
  * dan tanpa ini layar tetap kosong sampai semuanya siap.
  */
 async function IsiTim({
-  nik, periode, detail,
-}: { nik: string; periode: string; detail: boolean }) {
-  const { lingkup, anggota } = await timSaya(nik, periode);
+  nik, periode, tampilan,
+}: { nik: string; periode: string; tampilan?: string }) {
+  const { lingkup, seArea, anggota } = await timSaya(nik, periode);
+
+  /**
+   * Bawaan tampilan mengikuti luas wilayah yang dipegang. AM/ACH membawahi
+   * banyak cabang, jadi daftar datar tidak berguna bagi mereka; yang hanya
+   * satu cabang tetap langsung melihat daftar orangnya.
+   */
+  const mode = tampilan === "detail" ? "detail"
+    : tampilan === "orang" ? "orang"
+    : tampilan === "cabang" ? "cabang"
+    : seArea ? "cabang" : "orang";
+  const detail = mode === "detail";
   const rata = anggota.length
     ? anggota.reduce((a, b) => a + b.skor, 0) / anggota.length : 0;
   const dibawah = anggota.filter((a) => a.skor < 3).length;
@@ -97,20 +109,27 @@ async function IsiTim({
           </div>
         </section>
 
-        <div className="viewswitch mt">
+        <div className="viewswitch mt tanpa-cetak">
           <span className="faint">Tampilan:</span>
-          <Link href={`/tim?periode=${periode}`}
-                className={"vbtn" + (detail ? "" : " on")}>Indikator terlemah</Link>
+          {seArea && (
+            <Link href={`/tim?periode=${periode}&tampilan=cabang`}
+                  className={"vbtn" + (mode === "cabang" ? " on" : "")}>Per cabang</Link>
+          )}
+          <Link href={`/tim?periode=${periode}&tampilan=orang`}
+                className={"vbtn" + (mode === "orang" ? " on" : "")}>Semua orang</Link>
           <Link href={`/tim?periode=${periode}&tampilan=detail`}
-                className={"vbtn" + (detail ? " on" : "")}>Detail semua indikator</Link>
+                className={"vbtn" + (mode === "detail" ? " on" : "")}>Detail semua indikator</Link>
           {detail && <KontrolDetail />}
+          <TombolCetak />
         </div>
 
-        {/* Mode ringkas tetap tabel — padat dan mudah dibandingkan.
-            Mode detail keluar dari tabel: kolom "Rincian" terlalu sempit
-            untuk menampung puluhan indikator, sehingga kartunya menumpuk
-            ke bawah dan halaman jadi sangat panjang. */}
-        {!detail ? (
+        {/* Tiga tampilan: peta cabang untuk AM/ACH, daftar orang untuk
+            atasan cabang, dan detail per indikator bila perlu menelusuri.
+            Mode detail keluar dari tabel karena kolom "Rincian" terlalu
+            sempit untuk menampung puluhan indikator. */}
+        {mode === "cabang" ? (
+          <PetaCabang anggota={anggota} periode={periode} />
+        ) : !detail ? (
         <section className="card mt">
           <table>
             <thead>

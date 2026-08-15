@@ -1,6 +1,9 @@
 import { handleUpload, type HandleUploadBody } from "@vercel/blob/client";
 import { requireAdmin, handler } from "@/lib/auth";
 
+// Selalu dijalankan saat ada permintaan, tidak pernah dibekukan saat build.
+export const dynamic = "force-dynamic";
+
 /**
  * Memberi token agar browser mengunggah LANGSUNG ke Vercel Blob.
  * Ini melewati batas body 4,5 MB pada route handler serverless.
