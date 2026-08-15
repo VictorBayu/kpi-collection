@@ -1,10 +1,8 @@
 "use client";
 
 import { useState } from "react";
-import { useRouter } from "next/navigation";
 
 export default function PasswordForm() {
-  const router = useRouter();
   const [lama, setLama] = useState("");
   const [baru, setBaru] = useState("");
   const [ulang, setUlang] = useState("");
@@ -30,7 +28,8 @@ export default function PasswordForm() {
       const data = await res.json();
       if (!res.ok) throw new Error(data.error);
       setPesan({ tipe: "sukses", teks: "Password diperbarui. Mengalihkan ke dasbor..." });
-      setTimeout(() => router.replace("/dashboard"), 1200);
+      // Muat ulang penuh agar sesi baru tidak tercampur cache lama.
+      setTimeout(() => window.location.replace("/dashboard"), 1200);
     } catch (e: any) {
       setPesan({ tipe: "galat", teks: e.message });
       setSibuk(false);

@@ -673,3 +673,51 @@ tfoot td{font-weight:700;border-top:1px solid var(--line);background:#FAFBFD}
   .orang-angka{gap:9px;width:100%}
   .orang .indgrid{padding:10px 12px}
 }
+.kontrol-detail{display:flex;align-items:center;gap:10px;margin-left:auto}
+@media (max-width:640px){
+  .kontrol-detail{margin-left:0;width:100%;justify-content:space-between;margin-top:4px}
+}
+
+/* ================= Dasbor unit (BM / DBM / ACH / AM) ================= */
+.unit-sebaran{display:grid;grid-template-columns:repeat(4,1fr);gap:11px;margin-bottom:16px}
+.sbar{position:relative;background:var(--surface);border:1px solid var(--line);
+  border-radius:12px;padding:13px 15px 15px;overflow:hidden}
+.sbar b{display:block;font-family:var(--font-plex-mono),"IBM Plex Mono";
+  font-size:24px;font-weight:600;line-height:1}
+.sbar span{display:block;font-size:11px;color:var(--ink-faint);margin-top:3px}
+.sbar i{position:absolute;left:0;bottom:0;height:3px;background:var(--line);
+  min-width:2px;transition:width .3s}
+.sbar.bahaya b{color:var(--bad)}
+.sbar.bahaya i{background:var(--bad)}
+.sbar.baik b{color:var(--good)}
+.sbar.baik i{background:var(--good)}
+
+.unit-dua{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+.unit-dua .card{margin-bottom:16px}
+.cardfoot{padding:0 16px 14px;margin:0}
+
+.orangkecil,.lemahkecil{list-style:none;margin:0;padding:0}
+.orangkecil li{display:flex;align-items:center;justify-content:space-between;gap:12px;
+  padding:11px 16px;border-bottom:1px solid var(--line-soft)}
+.orangkecil li:last-child{border-bottom:0}
+.ok-id{display:flex;flex-direction:column;gap:2px;min-width:0}
+.ok-id b{font-size:13px}
+.ok-id span{font-size:11px}
+.ok-skor{font-family:var(--font-plex-mono),"IBM Plex Mono";font-size:16px;font-weight:600;flex:none}
+.ok-skor.lo{color:var(--bad)}
+
+.lemahkecil li{display:flex;align-items:center;justify-content:space-between;gap:12px;
+  padding:10px 16px;border-bottom:1px solid var(--line-soft);font-size:12.5px}
+.lemahkecil li:last-child{border-bottom:0}
+.lk-nama{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.lk-jml{flex:none;background:var(--bad-soft);color:var(--bad);border-radius:999px;
+  padding:2px 9px;font-size:11px;font-weight:700}
+
+@media (max-width:900px){
+  .unit-dua{grid-template-columns:1fr}
+}
+@media (max-width:640px){
+  .unit-sebaran{grid-template-columns:1fr 1fr;gap:8px}
+  .sbar{padding:11px 12px 13px}
+  .sbar b{font-size:20px}
+}

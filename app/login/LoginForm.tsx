@@ -1,10 +1,8 @@
 "use client";
 
 import { useState } from "react";
-import { useRouter } from "next/navigation";
 
 export default function LoginForm() {
-  const router = useRouter();
   const [nik, setNik] = useState("");
   const [password, setPassword] = useState("");
   const [lihat, setLihat] = useState(false);
@@ -23,7 +21,11 @@ export default function LoginForm() {
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error);
-      router.replace(data.tujuan);
+
+      // Muat ulang penuh, bukan router.replace(). Router Cache milik Next
+      // masih menyimpan halaman milik akun sebelumnya; kalau tidak dibuang,
+      // pengguna baru bisa melihat sisa data akun lama sampai refresh paksa.
+      window.location.replace(data.tujuan);
     } catch (e: any) {
       setGalat(e.message);
       setSibuk(false);

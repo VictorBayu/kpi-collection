@@ -5,9 +5,11 @@ import AppShell from "@/components/AppShell";
 import Ladder, { kalimatJarak, tingkat } from "@/components/Ladder";
 import RincianIndikator from "./RincianIndikator";
 import TabelInsentif from "./TabelInsentif";
+import DasborUnit from "./DasborUnit";
 import { readSession } from "@/lib/auth";
 import {
   periodeTersedia, indikatorKaryawan, insentifKaryawan, ringkasan, trenKpi,
+  ringkasanUnit,
 } from "@/lib/kpi";
 import {
   rp, rpSingkat, angka, nilai, namaPeriode, waktu, tebakSatuan, toISODate, nilaiBanding,
@@ -62,20 +64,37 @@ export default async function Dashboard({
       </div>
 
       <Suspense fallback={<RangkaDasbor />}>
-        <IsiDasbor nik={s.nik} periode={periode} />
+        <IsiDasbor nik={s.nik} periode={periode} peran={s.peran} />
       </Suspense>
     </AppShell>
   );
 }
 
 /** Bagian yang menunggu database. Dirender terpisah agar bisa di-stream. */
-async function IsiDasbor({ nik, periode }: { nik: string; periode: string }) {
+async function IsiDasbor({
+  nik, periode, peran,
+}: { nik: string; periode: string; peran: string }) {
   const [ind, ins, ring, tren] = await Promise.all([
     indikatorKaryawan(nik, periode),
     insentifKaryawan(nik, periode),
     ringkasan(nik, periode),
     trenKpi(nik),
   ]);
+
+  /**
+   * BM, DBM, ACH, dan AM tidak ikut dinilai KPI bulanan, jadi halaman ini
+   * akan kosong bagi mereka. Daripada menampilkan "data tidak ditemukan"
+   * kepada orang yang justru paling butuh gambaran cepat, tampilkan
+   * kinerja unit yang dia pimpin.
+   *
+   * Pemicunya bukan nama jabatan melainkan keadaan: tidak punya KPI
+   * pribadi TAPI punya bawahan. Dengan begitu aturan ini tetap benar
+   * kalau suatu saat ada jabatan baru dengan sifat serupa.
+   */
+  if (!ind.length && peran !== "karyawan") {
+    const unit = await ringkasanUnit(nik, periode);
+    if (unit.orang > 0) return <DasborUnit u={unit} periode={periode} />;
+  }
 
   if (!ind.length) return <KosongPeriode periode={periode} />;
 

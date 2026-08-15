@@ -5,6 +5,7 @@ import { readSession } from "@/lib/auth";
 import { periodeTersedia, timSaya, indikatorBanyakNik } from "@/lib/kpi";
 import Link from "next/link";
 import Ladder, { tingkat } from "@/components/Ladder";
+import KontrolDetail from "./KontrolDetail";
 import { rp, angka, nilai, namaPeriode, toISODate, tebakSatuan, nilaiBanding } from "@/lib/format";
 
 export const metadata = { title: "Tim saya" };
@@ -102,6 +103,7 @@ async function IsiTim({
                 className={"vbtn" + (detail ? "" : " on")}>Indikator terlemah</Link>
           <Link href={`/tim?periode=${periode}&tampilan=detail`}
                 className={"vbtn" + (detail ? " on" : "")}>Detail semua indikator</Link>
+          {detail && <KontrolDetail />}
         </div>
 
         {/* Mode ringkas tetap tabel — padat dan mudah dibandingkan.

@@ -164,6 +164,104 @@ export async function timSaya(atasanNik: string, periode: string) {
   };
 }
 
+/**
+ * Ringkasan kinerja unit untuk atasan.
+ *
+ * Dipakai di Dasbor Saya milik BM/DBM/ACH/AM yang tidak punya KPI pribadi:
+ * yang relevan bagi mereka bukan skor sendiri, melainkan kondisi unit yang
+ * dipimpin. Semua angka diambil dalam SATU kueri — bila dipecah menjadi
+ * beberapa (rata-rata, sebaran, terlemah, per cabang), tiap bagian menambah
+ * perjalanan bolak-balik ke Neon dan halaman jadi lambat.
+ */
+export async function ringkasanUnit(atasanNik: string, periode: string) {
+  const rows = await q<any>(
+    `WITH tim AS (${SQL_TIM_TERLIHAT})
+     , skor AS (
+       SELECT k.nik, SUM(k.skor_terbobot) AS skor
+         FROM v_kpi_aktif k JOIN tim t ON t.nik = k.nik
+        WHERE k.periode = $2 GROUP BY k.nik)
+     , ins AS (
+       SELECT v.nik, SUM(v.nominal) AS insentif
+         FROM v_insentif_aktif v JOIN tim t ON t.nik = v.nik
+        WHERE v.periode = $2 GROUP BY v.nik)
+     , periode_lalu AS (
+       SELECT MAX(k.periode) AS periode
+         FROM v_kpi_aktif k JOIN tim t ON t.nik = k.nik
+        WHERE k.periode < $2)
+     , skor_lalu AS (
+       SELECT AVG(s) AS rata FROM (
+         SELECT SUM(k.skor_terbobot) AS s
+           FROM v_kpi_aktif k JOIN tim t ON t.nik = k.nik
+          WHERE k.periode = (SELECT periode FROM periode_lalu)
+          GROUP BY k.nik) x)
+     -- indikator yang paling sering gagal di unit ini
+     , lemah_unit AS (
+       SELECT k.indikator, COUNT(*)::int AS jumlah
+         FROM v_kpi_aktif k JOIN tim t ON t.nik = k.nik
+        WHERE k.periode = $2 AND k.skor_kpi IS NOT NULL AND k.skor_kpi < 3
+        GROUP BY k.indikator ORDER BY 2 DESC LIMIT 5)
+     , per_cabang AS (
+       SELECT COALESCE(t.cabang,'(TANPA CABANG)') AS cabang,
+              COUNT(DISTINCT t.nik)::int AS orang,
+              AVG(COALESCE(s.skor,0)) AS rata,
+              COUNT(*) FILTER (WHERE COALESCE(s.skor,0) < 3)::int AS dibawah
+         FROM tim t LEFT JOIN skor s ON s.nik = t.nik
+        GROUP BY 1 ORDER BY 3 ASC)
+     SELECT
+       (SELECT COUNT(*) FROM tim)::int AS orang,
+       (SELECT COALESCE(AVG(COALESCE(s.skor,0)),0)
+          FROM tim t LEFT JOIN skor s ON s.nik = t.nik) AS rata,
+       (SELECT rata FROM skor_lalu) AS rata_lalu,
+       (SELECT COALESCE(SUM(i.insentif),0) FROM ins i) AS insentif,
+       (SELECT COUNT(*) FROM tim t LEFT JOIN skor s ON s.nik = t.nik
+         WHERE COALESCE(s.skor,0) < 3)::int AS dibawah3,
+       (SELECT COUNT(*) FROM tim t LEFT JOIN skor s ON s.nik = t.nik
+         WHERE COALESCE(s.skor,0) >= 3 AND COALESCE(s.skor,0) < 4)::int AS di3,
+       (SELECT COUNT(*) FROM tim t LEFT JOIN skor s ON s.nik = t.nik
+         WHERE COALESCE(s.skor,0) >= 4 AND COALESCE(s.skor,0) < 5)::int AS di4,
+       (SELECT COUNT(*) FROM tim t LEFT JOIN skor s ON s.nik = t.nik
+         WHERE COALESCE(s.skor,0) >= 5)::int AS di5,
+       (SELECT COALESCE(json_agg(json_build_object(
+                 'nik', y.nik, 'nama', y.nama, 'jabatan', y.jabatan,
+                 'cabang', y.cabang, 'skor', y.skor)), '[]'::json)
+          FROM (SELECT t.nik, t.nama, t.jabatan, t.cabang, COALESCE(s.skor,0) AS skor
+                  FROM tim t LEFT JOIN skor s ON s.nik = t.nik
+                 ORDER BY COALESCE(s.skor,0) ASC LIMIT 5) y) AS terendah,
+       (SELECT COALESCE(json_agg(json_build_object(
+                 'indikator', l.indikator, 'jumlah', l.jumlah)), '[]'::json)
+          FROM lemah_unit l) AS indikator_lemah,
+       (SELECT COALESCE(json_agg(json_build_object(
+                 'cabang', c.cabang, 'orang', c.orang,
+                 'rata', c.rata, 'dibawah', c.dibawah)), '[]'::json)
+          FROM per_cabang c) AS cabang`,
+    [atasanNik, periode]);
+
+  const r = rows[0] ?? {};
+  const profil = await profilHierarki(atasanNik);
+
+  return {
+    lingkup: !profil ? "—"
+      : profil.lingkup.jenis === "semua" ? "Semua cabang"
+      : profil.lingkup.jenis === "area" ? `Area ${profil.lingkup.nilai}`
+      : `Cabang ${profil.lingkup.nilai}`,
+    seArea: profil?.lingkup.jenis === "area",
+    orang: Number(r.orang ?? 0),
+    rata: Number(r.rata ?? 0),
+    rataLalu: r.rata_lalu == null ? null : Number(r.rata_lalu),
+    insentif: Number(r.insentif ?? 0),
+    sebaran: {
+      dibawah3: Number(r.dibawah3 ?? 0), di3: Number(r.di3 ?? 0),
+      di4: Number(r.di4 ?? 0), di5: Number(r.di5 ?? 0),
+    },
+    terendah: (r.terendah ?? []).map((x: any) => ({ ...x, skor: Number(x.skor) })),
+    indikatorLemah: (r.indikator_lemah ?? []) as { indikator: string; jumlah: number }[],
+    cabang: (r.cabang ?? []).map((x: any) => ({
+      cabang: x.cabang, orang: Number(x.orang),
+      rata: Number(x.rata ?? 0), dibawah: Number(x.dibawah),
+    })),
+  };
+}
+
 /* ============================================================
  * FUNGSI UNTUK ADMIN — melihat KPI lintas cabang
  * ============================================================ */
