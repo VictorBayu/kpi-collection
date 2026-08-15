@@ -1,4 +1,5 @@
 import { redirect } from "next/navigation";
+import { Suspense } from "react";
 import Link from "next/link";
 import AppShell from "@/components/AppShell";
 import Ladder, { kalimatJarak, tingkat } from "@/components/Ladder";
@@ -12,6 +13,16 @@ import {
 
 export const metadata = { title: "Dasbor saya" };
 
+/**
+ * Halaman dibagi dua supaya browser tidak menunggu database sebelum
+ * menggambar apa pun.
+ *
+ * Bagian luar hanya butuh sesi dan daftar periode (sudah di-cache), jadi
+ * bilah atas dan pemilih periode langsung terkirim. Angka KPI yang perlu
+ * beberapa kueri dibungkus <Suspense>, sehingga mengalir menyusul lewat
+ * streaming — pengguna melihat kerangka halaman lebih dulu, bukan layar
+ * kosong sampai semua kueri selesai.
+ */
 export default async function Dashboard({
   searchParams,
 }: { searchParams: Promise<{ periode?: string }> }) {
@@ -24,21 +35,6 @@ export default async function Dashboard({
   const { periode: pilih } = await searchParams;
   const aktif = daftarPeriode.find((p) => toISODate(p.periode) === pilih) ?? daftarPeriode[0];
   const periode = toISODate(aktif.periode);
-
-  const [ind, ins, ring, tren] = await Promise.all([
-    indikatorKaryawan(s.nik, periode),
-    insentifKaryawan(s.nik, periode),
-    ringkasan(s.nik, periode),
-    trenKpi(s.nik),
-  ]);
-
-  if (!ind.length) return <AppShell><KosongPeriode periode={periode} /></AppShell>;
-
-  const lv = tingkat(ring.skor, 3, 4, 5);
-  const totalInsentif = ins.reduce((a, b) => a + b.nominal, 0);
-  const naikSkor = ring.skorLalu !== null ? ring.skor - ring.skorLalu : null;
-  const naikIns = ring.insentifLalu !== null ? ring.insentif - ring.insentifLalu : null;
-  const maksTren = Math.max(5, ...tren.map((t) => t.skor));
 
   return (
     <AppShell>
@@ -63,6 +59,31 @@ export default async function Dashboard({
         </div>
       </div>
 
+      <Suspense fallback={<RangkaDasbor />}>
+        <IsiDasbor nik={s.nik} periode={periode} />
+      </Suspense>
+    </AppShell>
+  );
+}
+
+/** Bagian yang menunggu database. Dirender terpisah agar bisa di-stream. */
+async function IsiDasbor({ nik, periode }: { nik: string; periode: string }) {
+  const [ind, ins, ring, tren] = await Promise.all([
+    indikatorKaryawan(nik, periode),
+    insentifKaryawan(nik, periode),
+    ringkasan(nik, periode),
+    trenKpi(nik),
+  ]);
+
+  if (!ind.length) return <KosongPeriode periode={periode} />;
+
+  const lv = tingkat(ring.skor, 3, 4, 5);
+  const totalInsentif = ins.reduce((a, b) => a + b.nominal, 0);
+  const naikSkor = ring.skorLalu !== null ? ring.skor - ring.skorLalu : null;
+  const naikIns = ring.insentifLalu !== null ? ring.insentif - ring.insentifLalu : null;
+  const maksTren = Math.max(5, ...tren.map((t) => t.skor));
+
+  return (
       <main className="shell">
         {/* Ringkasan: dua angka utama disatukan dalam satu kartu supaya di
             layar kecil keduanya terbaca tanpa scroll. */}
@@ -244,7 +265,24 @@ export default async function Dashboard({
           atau nama debitur agar tim data bisa menelusuri barisnya.
         </div>
       </main>
-    </AppShell>
+  );
+}
+
+/** Kerangka yang tampil selama angka KPI masih diambil. */
+function RangkaDasbor() {
+  return (
+    <main className="shell">
+      <div className="card card-pad dash-ring">
+        <div className="dash-metrik">
+          <div className="metrik"><div className="sk sk-title" /><div className="sk sk-sub" /></div>
+          <div className="metrik"><div className="sk sk-title" /><div className="sk sk-sub" /></div>
+        </div>
+        <div className="sk sk-bar" />
+      </div>
+      <div className="sk-cards">
+        {Array.from({ length: 4 }).map((_, i) => <div className="sk sk-card" key={i} />)}
+      </div>
+    </main>
   );
 }
 

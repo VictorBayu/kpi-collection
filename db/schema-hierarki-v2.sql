@@ -67,8 +67,12 @@ INSERT INTO jabatan_atasan (jabatan, tingkat, atasan) VALUES
   -- EBS / MBS → BCH ME → ACH → BM → AM
   ('EBS',   1, 'BCH ME'), ('EBS',   2, 'ACH'), ('EBS',   3, 'BM'), ('EBS', 4, 'AM'),
   ('MBS',   1, 'BCH ME'), ('MBS',   2, 'ACH'), ('MBS',   3, 'BM'), ('MBS', 4, 'AM'),
-  -- MEBS → BCH FE → BCH ME → ACH → BM
-  ('MEBS',  1, 'BCH FE'), ('MEBS',  2, 'BCH ME'), ('MEBS', 3, 'ACH'), ('MEBS', 4, 'BM');
+  -- MEBS → BCH FE → BCH ME → ACH → BM → AM
+  -- Catatan: dokumen asli menghentikan rantai MEBS di BM, tapi atas
+  -- permintaan bisnis AM harus tetap melihat KPI MEBS di areanya —
+  -- karena itu AM ditambahkan sebagai atasan tingkat 5.
+  ('MEBS',  1, 'BCH FE'), ('MEBS',  2, 'BCH ME'), ('MEBS', 3, 'ACH'),
+  ('MEBS',  4, 'BM'),     ('MEBS',  5, 'AM');
 
 -- ---------------------------------------------------------------------
 -- 3. VARIAN LAMA JADI ALIAS

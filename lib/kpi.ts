@@ -63,26 +63,39 @@ export async function insentifKaryawan(nik: string, periode: string) {
 
 /** Skor total dan insentif, termasuk perbandingan dengan periode sebelumnya. */
 export async function ringkasan(nik: string, periode: string) {
-  const [skor] = await q<any>(
-    `SELECT COALESCE(SUM(skor_terbobot),0) AS skor FROM v_kpi_aktif WHERE nik=$1 AND periode=$2`,
-    [nik, periode]);
-  const [ins] = await q<any>(
-    `SELECT COALESCE(SUM(nominal),0) AS total FROM v_insentif_aktif WHERE nik=$1 AND periode=$2`,
+  /**
+   * Satu kueri, bukan tiga yang berurutan.
+   *
+   * Ketiga angka (skor bulan ini, insentif bulan ini, dan pembanding bulan
+   * lalu) tidak saling bergantung, tapi sebelumnya dijalankan satu per satu
+   * — tiap perjalanan ke Neon menambah waktu tunggu sebelum halaman bisa
+   * dirender. Digabung dengan sub-kueri, semuanya selesai dalam sekali
+   * perjalanan.
+   */
+  const [r] = await q<any>(
+    `WITH lalu_periode AS (
+       SELECT MAX(periode) AS periode FROM v_kpi_aktif WHERE nik=$1 AND periode<$2
+     )
+     SELECT
+       (SELECT COALESCE(SUM(skor_terbobot),0) FROM v_kpi_aktif
+         WHERE nik=$1 AND periode=$2) AS skor,
+       (SELECT COALESCE(SUM(nominal),0) FROM v_insentif_aktif
+         WHERE nik=$1 AND periode=$2) AS insentif,
+       (SELECT periode FROM lalu_periode) AS periode_lalu,
+       (SELECT COALESCE(SUM(skor_terbobot),0) FROM v_kpi_aktif
+         WHERE nik=$1 AND periode=(SELECT periode FROM lalu_periode)) AS skor_lalu,
+       (SELECT COALESCE(SUM(nominal),0) FROM v_insentif_aktif
+         WHERE nik=$1 AND periode=(SELECT periode FROM lalu_periode)) AS insentif_lalu`,
     [nik, periode]);
 
-  const [lalu] = await q<any>(
-    `SELECT COALESCE(SUM(k.skor_terbobot),0) AS skor,
-            (SELECT COALESCE(SUM(nominal),0) FROM v_insentif_aktif
-              WHERE nik=$1 AND periode = (SELECT MAX(periode) FROM v_kpi_aktif WHERE nik=$1 AND periode<$2)) AS insentif
-       FROM v_kpi_aktif k
-      WHERE k.nik=$1 AND k.periode = (SELECT MAX(periode) FROM v_kpi_aktif WHERE nik=$1 AND periode<$2)`,
-    [nik, periode]);
+  // periode_lalu NULL berarti belum ada bulan pembanding sama sekali.
+  const adaPembanding = r?.periode_lalu != null;
 
   return {
-    skor: Number(skor?.skor ?? 0),
-    insentif: Number(ins?.total ?? 0),
-    skorLalu: lalu ? Number(lalu.skor) : null,
-    insentifLalu: lalu ? Number(lalu.insentif ?? 0) : null,
+    skor: Number(r?.skor ?? 0),
+    insentif: Number(r?.insentif ?? 0),
+    skorLalu: adaPembanding ? Number(r.skor_lalu ?? 0) : null,
+    insentifLalu: adaPembanding ? Number(r.insentif_lalu ?? 0) : null,
   };
 }
 

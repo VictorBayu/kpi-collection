@@ -1,4 +1,5 @@
 import { redirect } from "next/navigation";
+import { Suspense } from "react";
 import AppShell from "@/components/AppShell";
 import { readSession } from "@/lib/auth";
 import { periodeTersedia, timSaya, indikatorBanyakNik } from "@/lib/kpi";
@@ -23,7 +24,24 @@ export default async function Tim({
   const aktif = daftar.find((p) => toISODate(p.periode) === pilih) ?? daftar[0];
   const periode = toISODate(aktif.periode);
 
-  const { lingkup, anggota } = await timSaya(s.nik, periode);
+  return (
+    <AppShell>
+      <Suspense fallback={<RangkaTim />}>
+        <IsiTim nik={s.nik} periode={periode} detail={detail} />
+      </Suspense>
+    </AppShell>
+  );
+}
+
+/**
+ * Bagian yang menunggu database. Dipisah agar kerangka halaman terkirim
+ * lebih dulu — tampilan "detail semua indikator" bisa memuat ratusan baris
+ * dan tanpa ini layar tetap kosong sampai semuanya siap.
+ */
+async function IsiTim({
+  nik, periode, detail,
+}: { nik: string; periode: string; detail: boolean }) {
+  const { lingkup, anggota } = await timSaya(nik, periode);
   const rata = anggota.length
     ? anggota.reduce((a, b) => a + b.skor, 0) / anggota.length : 0;
   const dibawah = anggota.filter((a) => a.skor < 3).length;
@@ -41,7 +59,6 @@ export default async function Tim({
     : new Map<string, any[]>();
 
   return (
-    <AppShell>
       <main className="shell">
         <div className="sectionhead">
           <div>
@@ -176,6 +193,24 @@ export default async function Tim({
           </table>
         </section>
       </main>
-    </AppShell>
+  );
+}
+
+/** Kerangka yang tampil selama data tim masih diambil. */
+function RangkaTim() {
+  return (
+    <main className="shell">
+      <div className="sk-head">
+        <div className="sk sk-title" />
+        <div className="sk sk-sub" />
+      </div>
+      <section className="hero">
+        <div className="card card-pad"><div className="sk sk-title" /><div className="sk sk-sub" /></div>
+        <div className="card card-pad"><div className="sk sk-title" /><div className="sk sk-sub" /></div>
+      </section>
+      <div className="sk-cards">
+        {Array.from({ length: 3 }).map((_, i) => <div className="sk sk-card" key={i} />)}
+      </div>
+    </main>
   );
 }

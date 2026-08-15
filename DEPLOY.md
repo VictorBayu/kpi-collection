@@ -234,3 +234,22 @@ Perubahan otomatis setelah deploy:
 * Pemohon melihat banner hijau saat tiketnya selesai ditindaklanjuti.
 * Percakapan tiket memperbarui diri tiap 5 detik (daftar tiap 15 detik),
   pesan terkirim tampil seketika, dan otomatis menggulir ke pesan terbaru.
+
+## Region function (penting untuk kecepatan)
+
+`vercel.json` mengunci function ke **sin1 (Singapore)**.
+
+Alasannya: pengguna aplikasi ini ada di Indonesia dan database Neon berada
+di Singapore. Region bawaan Vercel adalah `iad1` (Washington DC), sehingga
+tiap kunjungan halaman harus menyeberang Pasifik dua kali — sekali dari
+browser ke function, dan sekali lagi untuk setiap kueri dari function ke
+database. Pada halaman yang menjalankan beberapa kueri, tambahan waktunya
+bisa lebih dari satu detik.
+
+Kalau suatu saat database dipindah, ubah `regions` di `vercel.json` agar
+mengikuti lokasi database — yang paling menentukan adalah jarak function
+ke database, karena satu halaman bisa memanggil database beberapa kali
+sedangkan browser hanya memanggil function sekali.
+
+Kode region Vercel yang relevan: `sin1` Singapore, `hnd1` Tokyo,
+`syd1` Sydney, `iad1` Washington DC, `fra1` Frankfurt.
