@@ -93,16 +93,26 @@ export default async function AdminKpi({
                   Dengan 65 cabang, daftar datar membuat admin harus mengingat
                   cabang mana milik area mana. */}
               {perArea.map((a) => {
-                const rataArea = a.cabang.reduce((s, c) => s + (c.skorRata ?? 0), 0)
-                  / Math.max(1, a.cabang.filter((c) => c.skorRata !== null).length);
+                const berskor = a.cabang.filter((c) => c.skorRata !== null);
+                const rataArea = berskor.reduce((s, c) => s + (c.skorRata ?? 0), 0)
+                  / Math.max(1, berskor.length);
+                const kurang = a.cabang.filter((c) => (c.skorRata ?? 9) < 3).length;
+                // Hanya area yang memuat cabang terpilih yang terbuka. Dengan
+                // 65 cabang, membuka semuanya berarti menggulir jauh hanya
+                // untuk sampai ke area yang dituju.
+                const memuatPilihan = a.cabang.some((c) => c.cabang === cabangDipilih);
                 return (
-                  <div className="area-grup" key={a.area}>
-                    <div className="area-judul">
-                      <span>{a.area}</span>
-                      <span className="faint">
-                        {a.cabang.length} cabang · {angka(rataArea)}
+                  <details className="area-grup" key={a.area} open={memuatPilihan}>
+                    <summary className="area-judul">
+                      <span className="area-nama">{a.area}</span>
+                      <span className="area-info">
+                        <span className="faint">{a.cabang.length} cabang</span>
+                        {kurang > 0 && <span className="area-kurang">{kurang}</span>}
+                        <span className={"skorpill kecil " + (rataArea >= 4 ? "hi" : rataArea < 3 ? "lo" : "")}>
+                          {angka(rataArea)}
+                        </span>
                       </span>
-                    </div>
+                    </summary>
                     {a.cabang.map((c) => (
                       <Link key={c.cabang}
                             href={`/admin/kpi?periode=${periode}&cabang=${encodeURIComponent(c.cabang)}`}
@@ -116,7 +126,7 @@ export default async function AdminKpi({
                         </span>
                       </Link>
                     ))}
-                  </div>
+                  </details>
                 );
               })}
               {!cabang.length && <p className="empty">Tidak ada data cabang di periode ini.</p>}
