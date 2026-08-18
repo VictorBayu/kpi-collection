@@ -111,10 +111,39 @@ async function ambilHalaman(branchId: string, tanggalLoc: string, page: number) 
 }
 
 /**
- * Bentuk respons API belum tentu seragam antar endpoint, jadi baris data
- * dan jumlah halaman dicari di beberapa kemungkinan nama field.
+ * Batas jumlah halaman per cabang.
+ *
+ * Semata pengaman terhadap respons API yang menyebut jumlah halaman
+ * keliru. Tanpa batas, satu angka salah bisa membuat penarikan berputar
+ * ribuan kali dan menghabiskan waktu eksekusi. Dengan 300 baris per
+ * halaman, 500 halaman berarti 150 ribu baris untuk satu cabang — jauh di
+ * atas kewajaran, jadi kalau sampai tersentuh memang ada yang salah.
  */
-function bacaRespons(j: any): { baris: Baris[]; totalHalaman: number } {
+const MAKS_HALAMAN = 500;
+
+/**
+ * Membaca baris data dan jumlah halaman dari respons API.
+ *
+ * Metadata paginasi bersarang di dalam objek `metadata`, bukan di tingkat
+ * teratas:
+ *
+ *   { "data": [...],
+ *     "metadata": { page, page_size, total_count, total_pages } }
+ *
+ * Ini pernah salah dibaca: pencarian hanya dilakukan di tingkat teratas,
+ * sehingga jumlah halaman tidak pernah ketemu dan jatuh ke nilai bawaan
+ * satu. Akibatnya tiap cabang hanya terambil halaman pertamanya — 16 ribu
+ * baris dari 86 ribu yang seharusnya, tanpa satu pun pesan galat karena
+ * dari sisi kode semuanya "berhasil".
+ *
+ * Karena itu jumlah halaman sekarang dihitung sendiri dari total_count
+ * dibagi ukuran halaman yang kita minta, bukan sekadar memercayai
+ * total_pages — API menghitung total_pages relatif terhadap page_size pada
+ * permintaan itu, jadi keduanya harus cocok atau perhitungannya meleset.
+ */
+function bacaRespons(j: any): {
+  baris: Baris[]; totalHalaman: number; totalBaris: number | null;
+} {
   const baris: Baris[] =
     (Array.isArray(j) && j) ||
     j?.data ||
@@ -123,26 +152,64 @@ function bacaRespons(j: any): { baris: Baris[]; totalHalaman: number } {
     j?.rows ||
     [];
 
-  const totalHalaman = Number(
-    j?.page_count ?? j?.PageCount ?? j?.total_page ?? j?.totalPages ?? 1,
-  );
+  const m = j?.metadata ?? j?.Metadata ?? j?.meta ?? j;
+
+  const angkaDari = (...kandidat: any[]) => {
+    for (const k of kandidat) {
+      const n = Number(k);
+      if (Number.isFinite(n) && n > 0) return n;
+    }
+    return null;
+  };
+
+  const totalBaris = angkaDari(m?.total_count, m?.totalCount, m?.total, m?.count);
+  const ukuran = angkaDari(m?.page_size, m?.pageSize) ?? UKURAN_HALAMAN;
+
+  // Dihitung dari total baris bila tersedia; total_pages hanya cadangan.
+  const dariTotal = totalBaris !== null ? Math.ceil(totalBaris / ukuran) : null;
+  const disebut = angkaDari(m?.total_pages, m?.totalPages, m?.page_count, m?.PageCount);
+
+  const totalHalaman = dariTotal ?? disebut ?? 1;
 
   return {
     baris: Array.isArray(baris) ? baris : [],
-    totalHalaman: Number.isFinite(totalHalaman) && totalHalaman > 0 ? totalHalaman : 1,
+    totalHalaman: Math.min(MAKS_HALAMAN, Math.max(1, totalHalaman)),
+    totalBaris,
   };
 }
 
-/** Seluruh halaman satu cabang. Gagal di halaman mana pun = gagal semua. */
+/**
+ * Seluruh halaman satu cabang. Gagal di halaman mana pun = gagal semua.
+ *
+ * Setelah semua halaman terkumpul, jumlahnya dicocokkan dengan total_count
+ * yang disebut API. Ketidakcocokan dianggap kegagalan, bukan sekadar
+ * dicatat: data yang kurang tanpa ada yang tahu jauh lebih berbahaya
+ * daripada penarikan yang batal terang-terangan — angkanya tetap tampil di
+ * dasbor, hanya saja salah, dan tidak ada yang curiga.
+ */
 async function ambilCabang(branchId: string, tanggalLoc: string): Promise<Baris[]> {
   const pertama = await ambilHalaman(branchId, tanggalLoc, 1);
-  const { baris, totalHalaman } = bacaRespons(pertama);
+  const { baris, totalHalaman, totalBaris } = bacaRespons(pertama);
   const semua = [...baris];
 
   for (let p = 2; p <= totalHalaman; p++) {
     const j = await ambilHalaman(branchId, tanggalLoc, p);
-    semua.push(...bacaRespons(j).baris);
+    const isi = bacaRespons(j).baris;
+    semua.push(...isi);
+
+    // Halaman kosong sebelum waktunya berarti jumlah halaman yang disebut
+    // API lebih besar dari kenyataan. Berhenti, jangan teruskan memanggil
+    // halaman yang pasti kosong.
+    if (!isi.length) break;
   }
+
+  if (totalBaris !== null && semua.length !== totalBaris) {
+    throw new Error(
+      `Cabang ${branchId} tidak lengkap: terambil ${semua.length} baris, ` +
+      `API menyebut ada ${totalBaris} (${totalHalaman} halaman).`,
+    );
+  }
+
   return semua;
 }
 
