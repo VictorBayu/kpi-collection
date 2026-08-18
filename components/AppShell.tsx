@@ -4,29 +4,57 @@ import { readSession } from "@/lib/auth";
 import LogoutButton from "./LogoutButton";
 import AccessBeacon from "./AccessBeacon";
 import NavLoading from "./NavLoading";
-import NavBadge from "./NavBadge";
 import IkonTarget from "./IkonTarget";
+import NavMenu, { type Entri } from "./NavMenu";
 
 /**
  * Bilah atas yang sama di semua halaman, menu menyesuaikan peran.
  * Sengaja TIDAK melakukan kueri database di sini: jumlah notifikasi
  * diambil setelah halaman tampil (NavBadge), supaya perpindahan menu
  * tidak menunggu perjalanan bolak-balik ke database.
+ *
+ * Menu admin dikelompokkan: yang dibuka tiap hari (Data KPI, Unggah data,
+ * Kelola request) tetap tautan langsung; yang sifatnya pengaturan sesekali
+ * masuk dropdown supaya topbar tidak terus memanjang tiap ada menu baru.
  */
 export default async function AppShell({ children }: { children: React.ReactNode }) {
   const s = await readSession();
 
-  const menu =
+  const entri: Entri[] =
     s?.peran === "admin"
-      ? [["/admin/import", "Unggah data"], ["/admin/kpi", "Data KPI"],
-         ["/admin/indikator", "Indikator"], ["/admin/data-api", "Data API"],
-         ["/admin/riwayat", "Riwayat impor"], ["/admin/request", "Kelola request"],
-         ["/admin/pengguna", "Pengguna & Akses"], ["/admin/hierarki", "Master Hierarki"]]
+      ? [
+          { href: "/admin/kpi", label: "Data KPI" },
+          { href: "/admin/import", label: "Unggah data" },
+          {
+            label: "Data & indikator",
+            grup: [
+              { href: "/admin/indikator", label: "Pembangun indikator" },
+              { href: "/admin/data-api", label: "Data API" },
+              { href: "/admin/sampel-data", label: "Sampel data mentah" },
+              { href: "/admin/riwayat", label: "Riwayat impor Excel" },
+            ],
+          },
+          {
+            label: "Master",
+            grup: [
+              { href: "/admin/hierarki", label: "Master Hierarki" },
+              { href: "/admin/produk", label: "Master Produk" },
+              { href: "/admin/cabang", label: "Master Cabang API" },
+              { href: "/admin/pengguna", label: "Pengguna & Akses" },
+            ],
+          },
+          { href: "/admin/request", label: "Kelola request", lencana: true },
+        ]
       : s?.peran === "atasan"
-      ? [["/dashboard", "Dasbor saya"], ["/tim", "Tim saya"], ["/request", "Request"]]
-      : [["/dashboard", "Dasbor saya"], ["/request", "Request"]];
-
-  const menuRequest = s?.peran === "admin" ? "/admin/request" : "/request";
+      ? [
+          { href: "/dashboard", label: "Dasbor saya" },
+          { href: "/tim", label: "Tim saya" },
+          { href: "/request", label: "Request", lencana: true },
+        ]
+      : [
+          { href: "/dashboard", label: "Dasbor saya" },
+          { href: "/request", label: "Request", lencana: true },
+        ];
 
   return (
     <>
@@ -40,14 +68,7 @@ export default async function AppShell({ children }: { children: React.ReactNode
             </span>
           </div>
 
-          <nav className="mainnav">
-            {menu.map(([href, label]) => (
-              <Link key={href} href={href} prefetch>
-                {label}
-                {href === menuRequest && <NavBadge />}
-              </Link>
-            ))}
-          </nav>
+          <NavMenu entri={entri} />
 
           <div className="who">
             <span className="txt">
