@@ -388,9 +388,23 @@ export async function tarikSemua(
 
     // Pemindahan dalam satu transaksi. Tidak ada jendela waktu berisi
     // tabel kosong di antara hapus dan isi.
+    //
+    // Kolom ditulis eksplisit, TIDAK memakai SELECT *. Tiga kolom NIK
+    // (nik_staff/nik_spv/nik_bch) dihitung otomatis oleh Postgres lewat
+    // GENERATED ALWAYS AS ... STORED, dan Postgres menolak menerima nilai
+    // untuk kolom begini walau nilainya datang dari SELECT * pada tabel
+    // lain yang skemanya identik — pemindahan harus menyebutkan sendiri
+    // kolom mana yang boleh diisi, lalu membiarkan Postgres menghitung
+    // ulang tiga kolom turunan itu dari kolom aslinya.
+    //
+    // sql.transaction() hanya menerima query yang dibuat lewat pemanggilan
+    // `sql` itu sendiri — baik templat sql`...` maupun bentuk fungsi biasa
+    // sql(teks, params). Metode lain seperti sql.query() menghasilkan
+    // promise yang bentuknya berbeda dan ditolak oleh transaction().
+    const kolomPindah = [...KOLOM, "ditarik_pada"].join(",");
     await sql.transaction([
       sql`TRUNCATE data_mentah`,
-      sql`INSERT INTO data_mentah SELECT * FROM data_mentah_staging`,
+      sql(`INSERT INTO data_mentah (${kolomPindah}) SELECT ${kolomPindah} FROM data_mentah_staging`),
       sql`TRUNCATE data_mentah_staging`,
     ]);
 
