@@ -19,6 +19,7 @@ export default async function AppShell({ children }: { children: React.ReactNode
   const menu =
     s?.peran === "admin"
       ? [["/admin/import", "Unggah data"], ["/admin/kpi", "Data KPI"],
+         ["/admin/indikator", "Indikator"], ["/admin/data-api", "Data API"],
          ["/admin/riwayat", "Riwayat impor"], ["/admin/request", "Kelola request"],
          ["/admin/pengguna", "Pengguna & Akses"], ["/admin/hierarki", "Master Hierarki"]]
       : s?.peran === "atasan"

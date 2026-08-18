@@ -134,7 +134,7 @@ export default function RequestClient({
 
       {bukaForm && !admin && (
         <FormBaru kategori={kategori} periodeTersedia={periodeTersedia} sibuk={sibuk}
-                  onKirim={async (body) => {
+                  onKirim={async (body: unknown) => {
                     const d = await kirim("/api/request", body);
                     if (d) { setBukaForm(false); setPilih(d.id); }
                   }} />

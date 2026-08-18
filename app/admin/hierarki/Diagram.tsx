@@ -48,14 +48,19 @@ export default function Diagram({ list, levelRef, sibuk, onSimpanRantai, onEdit 
       peta.set(j.level, arr);
     }
     // Lapisan mengikuti urutan level dari master, tertinggi di atas.
-    const urut = levelRef.slice().sort((a, b) => b.urutan - a.urutan);
-    return urut
-      .filter((l) => peta.has(l.kode))
-      .map((l) => ({
-        level: l.kode,
-        label: l.nama,
-        isi: (peta.get(l.kode) ?? []).sort((a, b) => a.jabatan.localeCompare(b.jabatan)),
-      }));
+    //
+    // Level yang belum punya jabatan tetap ditampilkan sebagai baris kosong.
+    // Sebelumnya level begini disaring keluar, sehingga admin yang baru
+    // menambah level mengira penambahannya gagal — padahal levelnya ada,
+    // hanya belum ada jabatan yang menempatinya.
+    const urut = levelRef.slice()
+      .filter((l) => l.aktif || peta.has(l.kode))
+      .sort((a, b) => b.urutan - a.urutan);
+    return urut.map((l) => ({
+      level: l.kode,
+      label: l.nama,
+      isi: (peta.get(l.kode) ?? []).sort((a, b) => a.jabatan.localeCompare(b.jabatan)),
+    }));
   }, [list, levelRef]);
 
   const terpilih = fokus ? list.find((j) => j.jabatan === fokus) ?? null : null;
@@ -109,6 +114,9 @@ export default function Diagram({ list, levelRef, sibuk, onSimpanRantai, onEdit 
           <div className="lapis" key={lp.level}>
             <span className="lapis-judul">{lp.label}</span>
             <div className="lapis-isi">
+              {!lp.isi.length && (
+                <span className="lapis-kosong">Belum ada jabatan di level ini</span>
+              )}
               {lp.isi.map((j) => {
                 const nyala = menyala.has(j.jabatan);
                 const ini = terpilih?.jabatan === j.jabatan;
