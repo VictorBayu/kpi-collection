@@ -25,6 +25,7 @@ export const GET = handler(async (req) => {
   const cabang = url.searchParams.get("cabang");
   const cari = url.searchParams.get("cari")?.trim();
   const batas = Math.min(BATAS_MAKS, Math.max(1, Number(url.searchParams.get("batas") ?? 50)));
+  const lewati = Math.max(0, Number(url.searchParams.get("lewati") ?? 0));
 
   const syarat: string[] = [];
   const params: any[] = [];
@@ -34,7 +35,12 @@ export const GET = handler(async (req) => {
     syarat.push(`(dm.agreement_no ILIKE $${params.length} OR dm.full_name ILIKE $${params.length})`);
   }
   const where = syarat.length ? `WHERE ${syarat.join(" AND ")}` : "";
-  params.push(batas);
+
+  // Paginasi dikerjakan database, bukan di browser. Dengan puluhan ribu
+  // baris, mengirim semuanya lalu memotongnya di sisi klien berarti
+  // menunggu lama untuk data yang 99 persennya tidak jadi dilihat.
+  const pBatas = `$${params.push(batas)}`;
+  const pLewati = `$${params.push(lewati)}`;
 
   const rows = await q<any>(
     `SELECT dm.branch_id, dm.branch_full_name, dm.agreement_no, dm.full_name,
@@ -45,7 +51,13 @@ export const GET = handler(async (req) => {
        LEFT JOIN app_user u ON u.nik = dm.nik_staff
        ${where}
       ORDER BY dm.id DESC
-      LIMIT $${params.length}`, params);
+      LIMIT ${pBatas} OFFSET ${pLewati}`, params);
+
+  // Jumlah baris dihitung dengan penyaring yang sama, supaya nomor
+  // halaman ikut menyusut saat admin mempersempit pencarian.
+  const [cocok] = await q<{ n: number }>(
+    `SELECT COUNT(*)::int AS n FROM data_mentah dm ${where}`,
+    params.slice(0, params.length - 2));
 
   const [total] = await q<{ n: number }>(`SELECT COUNT(*)::int AS n FROM data_mentah`);
   const cabangList = await q<{ branch_id: string; cabang: string }>(
@@ -53,5 +65,7 @@ export const GET = handler(async (req) => {
        FROM data_mentah dm LEFT JOIN cabang_api ca ON ca.branch_id = dm.branch_id
       ORDER BY 2`);
 
-  return Response.json({ baris: rows, total: total?.n ?? 0, cabang: cabangList });
+  return Response.json({
+    baris: rows, cocok: cocok?.n ?? 0, total: total?.n ?? 0, cabang: cabangList,
+  });
 });
