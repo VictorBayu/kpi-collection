@@ -234,6 +234,8 @@ const DIPETAKAN = new Set([
   "KdWilayah","KodeSubPos","DebtorCity","DueDateHarian","DueDateAwalBulan",
   "PtpDate","TglBayarPertama","TglBayarTerakhirBulanIni","TglBayarTerakhirBulanLalu",
   "TglCair","TanggalAktifitasTerakhir","TglFlow","DaftarKontakKonsumen",
+  "TglTarik","TanggalRAl","TglValuePertama","TglValueTerakhirBulanIni",
+  "TglValueTerakhirBulanLalu",
 ]);
 
 /** Satu baris API menjadi satu larik nilai, urut sesuai KOLOM di bawah. */
@@ -322,6 +324,11 @@ function keNilai(r: Baris, branchId: string): any[] {
     tanggal(r.TglCair),
     tanggal(r.TanggalAktifitasTerakhir),
     tanggal(r.TglFlow),
+    tanggal(r.TglTarik),
+    tanggal(r.TanggalRAl),
+    tanggal(r.TglValuePertama),
+    tanggal(r.TglValueTerakhirBulanIni),
+    tanggal(r.TglValueTerakhirBulanLalu),
 
     Object.keys(lain).length ? JSON.stringify(lain) : null,
   ];
@@ -347,6 +354,7 @@ const KOLOM = [
   "area_tagih","kd_wilayah","kode_sub_pos","debtor_city",
   "due_date_harian","due_date_awal_bulan","ptp_date","tgl_bayar_pertama",
   "tgl_bayar_akhir_ini","tgl_bayar_akhir_lalu","tgl_cair","tanggal_aktifitas","tgl_flow",
+  "tgl_tarik","tanggal_ral","tgl_value_pertama","tgl_value_akhir_ini","tgl_value_akhir_lalu",
   "lain",
 ];
 
