@@ -359,18 +359,34 @@ const KOLOM = [
 ];
 
 /**
+ * Batas baris per satu perintah INSERT.
+ *
+ * Bukan batas jumlah parameter yang menentukan di sini, melainkan ukuran
+ * badan permintaan. Driver HTTP Neon menolak permintaan yang terlalu
+ * besar, dan tiap baris membawa kolom `lain` berisi JSON penuh puluhan
+ * field — dua sampai tiga kilobyte per baris. Pada 779 baris (batas
+ * parameter) itu jadi lebih dari dua megabyte sekali kirim, dan ditolak
+ * dengan "Database request failed". Seratus baris per perintah menjaga
+ * badan permintaan tetap kecil, dengan ongkos beberapa perjalanan tambahan
+ * ke database yang jauh lebih murah daripada gagal.
+ */
+const BARIS_PER_INSERT = 100;
+
+/**
  * Menyisipkan banyak baris sekaligus.
  *
  * Satu perintah INSERT per baris berarti 91 ribu perjalanan ke Neon dan
  * tidak akan pernah selesai dalam batas waktu. Baris digabung per rombongan
- * sehingga satu perintah membawa ratusan baris. Nilainya tetap lewat
+ * sehingga satu perintah membawa banyak baris. Nilainya tetap lewat
  * parameter, tidak pernah ditempel ke teks SQL.
  */
 async function sisipkan(baris: Baris[], branchId: string) {
   if (!baris.length) return 0;
 
-  // Postgres membatasi 65535 parameter per perintah.
-  const perGrup = Math.max(1, Math.floor(60000 / KOLOM.length));
+  // Ambil yang terkecil antara batas parameter Postgres (65535) dan batas
+  // ukuran badan permintaan Neon. Yang kedua hampir selalu yang mengikat.
+  const perParam = Math.floor(60000 / KOLOM.length);
+  const perGrup = Math.max(1, Math.min(BARIS_PER_INSERT, perParam));
   let total = 0;
 
   for (let i = 0; i < baris.length; i += perGrup) {
@@ -450,15 +466,25 @@ export async function tarikSemua(
     let sukses = 0;
 
     for (const grup of rombongan(cabang.map((c) => c.branch_id), SEKALIGUS)) {
-      // Promise.all sengaja, bukan allSettled: begitu satu cabang gagal,
-      // tidak ada gunanya melanjutkan ke rombongan berikutnya.
+      // Ambil dan sisipkan tiap cabang dalam rombongan secara paralel.
+      //
+      // Menyisipkan ke staging yang sama dari beberapa cabang sekaligus
+      // aman — INSERT tidak saling mengunci baris. Menjadikannya berurutan
+      // hanya membuang waktu: dengan paging diperbaiki, jumlah INSERT naik
+      // tajam (puluhan ribu baris, seratus per perintah), dan berurutan
+      // bisa mendekati batas waktu function.
+      //
+      // Promise.all sengaja, bukan allSettled: begitu satu cabang gagal —
+      // baik saat mengambil maupun menyisipkan — seluruh tarikan memang
+      // harus dibatalkan, jadi tidak ada gunanya menunggu sisanya.
       const hasil = await Promise.all(
-        grup.map(async (bid) => ({ bid, baris: await ambilCabang(bid, tanggalLoc) })),
+        grup.map(async (bid) => {
+          const baris = await ambilCabang(bid, tanggalLoc);
+          return sisipkan(baris, bid);
+        }),
       );
-      for (const { bid, baris } of hasil) {
-        jumlahBaris += await sisipkan(baris, bid);
-        sukses++;
-      }
+      jumlahBaris += hasil.reduce((a, b) => a + b, 0);
+      sukses += grup.length;
     }
 
     // Pemindahan dalam satu transaksi. Tidak ada jendela waktu berisi
