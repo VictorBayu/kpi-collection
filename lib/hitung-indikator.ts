@@ -17,6 +17,8 @@ import { susunRumus, bacaRumus, RumusSalah, type Komponen, type Syarat } from ".
 export type HasilHitung = {
   indikator: number;
   baris: number;
+  /** Baris insentif yang terbentuk dari gabungan skor indikator. */
+  insentif: number;
   periode: string;
   gagal: { indikator: string; pesan: string }[];
 };
@@ -173,7 +175,8 @@ async function hitungSatu(
   const sql = `
     WITH terdaftar AS (
       SELECT u.nik, u.nama, u.jabatan, u.cabang,
-             t.bobot, t.target_kpi3, t.target_kpi4, t.target_kpi5
+             t.bobot_kpi, t.bobot_insentif,
+             t.target_kpi3, t.target_kpi4, t.target_kpi5
         FROM indikator_target t
         JOIN jabatan_produk jp ON jp.alias = t.alias AND jp.produk = t.produk
         JOIN app_user u ON norm_jabatan(u.jabatan) = t.alias AND u.aktif
@@ -188,14 +191,21 @@ async function hitungSatu(
     )
     INSERT INTO kpi_row
       (periode, nik, nama, jabatan, cabang, produk, indikator, indikator_id,
-       bobot, pencapaian, skor_kpi, skor_terbobot,
+       bobot, bobot_insentif, pencapaian, skor_kpi, skor_terbobot, skor_terbobot_ins,
        target_kpi3, target_kpi4, target_kpi5, satuan, catatan,
        sumber, batch_id, dihitung_pada)
     SELECT ${pPeriode}::date, t.nik, t.nama, t.jabatan, t.cabang, ${pProduk},
            ${pNama}, ${pIndikator}::uuid,
-           t.bobot, h.nilai,
+           t.bobot_kpi, t.bobot_insentif, h.nilai,
            ROUND((${skor})::numeric, 2),
-           ROUND((${skor})::numeric * COALESCE(t.bobot, 1) / 100, 2),
+           -- Bobot kosong berarti indikator ini memang tidak ikut skema
+           -- tersebut, jadi hasilnya NULL — bukan nol. Nol akan terbaca
+           -- sebagai "ikut dinilai tapi tidak dapat apa-apa", padahal
+           -- yang benar adalah "tidak ikut dinilai sama sekali".
+           CASE WHEN t.bobot_kpi IS NULL THEN NULL
+                ELSE ROUND((${skor})::numeric * t.bobot_kpi / 100, 2) END,
+           CASE WHEN t.bobot_insentif IS NULL THEN NULL
+                ELSE ROUND((${skor})::numeric * t.bobot_insentif / 100, 2) END,
            t.target_kpi3, t.target_kpi4, t.target_kpi5,
            ${pSatuan}, ${pCatatan},
            'api', NULL, now()
@@ -203,10 +213,12 @@ async function hitungSatu(
       LEFT JOIN hitung h ON h.nik = t.nik
     ON CONFLICT (nik, periode, indikator_id, produk) WHERE sumber = 'api'
     DO UPDATE SET
-      pencapaian    = EXCLUDED.pencapaian,
-      skor_kpi      = EXCLUDED.skor_kpi,
-      skor_terbobot = EXCLUDED.skor_terbobot,
-      bobot         = EXCLUDED.bobot,
+      pencapaian        = EXCLUDED.pencapaian,
+      skor_kpi          = EXCLUDED.skor_kpi,
+      skor_terbobot     = EXCLUDED.skor_terbobot,
+      skor_terbobot_ins = EXCLUDED.skor_terbobot_ins,
+      bobot             = EXCLUDED.bobot,
+      bobot_insentif    = EXCLUDED.bobot_insentif,
       target_kpi3   = EXCLUDED.target_kpi3,
       target_kpi4   = EXCLUDED.target_kpi4,
       target_kpi5   = EXCLUDED.target_kpi5,
@@ -218,6 +230,67 @@ async function hitungSatu(
       dihitung_pada = now()`;
 
   const hasil = await q<any>(sql, params);
+  return Array.isArray(hasil) ? hasil.length : 0;
+}
+
+/**
+ * Mengubah skor insentif terbobot menjadi nominal rupiah.
+ *
+ * Dijalankan sekali setelah SELURUH indikator selesai dihitung, bukan per
+ * indikator. Nominal insentif berasal dari gabungan beberapa indikator
+ * sekaligus, jadi menghitungnya sebelum semua terkumpul akan menghasilkan
+ * angka setengah jadi yang sempat tersimpan.
+ *
+ * Rumusnya: (jumlah skor terbobot insentif ÷ pembagi) × pagu jabatan.
+ * Pagu dan pembagi datang dari master, bukan ditanam di kode, karena
+ * besarannya kebijakan yang berubah tanpa perlu menyentuh program.
+ *
+ * Skor di bawah ambang minimal menghasilkan nol — tapi barisnya tetap
+ * ditulis. Orang yang tidak mencapai ambang perlu melihat bahwa dirinya
+ * dinilai dan hasilnya nol, bukan sekadar tidak muncul sama sekali.
+ */
+async function hitungInsentif(periode: string): Promise<number> {
+  const hasil = await q<any>(
+    `WITH skor AS (
+       SELECT k.nik, MAX(k.nama) AS nama, MAX(k.jabatan) AS jabatan,
+              MAX(k.cabang) AS cabang, k.produk,
+              SUM(k.skor_terbobot_ins) AS total_skor
+         FROM kpi_row k
+        WHERE k.sumber = 'api' AND k.periode = $1
+          AND k.skor_terbobot_ins IS NOT NULL
+        GROUP BY k.nik, k.produk
+     )
+     INSERT INTO insentif_row
+       (periode, nik, kategori, produk, jabatan, cabang,
+        skor_insentif, nominal, sumber, batch_id, keterangan, dihitung_pada)
+     SELECT $1::date, s.nik, 'Insentif ' || s.produk, s.produk, s.jabatan, s.cabang,
+            ROUND(s.total_skor, 2),
+            CASE
+              WHEN s.total_skor < g.skor_minimal THEN 0
+              ELSE ROUND(s.total_skor / NULLIF(g.pembagi, 0) * g.nominal, 0)
+            END,
+            'api', NULL,
+            CASE
+              WHEN s.total_skor < g.skor_minimal
+                THEN 'Skor ' || ROUND(s.total_skor, 2) ||
+                     ' di bawah minimal ' || g.skor_minimal
+              ELSE ROUND(s.total_skor, 2) || ' / ' || g.pembagi ||
+                   ' x pagu ' || g.nominal
+            END,
+            now()
+       FROM skor s
+       JOIN insentif_pagu g
+         ON g.alias = norm_jabatan(s.jabatan) AND g.produk = s.produk AND g.aktif
+     ON CONFLICT (nik, periode, produk) WHERE sumber = 'api'
+     DO UPDATE SET
+       skor_insentif = EXCLUDED.skor_insentif,
+       nominal       = EXCLUDED.nominal,
+       keterangan    = EXCLUDED.keterangan,
+       jabatan       = EXCLUDED.jabatan,
+       cabang        = EXCLUDED.cabang,
+       dihitung_pada = now()`,
+    [periode]);
+
   return Array.isArray(hasil) ? hasil.length : 0;
 }
 
@@ -269,7 +342,18 @@ export async function hitungSemuaIndikator(periode?: string): Promise<HasilHitun
     if (adaYangJalan) terhitung++;
   }
 
-  return { indikator: terhitung, baris, periode: p, gagal };
+  // Nominal insentif dihitung terakhir, setelah seluruh skor terkumpul.
+  let insentif = 0;
+  try {
+    insentif = await hitungInsentif(p);
+  } catch (e) {
+    gagal.push({
+      indikator: "Nominal insentif",
+      pesan: e instanceof Error ? e.message : String(e),
+    });
+  }
+
+  return { indikator: terhitung, baris, insentif, periode: p, gagal };
 }
 
 /**

@@ -78,7 +78,10 @@ export default function DataApiClient() {
         j.tarik.berhasil
           ? `Berhasil: ${j.tarik.jumlahBaris.toLocaleString("id-ID")} baris dari ` +
             `${j.tarik.cabangSukses} cabang dalam ${durasi(j.tarik.durasiMs)}. ` +
-            (j.hitung ? `${j.hitung.baris} baris KPI dihitung ulang.` : "")
+            (j.hitung
+              ? `${j.hitung.baris} baris KPI dan ${j.hitung.insentif ?? 0} baris insentif dihitung ulang.` +
+                (j.hitung.gagal?.length ? ` ${j.hitung.gagal.length} indikator gagal dihitung.` : "")
+              : "")
           : `Gagal — tidak ada data yang ditimpa. ${j.tarik.pesan ?? ""}`,
       );
       await segarkan();

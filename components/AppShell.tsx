@@ -39,6 +39,7 @@ export default async function AppShell({ children }: { children: React.ReactNode
             grup: [
               { href: "/admin/hierarki", label: "Master Hierarki" },
               { href: "/admin/produk", label: "Master Produk" },
+              { href: "/admin/pagu", label: "Pagu Insentif" },
               { href: "/admin/cabang", label: "Master Cabang API" },
               { href: "/admin/pengguna", label: "Pengguna & Akses" },
             ],

@@ -104,7 +104,8 @@ export const GET = handler(async (req) => {
     : [];
 
   const target = await q<any>(
-    `SELECT id, alias, produk, bobot, target_kpi3, target_kpi4, target_kpi5, aktif
+    `SELECT id, alias, produk, bobot_kpi, bobot_insentif,
+            target_kpi3, target_kpi4, target_kpi5, aktif
        FROM indikator_target WHERE indikator_id = $1 ORDER BY alias, produk`, [id]);
 
   return Response.json({
@@ -183,19 +184,29 @@ export const POST = handler(async (req) => {
       const alias = String(t.alias ?? "").trim().toUpperCase();
       const produk = String(t.produk ?? "").trim().toUpperCase();
       if (!alias || !produk) continue;
+      // Kosong disimpan sebagai NULL, bukan nol. Bobot kosong berarti
+      // indikator ini memang tidak ikut skema tersebut — berbeda dari
+      // ikut dinilai tapi berbobot nol.
+      const angkaAtauNull = (v: unknown) =>
+        v === "" || v === null || v === undefined ? null : Number(v);
+
       await q(
         `INSERT INTO indikator_target
-           (indikator_id, alias, produk, bobot, target_kpi3, target_kpi4, target_kpi5, aktif)
-         VALUES ($1,$2,$3,$4,$5,$6,$7,$8)
+           (indikator_id, alias, produk, bobot_kpi, bobot_insentif,
+            target_kpi3, target_kpi4, target_kpi5, aktif)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)
          ON CONFLICT (indikator_id, alias, produk) DO UPDATE
-           SET bobot=EXCLUDED.bobot, target_kpi3=EXCLUDED.target_kpi3,
+           SET bobot_kpi=EXCLUDED.bobot_kpi,
+               bobot_insentif=EXCLUDED.bobot_insentif,
+               target_kpi3=EXCLUDED.target_kpi3,
                target_kpi4=EXCLUDED.target_kpi4, target_kpi5=EXCLUDED.target_kpi5,
                aktif=EXCLUDED.aktif, updated_at=now()`,
         [id, alias, produk,
-         t.bobot === "" || t.bobot == null ? null : Number(t.bobot),
-         t.target_kpi3 === "" || t.target_kpi3 == null ? null : Number(t.target_kpi3),
-         t.target_kpi4 === "" || t.target_kpi4 == null ? null : Number(t.target_kpi4),
-         t.target_kpi5 === "" || t.target_kpi5 == null ? null : Number(t.target_kpi5),
+         angkaAtauNull(t.bobot_kpi),
+         angkaAtauNull(t.bobot_insentif),
+         angkaAtauNull(t.target_kpi3),
+         angkaAtauNull(t.target_kpi4),
+         angkaAtauNull(t.target_kpi5),
          t.aktif !== false]);
     }
   }

@@ -10,7 +10,9 @@ type Ringkas = {
 };
 type Target = {
   alias: string; produk: string;
-  bobot: string; target_kpi3: string; target_kpi4: string; target_kpi5: string;
+  /** Kosong berarti indikator ini tidak ikut skema bersangkutan. */
+  bobot_kpi: string; bobot_insentif: string;
+  target_kpi3: string; target_kpi4: string; target_kpi5: string;
   aktif: boolean;
 };
 type Contoh = { nik: string; nama: string; cabang: string | null; baris: number; nilai: number | null };
@@ -112,7 +114,8 @@ export default function IndikatorClient() {
       })));
       setTarget((j.target ?? []).map((t: any) => ({
         alias: t.alias, produk: t.produk,
-        bobot: angkaStr(t.bobot),
+        bobot_kpi: angkaStr(t.bobot_kpi),
+        bobot_insentif: angkaStr(t.bobot_insentif),
         target_kpi3: angkaStr(t.target_kpi3),
         target_kpi4: angkaStr(t.target_kpi4),
         target_kpi5: angkaStr(t.target_kpi5),
@@ -356,12 +359,15 @@ export default function IndikatorClient() {
               <h3 style={{ fontSize: 14 }}>Didaftarkan ke jabatan · produk</h3>
               <p className="muted small">
                 Indikator hanya dihitung untuk pasangan yang terdaftar di sini.
+                Bobot KPI dan bobot insentif berdiri sendiri — kosongkan salah
+                satu bila indikator ini tidak ikut skema tersebut.
               </p>
             </div>
             <button className="btn ghost sm"
                     onClick={() => setTarget([...target, {
                       alias: "", produk: produk[0]?.kode ?? "",
-                      bobot: "", target_kpi3: "", target_kpi4: "", target_kpi5: "",
+                      bobot_kpi: "", bobot_insentif: "",
+                      target_kpi3: "", target_kpi4: "", target_kpi5: "",
                       aktif: true,
                     }])}>
               + Daftarkan
@@ -375,16 +381,17 @@ export default function IndikatorClient() {
               tulisannya terpotong dua baris. */}
           <table className="rapat tbl-target">
             <colgroup>
-              <col /><col style={{ width: 120 }} />
-              <col style={{ width: 92 }} /><col style={{ width: 100 }} />
-              <col style={{ width: 100 }} /><col style={{ width: 100 }} />
-              <col style={{ width: 44 }} />
+              <col /><col style={{ width: 104 }} />
+              <col style={{ width: 96 }} /><col style={{ width: 96 }} />
+              <col style={{ width: 88 }} /><col style={{ width: 88 }} />
+              <col style={{ width: 88 }} /><col style={{ width: 44 }} />
             </colgroup>
             <thead>
               <tr>
                 <th>Jabatan</th>
                 <th>Produk</th>
-                <th className="r">Bobot</th>
+                <th className="r">Bobot KPI</th>
+                <th className="r">Bobot insentif</th>
                 <th className="r">KPI 3</th>
                 <th className="r">KPI 4</th>
                 <th className="r">KPI 5</th>
@@ -406,7 +413,22 @@ export default function IndikatorClient() {
                       <Pilih nilai={t.produk} cari={false} onPilih={(v) => ubah({ produk: v })}
                              opsi={produk.map((p) => ({ nilai: p.kode, label: p.kode, ket: p.nama }))} />
                     </td>
-                    {(["bobot","target_kpi3","target_kpi4","target_kpi5"] as const).map((f) => (
+
+                    {/* Dua bobot terpisah. Yang dikosongkan berarti indikator
+                        ini tidak ikut skema tersebut — bukan berbobot nol. */}
+                    {(["bobot_kpi", "bobot_insentif"] as const).map((f) => (
+                      <td key={f}>
+                        <div className="bobot-isi">
+                          <input className="num r" inputMode="decimal" value={t[f]}
+                                 placeholder="—"
+                                 title={t[f] ? undefined : "Kosong = tidak ikut skema ini"}
+                                 onChange={(e) => ubah({ [f]: e.target.value } as Partial<Target>)} />
+                          <span className={t[f] ? "" : "kosong"}>%</span>
+                        </div>
+                      </td>
+                    ))}
+
+                    {(["target_kpi3","target_kpi4","target_kpi5"] as const).map((f) => (
                       <td key={f}>
                         <input className="num r" inputMode="decimal" value={t[f]}
                                placeholder="—"
@@ -421,7 +443,7 @@ export default function IndikatorClient() {
                 );
               })}
               {!target.length && (
-                <tr><td colSpan={7} className="empty">
+                <tr><td colSpan={8} className="empty">
                   Belum didaftarkan ke jabatan mana pun, jadi belum akan dihitung.
                 </td></tr>
               )}
