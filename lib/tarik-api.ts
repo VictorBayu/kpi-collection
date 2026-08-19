@@ -203,10 +203,23 @@ async function ambilCabang(branchId: string, tanggalLoc: string): Promise<Baris[
     if (!isi.length) break;
   }
 
-  if (totalBaris !== null && semua.length !== totalBaris) {
+  // Kelengkapan diperiksa dengan toleransi, bukan kesamaan persis.
+  //
+  // total_count diambil dari halaman pertama, sementara pengambilan enam
+  // halaman berikutnya butuh waktu — dan data di sumber terus berubah. Satu
+  // kontrak yang lunas atau masuk di sela-sela itu membuat jumlah akhir
+  // meleset satu-dua baris dari hitungan awal, dan itu wajar, bukan tanda
+  // ada halaman yang terlewat.
+  //
+  // Yang benar-benar ingin ditangkap pemeriksaan ini adalah kegagalan
+  // paging seperti dulu: hanya satu halaman terambil dari belasan, kurang
+  // ribuan baris. Karena itu ambang kegagalan disetel satu halaman penuh —
+  // selisih di bawah itu diterima sebagai pergeseran data biasa.
+  if (totalBaris !== null && totalBaris - semua.length > UKURAN_HALAMAN) {
     throw new Error(
       `Cabang ${branchId} tidak lengkap: terambil ${semua.length} baris, ` +
-      `API menyebut ada ${totalBaris} (${totalHalaman} halaman).`,
+      `API menyebut ada ${totalBaris} (${totalHalaman} halaman). ` +
+      `Selisihnya terlalu besar untuk sekadar perubahan data.`,
     );
   }
 
