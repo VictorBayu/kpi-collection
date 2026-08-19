@@ -368,15 +368,27 @@ export default function IndikatorClient() {
             </button>
           </div>
 
-          <table className="rapat">
+          {/* Lebar kolom dipatok lewat <colgroup> dengan table-layout tetap.
+              Tanpa itu browser menawar sendiri lebar tiap kolom mengikuti
+              isinya, dan kotak isian angka yang tidak punya lebar bawaan
+              yang wajar mendorong kolom jabatan jadi sempit sampai
+              tulisannya terpotong dua baris. */}
+          <table className="rapat tbl-target">
+            <colgroup>
+              <col /><col style={{ width: 120 }} />
+              <col style={{ width: 92 }} /><col style={{ width: 100 }} />
+              <col style={{ width: 100 }} /><col style={{ width: 100 }} />
+              <col style={{ width: 44 }} />
+            </colgroup>
             <thead>
               <tr>
-                <th>Jabatan</th><th style={{ width: 100 }}>Produk</th>
-                <th style={{ width: 80 }} className="r">Bobot</th>
-                <th style={{ width: 90 }} className="r">KPI 3</th>
-                <th style={{ width: 90 }} className="r">KPI 4</th>
-                <th style={{ width: 90 }} className="r">KPI 5</th>
-                <th style={{ width: 36 }}></th>
+                <th>Jabatan</th>
+                <th>Produk</th>
+                <th className="r">Bobot</th>
+                <th className="r">KPI 3</th>
+                <th className="r">KPI 4</th>
+                <th className="r">KPI 5</th>
+                <th></th>
               </tr>
             </thead>
             <tbody>
@@ -386,7 +398,7 @@ export default function IndikatorClient() {
                 return (
                   <tr key={i}>
                     <td>
-                      <Pilih nilai={t.alias} bebas placeholder="pilih jabatan"
+                      <Pilih nilai={t.alias} bebas placeholder="Pilih jabatan"
                              onPilih={(v) => ubah({ alias: v.toUpperCase() })}
                              opsi={jabatan.map((a) => ({ nilai: a, label: a }))} />
                     </td>
@@ -397,11 +409,12 @@ export default function IndikatorClient() {
                     {(["bobot","target_kpi3","target_kpi4","target_kpi5"] as const).map((f) => (
                       <td key={f}>
                         <input className="num r" inputMode="decimal" value={t[f]}
+                               placeholder="—"
                                onChange={(e) => ubah({ [f]: e.target.value } as Partial<Target>)} />
                       </td>
                     ))}
-                    <td>
-                      <button className="isyarat-x" title="Lepaskan"
+                    <td className="r">
+                      <button className="isyarat-x" title={`Lepaskan ${t.alias || "baris ini"}`}
                               onClick={() => setTarget(target.filter((_, y) => y !== i))}>×</button>
                     </td>
                   </tr>

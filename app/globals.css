@@ -245,9 +245,53 @@ code,.num{font-family:var(--font-plex-mono),"IBM Plex Mono",monospace;font-varia
 .chip.k3{background:var(--warn-soft);color:var(--warn)}
 .chip.k0{background:var(--bad-soft);color:var(--bad)}
 
+/* ============================================================
+   GAYA DASAR KOTAK ISIAN
+   ============================================================
+   Ditulis dengan :where() sehingga berspesifisitas nol. Artinya setiap
+   aturan yang sudah ada — .kcari input, .saring-nilai input, dan
+   seterusnya — tetap menang tanpa perlu diubah; ini hanya menambal
+   kotak isian yang selama ini tidak tersentuh aturan mana pun dan
+   karena itu jatuh ke gaya bawaan browser: lebar tetap sekitar 170px,
+   sudut siku, tinggi yang tidak sejajar dengan kontrol di sebelahnya.
+
+   Menambalnya di satu tempat, bukan per halaman, supaya halaman baru
+   ikut rapi sejak awal tanpa perlu diingat-ingat. */
+:where(input:not([type=checkbox]):not([type=radio]):not([type=file]),
+       textarea, select){
+  width:100%;
+  border:1px solid var(--line);
+  border-radius:10px;
+  padding:9px 12px;
+  font-family:inherit;
+  font-size:13.5px;
+  color:var(--ink);
+  background:#fff;
+  transition:.13s;
+}
+:where(input, textarea, select):hover{border-color:#C3CDE9}
+:where(input, textarea, select):focus{
+  outline:none;
+  border-color:var(--accent);
+  box-shadow:0 0 0 3px var(--accent-soft);
+}
+:where(input, textarea)::placeholder{color:var(--ink-faint)}
+:where(textarea){resize:vertical;line-height:1.55}
+:where(input:disabled, textarea:disabled, select:disabled){
+  background:var(--line-soft);color:var(--ink-faint);cursor:not-allowed;
+}
+
 table{width:100%;border-collapse:collapse;font-size:13.5px}
 .tabel-scroll{overflow-x:auto}
 .tabel-scroll table{min-width:760px}
+
+/* Kontrol di dalam sel tabel: dirapatkan dan disejajarkan.
+   Padding penuh membuat baris tabel jadi terlalu tinggi, dan
+   vertical-align bawaan td (top) membuat kontrol berbeda tinggi tidak
+   pernah sebaris. */
+td :where(input:not([type=checkbox]), select),
+td .pilih-tombol{padding:7px 10px;font-size:13px;border-radius:9px}
+tr:has(input, select, .pilih) td{vertical-align:middle}
 th{text-align:left;font-size:10.5px;letter-spacing:.09em;text-transform:uppercase;
   color:var(--ink-faint);font-weight:700;padding:14px 14px 9px;border-bottom:1px solid var(--line)}
 td{padding:13px 14px;border-bottom:1px solid var(--line-soft);vertical-align:top}
@@ -1318,3 +1362,11 @@ tr.kurang > td{background:var(--bad-soft)}
   text-transform:uppercase;color:var(--ink-faint);flex:none}
 .ind-ringkas code{font-family:var(--font-plex-mono),"IBM Plex Mono",monospace;
   font-size:12px;color:var(--accent);word-break:break-word;background:none;padding:0}
+
+/* Tabel pendaftaran jabatan · produk di pembangun indikator.
+   table-layout tetap supaya <colgroup> benar-benar dipatuhi; tanpa itu
+   browser tetap menawar lebar kolom mengikuti isi tiap sel. */
+.tbl-target{table-layout:fixed}
+.tbl-target td{padding-top:8px;padding-bottom:8px}
+.tbl-target input{text-align:right}
+.tbl-target .pilih-tombol{white-space:nowrap}
