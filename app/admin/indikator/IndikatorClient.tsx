@@ -259,14 +259,25 @@ export default function IndikatorClient() {
         {komponen.map((k, i) => (
           <div key={i}>
             {i > 0 && (
+              /* Operator penghubung, ditaruh di tengah antara dua kartu.
+                 Tombol berdampingan, bukan dropdown: dengan hanya empat
+                 pilihan, satu klik lebih cepat daripada buka-pilih-tutup,
+                 dan keempatnya terlihat sekaligus sehingga jelas bahwa
+                 pembagian memang tersedia. */
               <div className="ind-operator">
-                <Pilih nilai={k.operator_sebelum ?? "+"} cari={false}
-                       onPilih={(v) => setKomponen(komponen.map((x, y) =>
-                         y === i ? { ...x, operator_sebelum: v } : x))}
-                       opsi={[
-                         { nilai: "+", label: "+" }, { nilai: "-", label: "−" },
-                         { nilai: "*", label: "×" }, { nilai: "/", label: "÷" },
-                       ]} />
+                <span className="ind-op-garis" />
+                <div className="ind-op-pilih">
+                  {[["+", "+", "tambah"], ["-", "−", "kurang"],
+                    ["*", "×", "kali"], ["/", "÷", "bagi"]].map(([v, simbol, nama]) => (
+                    <button key={v} title={nama}
+                            className={"ind-op-btn" + ((k.operator_sebelum ?? "+") === v ? " on" : "")}
+                            onClick={() => setKomponen(komponen.map((x, y) =>
+                              y === i ? { ...x, operator_sebelum: v } : x))}>
+                      {simbol}
+                    </button>
+                  ))}
+                </div>
+                <span className="ind-op-garis" />
               </div>
             )}
             <Kartu
@@ -284,12 +295,27 @@ export default function IndikatorClient() {
           </div>
         ))}
 
-        <button className="btn ghost sm mt"
-                onClick={() => setKomponen([...komponen, kartuKosong(false)])}>
-          + Tambah komponen
-        </button>
+        <div className="ind-tambah">
+          <button className="btn ghost sm"
+                  onClick={() => setKomponen([...komponen, kartuKosong(false)])}>
+            + Tambah komponen
+          </button>
+          {komponen.length === 1 && (
+            /* Petunjuk khusus saat baru satu kartu: rasio adalah bentuk
+               indikator paling umum di sini, dan tanpa kartu kedua tidak
+               ada tempat operator pembagian muncul — mudah disangka
+               fiturnya tidak ada. */
+            <span className="faint small">
+              Tambahkan komponen kedua untuk membuat pembagian — mis. Success
+              Rate = komponen A ÷ komponen B.
+            </span>
+          )}
+        </div>
 
-        <div className="ind-ringkas">{ringkasRumus}</div>
+        <div className="ind-ringkas">
+          <span className="ind-ringkas-label">Rumus</span>
+          <code>{ringkasRumus}</code>
+        </div>
 
         {/* --- hasil uji --- */}
         {uji && (

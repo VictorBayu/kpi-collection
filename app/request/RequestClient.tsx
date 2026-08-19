@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState, useCallback, useRef } from "react";
+import KotakCari from "@/components/KotakCari";
 
 type Tiket = {
   id: string; nomor: string; kategori: string; periode: string | null;
@@ -146,8 +147,10 @@ export default function RequestClient({
           <button key={v} aria-pressed={saring === v} onClick={() => setSaring(v)}>{t}</button>
         ))}
         {admin && (
-          <input className="cari" placeholder="Cari nomor tiket, nama, atau NIK"
-                 value={cari} onChange={(e) => setCari(e.target.value)} />
+          <div className="filter-cari">
+            <KotakCari nilai={cari} onUbah={setCari} lebar={270}
+                       placeholder="Cari nomor tiket, nama, atau NIK" />
+          </div>
         )}
       </div>
 

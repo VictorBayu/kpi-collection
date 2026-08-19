@@ -113,7 +113,25 @@ export const PATCH = handler(async () => {
 
 export const DELETE = handler(async (req) => {
   const admin = await requireAdmin();
-  const branchId = new URL(req.url).searchParams.get("branch_id");
+  const url = new URL(req.url);
+
+  // Membersihkan riwayat penarikan. Riwayat sudah dipangkas otomatis tiap
+  // selesai menarik, tapi tombol manual tetap berguna setelah rentetan
+  // kegagalan — daftar merah panjang menyulitkan melihat apakah tarikan
+  // terakhir sudah kembali normal.
+  if (url.searchParams.get("riwayat") === "1") {
+    // Yang terakhir disisakan supaya halaman tidak jadi kosong sama sekali
+    // dan admin tetap bisa melihat kapan data sekarang berasal.
+    const hasil = await q<{ id: number }>(
+      `DELETE FROM tarik_status
+        WHERE id <> (SELECT id FROM tarik_status ORDER BY mulai DESC LIMIT 1)
+        RETURNING id`);
+    await auditLog(admin.sub, "tarik_status.bersihkan", undefined,
+      { dihapus: hasil.length });
+    return Response.json({ ok: true, dihapus: hasil.length });
+  }
+
+  const branchId = url.searchParams.get("branch_id");
   if (!branchId) throw new HttpError(400, "BranchID belum diisi.");
   await q(`DELETE FROM cabang_api WHERE branch_id = $1`, [branchId]);
   await auditLog(admin.sub, "cabang_api.hapus", branchId);

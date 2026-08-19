@@ -33,6 +33,15 @@ const SEKALIGUS = 4;
 /** Percobaan ulang per permintaan sebelum dianggap gagal betulan. */
 const COBA_ULANG = 2;
 
+/**
+ * Jumlah riwayat penarikan yang disimpan.
+ *
+ * Cukup untuk menutupi beberapa hari terakhir pada jadwal tujuh kali
+ * sehari — yang dibutuhkan hanya memastikan tarikan masih berjalan dan
+ * melihat galat terbaru bila gagal. Selebihnya hanya menumpuk.
+ */
+const SIMPAN_RIWAYAT = 50;
+
 const JEDA_MS = 800;
 
 export type HasilTarik = {
@@ -437,6 +446,20 @@ export async function tarikSemua(
       [riwayat.id, h.berhasil, h.cabangSukses,
        h.cabangGagal.length ? h.cabangGagal : null,
        h.jumlahBaris, durasiMs, h.pesan]);
+
+    // Riwayat dipangkas otomatis tiap selesai menarik.
+    //
+    // Dengan tujuh tarikan sehari, setahun berarti dua setengah ribu baris
+    // yang tidak pernah dibuka — dan ruang di Neon sudah pernah habis
+    // sekali. Yang berguna hanya beberapa terakhir untuk memastikan
+    // tarikan masih berjalan; selebihnya cukup dibuang tanpa ditanya,
+    // karena tabel ini catatan operasional, bukan data yang perlu diaudit.
+    await q(
+      `DELETE FROM tarik_status
+        WHERE id NOT IN (
+          SELECT id FROM tarik_status ORDER BY mulai DESC LIMIT $1)`,
+      [SIMPAN_RIWAYAT]);
+
     return { ...h, durasiMs };
   };
 

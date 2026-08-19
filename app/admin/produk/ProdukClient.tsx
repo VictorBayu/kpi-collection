@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import KotakCari from "@/components/KotakCari";
 
 type Produk = { kode: string; nama: string; urutan: number; aktif: boolean };
 type Jabatan = { alias: string; jabatan: string; pemakai: number };
@@ -171,8 +172,8 @@ export default function ProdukClient() {
             </span>
           </div>
           <div className="prod-saring">
-            <input value={cari} placeholder="Cari jabatan…"
-                   onChange={(e) => setCari(e.target.value)} />
+            <KotakCari nilai={cari} onUbah={setCari} lebar={240}
+                       placeholder="Cari nama jabatan" />
             <label className="prod-cek">
               <input type="checkbox" checked={hanyaKosong}
                      onChange={(e) => setHanyaKosong(e.target.checked)} />

@@ -147,9 +147,29 @@ export default function DataApiClient() {
       )}
 
       <section className="card">
-        <div className="cardhead">
-          <h3 style={{ fontSize: 14 }}>Riwayat penarikan</h3>
-          <p className="muted small">20 percobaan terakhir, berhasil maupun gagal.</p>
+        <div className="cardhead rowbetween">
+          <div>
+            <h3 style={{ fontSize: 14 }}>Riwayat penarikan</h3>
+            <p className="muted small">
+              20 percobaan terakhir. Riwayat lama dipangkas sendiri, hanya 50
+              terbaru yang disimpan.
+            </p>
+          </div>
+          {riwayat.length > 1 && (
+            <button className="btn ghost sm" disabled={sibuk}
+                    onClick={async () => {
+                      if (!confirm("Hapus riwayat penarikan? Yang terakhir tetap disimpan.")) return;
+                      setSibuk(true);
+                      try {
+                        const r = await fetch("/api/admin/data-api?riwayat=1", { method: "DELETE" });
+                        const j = await r.json();
+                        setPesan(`Berhasil menghapus ${j.dihapus} catatan riwayat.`);
+                        await segarkan();
+                      } finally { setSibuk(false); }
+                    }}>
+              Bersihkan riwayat
+            </button>
+          )}
         </div>
         <table className="rapat">
           <thead>

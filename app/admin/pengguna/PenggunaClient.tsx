@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useCallback } from "react";
 import Pilih from "@/components/Pilih";
+import KotakCari from "@/components/KotakCari";
 import Penyaring, { type Aturan, type Skema } from "./Penyaring";
 import ImporPengguna from "./ImporPengguna";
 
@@ -315,8 +316,10 @@ export default function PenggunaClient() {
       )}
 
       <div className="filterbar">
-        <input className="cari" placeholder="Cari NIK atau nama" value={cari}
-               onChange={(e) => setCari(e.target.value)} style={{ marginLeft: 0 }} />
+        <div className="filter-cari">
+          <KotakCari nilai={cari} onUbah={setCari} lebar={260}
+                     placeholder="Cari NIK atau nama" />
+        </div>
         <div className="filter-pilih">
           <Pilih nilai={urut} onPilih={setUrut} cari={false}
                  opsi={[
