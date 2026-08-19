@@ -227,35 +227,16 @@ async function ambilCabang(branchId: string, tanggalLoc: string): Promise<Baris[
 }
 
 /**
- * Field yang sudah punya kolom sendiri di data_mentah. Sisanya masuk ke
- * kolom `lain` supaya perubahan bentuk respons API tidak menghilangkan data
- * diam-diam.
+ * Satu baris API menjadi satu larik nilai, urut sesuai KOLOM di bawah.
+ *
+ * Hanya field yang punya kolom sendiri yang diambil. Sisa field respons API
+ * sengaja dibuang, bukan disimpan: menampungnya sebagai JSON di satu kolom
+ * dulu pernah dicoba, tapi puluhan field tak terpakai per baris — termasuk
+ * daftar kontak konsumen — dikali puluhan ribu baris menembus batas
+ * penyimpanan. Field yang sungguh diperlukan dipromosikan jadi kolom
+ * sendiri lewat migrasi, seperti lima kolom tanggal di v6.
  */
-const DIPETAKAN = new Set([
-  "BranchID","RYM","AgreementNo","ApplicationID","CustomersID","FullName",
-  "BranchFullName","AreaFullName","Product","ProductID","DetailProduk","Model",
-  "IsSyariah","staff_pic","spv_pic","bch_pic","OutstandingPrincipal",
-  "SaldoPokokHarian","PrincipalAmount","InterestAmount","SaldoBunga",
-  "InstallmentAmount","LateChargeAmount","AmountTobePaid","Exposure",
-  "ContractPrepaidAmount","BucketHarian","BucketAwalBulan","BucketWiltag",
-  "OdMovement","Odm1","FlaggingFlow","FlagingKuadran","FlaggingSp","FlaggingRO",
-  "btc_flag","CategoriBayar","ContractStatusAwalBulan","ContractStatusHarian",
-  "StatusAssetAwalbulan","StatusAssetHarian","StatusWOAwalBulan","StatusWOHarian",
-  "OvdDays","OvdAwalBulan","OvdMax","MaxOvd1","Tenor","SisaAngke","AngkeHarian",
-  "AngkeAwalBulan","TotalAssign","TotalVisit","TotalPtp","TotalPelacakan",
-  "TotalInteraksi","HasilAktifitasTerakhir","TipeAktifitasTerakhir","AreaTagih",
-  "KdWilayah","KodeSubPos","DebtorCity","DueDateHarian","DueDateAwalBulan",
-  "PtpDate","TglBayarPertama","TglBayarTerakhirBulanIni","TglBayarTerakhirBulanLalu",
-  "TglCair","TanggalAktifitasTerakhir","TglFlow","DaftarKontakKonsumen",
-  "TglTarik","TanggalRAl","TglValuePertama","TglValueTerakhirBulanIni",
-  "TglValueTerakhirBulanLalu",
-]);
-
-/** Satu baris API menjadi satu larik nilai, urut sesuai KOLOM di bawah. */
 function keNilai(r: Baris, branchId: string): any[] {
-  const lain: Baris = {};
-  for (const k of Object.keys(r)) if (!DIPETAKAN.has(k)) lain[k] = r[k];
-
   return [
     teks(r.BranchID) ?? branchId,
     teks(r.RYM),
@@ -342,8 +323,6 @@ function keNilai(r: Baris, branchId: string): any[] {
     tanggal(r.TglValuePertama),
     tanggal(r.TglValueTerakhirBulanIni),
     tanggal(r.TglValueTerakhirBulanLalu),
-
-    Object.keys(lain).length ? JSON.stringify(lain) : null,
   ];
 }
 
@@ -368,7 +347,6 @@ const KOLOM = [
   "due_date_harian","due_date_awal_bulan","ptp_date","tgl_bayar_pertama",
   "tgl_bayar_akhir_ini","tgl_bayar_akhir_lalu","tgl_cair","tanggal_aktifitas","tgl_flow",
   "tgl_tarik","tanggal_ral","tgl_value_pertama","tgl_value_akhir_ini","tgl_value_akhir_lalu",
-  "lain",
 ];
 
 /**
@@ -376,12 +354,10 @@ const KOLOM = [
  *
  * Bukan batas jumlah parameter yang menentukan di sini, melainkan ukuran
  * badan permintaan. Driver HTTP Neon menolak permintaan yang terlalu
- * besar, dan tiap baris membawa kolom `lain` berisi JSON penuh puluhan
- * field — dua sampai tiga kilobyte per baris. Pada 779 baris (batas
- * parameter) itu jadi lebih dari dua megabyte sekali kirim, dan ditolak
- * dengan "Database request failed". Seratus baris per perintah menjaga
- * badan permintaan tetap kecil, dengan ongkos beberapa perjalanan tambahan
- * ke database yang jauh lebih murah daripada gagal.
+ * besar. Pada 779 baris (batas parameter) sekali kirim, badan permintaan
+ * membengkak dan ditolak dengan "Database request failed". Seratus baris
+ * per perintah menjaganya tetap kecil, dengan ongkos beberapa perjalanan
+ * tambahan ke database yang jauh lebih murah daripada gagal.
  */
 const BARIS_PER_INSERT = 100;
 
