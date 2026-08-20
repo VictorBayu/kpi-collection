@@ -26,7 +26,7 @@ type Target = {
 };
 
 const PERAN_OPSI = [
-  { nilai: "kpi", label: "Skor KPI", ket: "ikut bobot KPI dan/atau insentif reguler" },
+  { nilai: "kpi", label: "Skor KPI / Insentif reguler", ket: "diatur lewat Bobot KPI dan/atau Bobot insentif" },
   { nilai: "reward", label: "Reward", ket: "menambah nominal insentif" },
   { nilai: "penalty", label: "Penalty", ket: "mengurangi nominal insentif" },
   { nilai: "tier", label: "Penentu tier", ket: "menentukan tier lewat pita, tidak ikut skor" },
@@ -146,6 +146,11 @@ function DetailTarget({ t, ubah }: { t: Target; ubah: (patch: Partial<Target>) =
 
   return (
     <div className="target-detail">
+      <p className="faint small">
+        Isi Bobot KPI kalau indikator ini ikut skor KPI, Bobot insentif kalau
+        ikut skor insentif reguler — boleh salah satu, boleh dua-duanya dengan
+        angka berbeda. Yang dikosongkan berarti tidak ikut skema itu.
+      </p>
       <div className="target-detail-baris">
         {(["bobot_kpi", "bobot_insentif"] as const).map((f) => (
           <label key={f}>
