@@ -35,7 +35,8 @@ export default function CabangClient() {
 
   async function segarkan() {
     const r = await fetch("/api/admin/data-api", { cache: "no-store" });
-    const j = await r.json();
+    const j = await r.json().catch(() => ({}));
+    if (!r.ok) { setPesan(j.error ?? "Gagal memuat data cabang."); setMuat(false); return; }
     setCabang(j.cabang ?? []);
     setMuat(false);
   }

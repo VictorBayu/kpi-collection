@@ -595,7 +595,14 @@ tfoot td{font-weight:700;border-top:1px solid var(--line);background:#F9FBFD}
 .pilih.buka .pilih-panah{transform:rotate(180deg)}
 .pilih-bayangan{position:absolute;opacity:0;width:1px;height:1px;pointer-events:none;border:0;padding:0}
 
-.pilih-panel{position:absolute;z-index:40;top:calc(100% + 5px);left:0;right:0;
+/* Lebar panel mengikuti isi terpanjangnya (sampai batas 360px), bukan
+   dipatok persis selebar tombol pemicu. Kolom tempat Pilih dipasang sering
+   sempit (grid form, sel tabel) — dipatok selebar tombol berarti label dan
+   keterangan opsi terpotong "..." begitu panel terbuka, padahal ruang di
+   sampingnya kosong. min-width menjaga panel tidak lebih sempit dari
+   tombolnya sendiri. */
+.pilih-panel{position:absolute;z-index:40;top:calc(100% + 5px);left:0;
+  min-width:100%;width:max-content;max-width:360px;
   background:#fff;border:1px solid var(--line);border-radius:12px;
   box-shadow:0 12px 32px rgba(12,22,38,.14);overflow:hidden}
 .pilih-cari{padding:9px;border-bottom:1px solid var(--line-soft);background:#FBFCFE}

@@ -38,7 +38,11 @@ export default function PaguClient() {
 
   async function segarkan() {
     const r = await fetch("/api/admin/pagu", { cache: "no-store" });
-    const j = await r.json();
+    const j = await r.json().catch(() => ({}));
+    // Galat dari server sebelumnya tenggelam jadi daftar kosong tanpa
+    // pesan apa pun — admin melihat "belum ada data" padahal sebenarnya
+    // permintaannya gagal (mis. skema database belum sinkron).
+    if (!r.ok) { setPesan(j.error ?? "Gagal memuat data pagu."); setMuat(false); return; }
     setPagu((j.pagu ?? []).map((p: any) => ({
       ...p,
       nominal: String(p.nominal ?? 0),

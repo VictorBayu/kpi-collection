@@ -226,7 +226,8 @@ export default function IndikatorClient() {
 
   async function muatDaftar() {
     const r = await fetch("/api/admin/indikator", { cache: "no-store" });
-    const j = await r.json();
+    const j = await r.json().catch(() => ({}));
+    if (!r.ok) { setPesan(j.error ?? "Gagal memuat daftar indikator."); return; }
     setDaftar(j.daftar ?? []);
     setKolom(j.kolom ?? []);
     setProduk(j.produk ?? []);
@@ -264,7 +265,8 @@ export default function IndikatorClient() {
     setSibuk(true); setPesan(null); setUji(null);
     try {
       const r = await fetch(`/api/admin/indikator?id=${id}`, { cache: "no-store" });
-      const j = await r.json();
+      const j = await r.json().catch(() => ({}));
+      if (!r.ok) { setPesan(j.error ?? "Gagal membuka indikator ini."); return; }
       setPilihId(id);
       setNama(j.def.nama); setDeskripsi(j.def.deskripsi ?? "");
       setSatuan(j.def.satuan); setKaliSeratus(j.def.kali_seratus);

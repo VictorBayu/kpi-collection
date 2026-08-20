@@ -28,7 +28,8 @@ export default function KelasCabangClient() {
 
   async function segarkan() {
     const r = await fetch("/api/admin/kelas-cabang", { cache: "no-store" });
-    const j = await r.json();
+    const j = await r.json().catch(() => ({}));
+    if (!r.ok) { setPesan(j.error ?? "Gagal memuat data kelas cabang."); setMuat(false); return; }
     setBaris(j.kelas ?? []);
     setCabangDikenal(j.cabang ?? []);
     setMuat(false);

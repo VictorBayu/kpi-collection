@@ -46,6 +46,7 @@ export default function SampelClient() {
   const [terpakai, setTerpakai] = useState("");   // kata kunci yang sedang berlaku
   const [hal, setHal] = useState(0);
   const [muat, setMuat] = useState(true);
+  const [pesan, setPesan] = useState<string | null>(null);
 
   useEffect(() => {
     let batal = false;
@@ -56,8 +57,10 @@ export default function SampelClient() {
         if (cabang) p.set("cabang", cabang);
         if (terpakai.trim()) p.set("cari", terpakai.trim());
         const r = await fetch(`/api/admin/sampel-data?${p}`, { cache: "no-store" });
-        const j = await r.json();
+        const j = await r.json().catch(() => ({}));
         if (batal) return;
+        if (!r.ok) { setPesan(j.error ?? "Gagal memuat sampel data."); return; }
+        setPesan(null);
         setBaris(j.baris ?? []); setCocok(j.cocok ?? 0);
         setTotal(j.total ?? 0); setCabangList(j.cabang ?? []);
       } finally { if (!batal) setMuat(false); }
@@ -84,6 +87,8 @@ export default function SampelClient() {
           </p>
         </div>
       </div>
+
+      {pesan && <div className="alert bad mb">{pesan}</div>}
 
       <div className="api-metrik mb" style={{ gridTemplateColumns: "repeat(2,1fr)" }}>
         <div className="api-kotak">

@@ -35,7 +35,8 @@ export default function TierClient() {
 
   async function segarkan() {
     const r = await fetch("/api/admin/tier", { cache: "no-store" });
-    const j = await r.json();
+    const j = await r.json().catch(() => ({}));
+    if (!r.ok) { setPesan(j.error ?? "Gagal memuat data tier."); setMuat(false); return; }
     setBaris((j.tier ?? []).map((t: any) => ({
       ...t, tier: String(t.tier), nominal: String(t.nominal ?? 0),
     })));
