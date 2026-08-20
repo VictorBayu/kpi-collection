@@ -10,9 +10,9 @@ type Pasangan = { alias: string; produk: string };
 
 const rp = (v: number) => "Rp " + v.toLocaleString("id-ID", { maximumFractionDigits: 0 });
 const KELAS_OPSI = [
-  { nilai: "large", label: "Besar" },
-  { nilai: "medium", label: "Sedang" },
-  { nilai: "small", label: "Kecil" },
+  { nilai: "large", label: "Large" },
+  { nilai: "medium", label: "Medium" },
+  { nilai: "small", label: "Small" },
 ];
 
 /**

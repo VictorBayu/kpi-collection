@@ -6,7 +6,11 @@ import KotakCari from "@/components/KotakCari";
 
 type Baris = { cabang: string; berlaku_mulai: string; kelas: string };
 
-const KELAS_LABEL: Record<string, string> = { large: "Besar", medium: "Sedang", small: "Kecil" };
+const KELAS_OPSI = [
+  { nilai: "large", label: "Large" },
+  { nilai: "medium", label: "Medium" },
+  { nilai: "small", label: "Small" },
+];
 
 /**
  * Kelas cabang berperiode.
@@ -112,11 +116,7 @@ export default function KelasCabangClient() {
                 <span className="faint small">Kelas</span>
                 <Pilih nilai={baru.kelas} cari={false}
                        onPilih={(v) => setBaru({ ...baru, kelas: v })}
-                       opsi={[
-                         { nilai: "large", label: "Besar" },
-                         { nilai: "medium", label: "Sedang" },
-                         { nilai: "small", label: "Kecil" },
-                       ]} />
+                       opsi={KELAS_OPSI} />
               </label>
             </div>
             <div className="formact">
@@ -156,11 +156,7 @@ export default function KelasCabangClient() {
                 <td>
                   <Pilih nilai={b.kelas} cari={false}
                          onPilih={(v) => simpan({ ...b, kelas: v })}
-                         opsi={[
-                           { nilai: "large", label: "Besar" },
-                           { nilai: "medium", label: "Sedang" },
-                           { nilai: "small", label: "Kecil" },
-                         ]} />
+                         opsi={KELAS_OPSI} />
                 </td>
                 <td className="r">
                   <button className="isyarat-x" title={`Hapus kelas ${b.cabang}`}
@@ -188,8 +184,8 @@ export default function KelasCabangClient() {
       </section>
 
       <p className="faint small mt">
-        {KELAS_LABEL.large} · {KELAS_LABEL.medium} · {KELAS_LABEL.small} — istilah "large/medium/small"
-        di basis data ditampilkan sebagai Besar/Sedang/Kecil di sini.
+        Kelas cabang: Large, Medium, atau Small — dipakai bersama tier untuk
+        menentukan nominal di Tabel Tier Insentif.
       </p>
     </>
   );
