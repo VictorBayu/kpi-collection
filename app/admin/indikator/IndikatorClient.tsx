@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { Fragment, useEffect, useState } from "react";
 import Pilih from "@/components/Pilih";
 import Kartu, { type Komponen, type Kolom } from "./Kartu";
 
@@ -8,13 +8,31 @@ type Ringkas = {
   id: string; nama: string; satuan: string; kali_seratus: boolean;
   peran_pic: string; aktif: boolean; komponen: number; terdaftar: number;
 };
+type Pita = { nilai_min: string; nilai_max: string; poin_min: string; poin_max: string };
 type Target = {
   alias: string; produk: string;
+  /** kpi/reguler ikut skor tertimbang; reward/penalty menambah/mengurangi
+   *  nominal; tier menentukan tier lewat pita, tidak ikut skor mana pun. */
+  peran: string;
+  /** Hanya dipakai peran reward/penalty. */
+  jenis_nilai: string; nilai_efek: string;
   /** Kosong berarti indikator ini tidak ikut skema bersangkutan. */
   bobot_kpi: string; bobot_insentif: string;
   target_kpi3: string; target_kpi4: string; target_kpi5: string;
+  /** Pita menggantikan tiga ambang di atas kalau diisi; boleh berapa pun
+   *  tingkatnya, dan untuk peran tier poin-nya adalah nomor tier itu sendiri. */
+  pita: Pita[];
   aktif: boolean;
 };
+
+const PERAN_OPSI = [
+  { nilai: "kpi", label: "Skor KPI", ket: "ikut bobot KPI dan/atau insentif reguler" },
+  { nilai: "reward", label: "Reward", ket: "menambah nominal insentif" },
+  { nilai: "penalty", label: "Penalty", ket: "mengurangi nominal insentif" },
+  { nilai: "tier", label: "Penentu tier", ket: "menentukan tier lewat pita, tidak ikut skor" },
+];
+
+const pitaKosong = (): Pita => ({ nilai_min: "", nilai_max: "", poin_min: "", poin_max: "" });
 type Contoh = { nik: string; nama: string; cabang: string | null; baris: number; nilai: number | null };
 
 const kartuKosong = (pertama: boolean): Komponen => ({
@@ -24,6 +42,150 @@ const kartuKosong = (pertama: boolean): Komponen => ({
 });
 
 const angkaStr = (v: any) => (v === null || v === undefined ? "" : String(v));
+
+/**
+ * Editor pita: baris nilai_min–nilai_max → poin_min–poin_max.
+ *
+ * Batas bawah inklusif, batas atas eksklusif — pita berikutnya dimulai
+ * persis di nilai_max pita sebelumnya, supaya tidak ada celah maupun
+ * tumpang tindih antar pita. Baris pertama dan terakhir boleh dikosongkan
+ * batasnya (terbuka ke bawah / ke atas).
+ */
+function EditorPita({ pita, ubah, labelPoin }: {
+  pita: Pita[]; ubah: (pita: Pita[]) => void; labelPoin: string;
+}) {
+  return (
+    <div className="pita-editor">
+      {pita.length > 0 && (
+        <table className="rapat tbl-pita">
+          <thead>
+            <tr>
+              <th className="r">Dari (≥)</th>
+              <th className="r">Sampai (&lt;)</th>
+              <th className="r">{labelPoin} dari</th>
+              <th className="r">{labelPoin} sampai</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody>
+            {pita.map((p, i) => (
+              <tr key={i}>
+                {(["nilai_min", "nilai_max", "poin_min", "poin_max"] as const).map((f) => (
+                  <td key={f}>
+                    <input className="num r" inputMode="decimal"
+                           placeholder={f === "nilai_min" && i === 0 ? "− tak terbatas" :
+                                        f === "nilai_max" && i === pita.length - 1 ? "tak terbatas" : "—"}
+                           value={p[f]}
+                           onChange={(e) => {
+                             const baru = [...pita];
+                             baru[i] = { ...baru[i], [f]: e.target.value };
+                             ubah(baru);
+                           }} />
+                  </td>
+                ))}
+                <td className="r">
+                  <button className="isyarat-x" title="Hapus pita ini"
+                          onClick={() => ubah(pita.filter((_, y) => y !== i))}>×</button>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      )}
+      <button className="btn ghost sm" onClick={() => ubah([...pita, pitaKosong()])}>
+        + Tambah pita
+      </button>
+    </div>
+  );
+}
+
+/** Panel detail satu baris pendaftaran, isinya menyesuaikan peran yang dipilih. */
+function DetailTarget({ t, ubah }: { t: Target; ubah: (patch: Partial<Target>) => void }) {
+  if (t.peran === "reward" || t.peran === "penalty") {
+    const label = t.peran === "reward" ? "menambah" : "mengurangi";
+    return (
+      <div className="target-detail">
+        <p className="faint small">
+          Nilai efeknya mengikuti hasil hitungan indikator ini, bukan nilai tetap:
+          tiap 1 satuan hasil hitung {label} nominal insentif sebesar angka di
+          bawah — dikalikan langsung, bukan dijumlah sekali saja.
+        </p>
+        <div className="target-detail-baris">
+          <label>
+            <span className="faint small">Jenis nilai</span>
+            <Pilih nilai={t.jenis_nilai} cari={false}
+                   onPilih={(v) => ubah({ jenis_nilai: v })}
+                   opsi={[
+                     { nilai: "nominal", label: "Rupiah tetap", ket: "Rp per satuan hasil hitung" },
+                     { nilai: "persen", label: "Persen", ket: "% dari nominal insentif reguler, per satuan" },
+                   ]} />
+          </label>
+          <label>
+            <span className="faint small">Nilai efek per satuan</span>
+            <input className="num" inputMode="decimal" value={t.nilai_efek}
+                   placeholder={t.jenis_nilai === "persen" ? "mis. 1 (=1%)" : "mis. 50000"}
+                   onChange={(e) => ubah({ nilai_efek: e.target.value })} />
+          </label>
+        </div>
+      </div>
+    );
+  }
+
+  if (t.peran === "tier") {
+    return (
+      <div className="target-detail">
+        <p className="faint small">
+          Poin di sini adalah nomor tier itu sendiri (1, 2, 3, …), bukan skor.
+          Tier hasil pita ini disilang kelas cabang untuk mencari nominal di
+          halaman Tabel Tier Insentif.
+        </p>
+        <EditorPita pita={t.pita} ubah={(pita) => ubah({ pita })} labelPoin="Tier" />
+      </div>
+    );
+  }
+
+  return (
+    <div className="target-detail">
+      <div className="target-detail-baris">
+        {(["bobot_kpi", "bobot_insentif"] as const).map((f) => (
+          <label key={f}>
+            <span className="faint small">
+              {f === "bobot_kpi" ? "Bobot KPI" : "Bobot insentif"}
+            </span>
+            <div className="bobot-isi">
+              <input className="num" inputMode="decimal" value={t[f]}
+                     placeholder="—"
+                     title={t[f] ? undefined : "Kosong = tidak ikut skema ini"}
+                     onChange={(e) => ubah({ [f]: e.target.value } as Partial<Target>)} />
+              <span className={t[f] ? "" : "kosong"}>%</span>
+            </div>
+          </label>
+        ))}
+      </div>
+
+      <p className="faint small mt">
+        Pita menggantikan tiga ambang di bawah kalau diisi — cocok untuk target
+        bertingkat lebih dari tiga. Kosongkan pita untuk memakai tiga ambang
+        biasa.
+      </p>
+      <EditorPita pita={t.pita} ubah={(pita) => ubah({ pita })} labelPoin="Skor" />
+
+      {!t.pita.length && (
+        <div className="target-detail-baris mt">
+          {(["target_kpi3", "target_kpi4", "target_kpi5"] as const).map((f) => (
+            <label key={f}>
+              <span className="faint small">
+                {f === "target_kpi3" ? "KPI 3" : f === "target_kpi4" ? "KPI 4" : "KPI 5"}
+              </span>
+              <input className="num" inputMode="decimal" value={t[f]} placeholder="—"
+                     onChange={(e) => ubah({ [f]: e.target.value } as Partial<Target>)} />
+            </label>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
 
 /**
  * Pembangun indikator.
@@ -59,6 +221,8 @@ export default function IndikatorClient() {
   const [uji, setUji] = useState<{ rumus: string; contoh: Contoh[] } | null>(null);
   const [seret, setSeret] = useState<number | null>(null);
   const [lewat, setLewat] = useState<number | null>(null);
+  /** Indeks baris pendaftaran yang detailnya sedang terbuka, atau null. */
+  const [detailBuka, setDetailBuka] = useState<number | null>(null);
 
   async function muatDaftar() {
     const r = await fetch("/api/admin/indikator", { cache: "no-store" });
@@ -93,6 +257,7 @@ export default function IndikatorClient() {
     setPilihId(null); setNama(""); setDeskripsi("");
     setSatuan("persen"); setKaliSeratus(true); setPeranPic("staff");
     setKomponen([kartuKosong(true)]); setTarget([]); setUji(null); setPesan(null);
+    setDetailBuka(null);
   }
 
   async function buka(id: string) {
@@ -114,13 +279,21 @@ export default function IndikatorClient() {
       })));
       setTarget((j.target ?? []).map((t: any) => ({
         alias: t.alias, produk: t.produk,
+        peran: t.peran === "reguler" ? "kpi" : (t.peran || "kpi"),
+        jenis_nilai: t.jenis_nilai ?? "nominal",
+        nilai_efek: angkaStr(t.nilai_efek),
         bobot_kpi: angkaStr(t.bobot_kpi),
         bobot_insentif: angkaStr(t.bobot_insentif),
         target_kpi3: angkaStr(t.target_kpi3),
         target_kpi4: angkaStr(t.target_kpi4),
         target_kpi5: angkaStr(t.target_kpi5),
+        pita: (t.pita ?? []).map((p: any) => ({
+          nilai_min: angkaStr(p.nilai_min), nilai_max: angkaStr(p.nilai_max),
+          poin_min: angkaStr(p.poin_min), poin_max: angkaStr(p.poin_max),
+        })),
         aktif: t.aktif,
       })));
+      setDetailBuka(null);
     } finally { setSibuk(false); }
   }
 
@@ -364,12 +537,16 @@ export default function IndikatorClient() {
               </p>
             </div>
             <button className="btn ghost sm"
-                    onClick={() => setTarget([...target, {
-                      alias: "", produk: produk[0]?.kode ?? "",
-                      bobot_kpi: "", bobot_insentif: "",
-                      target_kpi3: "", target_kpi4: "", target_kpi5: "",
-                      aktif: true,
-                    }])}>
+                    onClick={() => {
+                      setTarget([...target, {
+                        alias: "", produk: produk[0]?.kode ?? "",
+                        peran: "kpi", jenis_nilai: "nominal", nilai_efek: "",
+                        bobot_kpi: "", bobot_insentif: "",
+                        target_kpi3: "", target_kpi4: "", target_kpi5: "",
+                        pita: [], aktif: true,
+                      }]);
+                      setDetailBuka(target.length);
+                    }}>
               + Daftarkan
             </button>
           </div>
@@ -381,20 +558,17 @@ export default function IndikatorClient() {
               tulisannya terpotong dua baris. */}
           <table className="rapat tbl-target">
             <colgroup>
-              <col /><col style={{ width: 104 }} />
-              <col style={{ width: 96 }} /><col style={{ width: 96 }} />
-              <col style={{ width: 88 }} /><col style={{ width: 88 }} />
-              <col style={{ width: 88 }} /><col style={{ width: 44 }} />
+              <col /><col style={{ width: 96 }} />
+              <col style={{ width: 150 }} /><col />
+              <col style={{ width: 72 }} /><col style={{ width: 44 }} />
             </colgroup>
             <thead>
               <tr>
                 <th>Jabatan</th>
                 <th>Produk</th>
-                <th className="r">Bobot KPI</th>
-                <th className="r">Bobot insentif</th>
-                <th className="r">KPI 3</th>
-                <th className="r">KPI 4</th>
-                <th className="r">KPI 5</th>
+                <th>Peran</th>
+                <th>Ringkasan</th>
+                <th></th>
                 <th></th>
               </tr>
             </thead>
@@ -402,48 +576,62 @@ export default function IndikatorClient() {
               {target.map((t, i) => {
                 const ubah = (patch: Partial<Target>) =>
                   setTarget(target.map((x, y) => (y === i ? { ...x, ...patch } : x)));
+                const adaPita = t.pita.length > 0;
+                const ringkasan =
+                  t.peran === "reward" || t.peran === "penalty"
+                    ? (t.nilai_efek
+                        ? `${t.jenis_nilai === "persen" ? t.nilai_efek + "%" : "Rp" + Number(t.nilai_efek).toLocaleString("id-ID")} per satuan hasil hitung`
+                        : "Belum diisi nilai efeknya")
+                    : t.peran === "tier"
+                    ? (adaPita ? `${t.pita.length} pita tier` : "Belum ada pita")
+                    : [
+                        t.bobot_kpi && `KPI ${t.bobot_kpi}%`,
+                        t.bobot_insentif && `Insentif ${t.bobot_insentif}%`,
+                        adaPita && `${t.pita.length} pita`,
+                      ].filter(Boolean).join(" · ") || "Belum diisi";
                 return (
-                  <tr key={i}>
-                    <td>
-                      <Pilih nilai={t.alias} bebas placeholder="Pilih jabatan"
-                             onPilih={(v) => ubah({ alias: v.toUpperCase() })}
-                             opsi={jabatan.map((a) => ({ nilai: a, label: a }))} />
-                    </td>
-                    <td>
-                      <Pilih nilai={t.produk} cari={false} onPilih={(v) => ubah({ produk: v })}
-                             opsi={produk.map((p) => ({ nilai: p.kode, label: p.kode, ket: p.nama }))} />
-                    </td>
-
-                    {/* Dua bobot terpisah. Yang dikosongkan berarti indikator
-                        ini tidak ikut skema tersebut — bukan berbobot nol. */}
-                    {(["bobot_kpi", "bobot_insentif"] as const).map((f) => (
-                      <td key={f}>
-                        <div className="bobot-isi">
-                          <input className="num r" inputMode="decimal" value={t[f]}
-                                 placeholder="—"
-                                 title={t[f] ? undefined : "Kosong = tidak ikut skema ini"}
-                                 onChange={(e) => ubah({ [f]: e.target.value } as Partial<Target>)} />
-                          <span className={t[f] ? "" : "kosong"}>%</span>
-                        </div>
+                  <Fragment key={i}>
+                    <tr className={detailBuka === i ? "baris-buka" : undefined}>
+                      <td>
+                        <Pilih nilai={t.alias} bebas placeholder="Pilih jabatan"
+                               onPilih={(v) => ubah({ alias: v.toUpperCase() })}
+                               opsi={jabatan.map((a) => ({ nilai: a, label: a }))} />
                       </td>
-                    ))}
-
-                    {(["target_kpi3","target_kpi4","target_kpi5"] as const).map((f) => (
-                      <td key={f}>
-                        <input className="num r" inputMode="decimal" value={t[f]}
-                               placeholder="—"
-                               onChange={(e) => ubah({ [f]: e.target.value } as Partial<Target>)} />
+                      <td>
+                        <Pilih nilai={t.produk} cari={false} onPilih={(v) => ubah({ produk: v })}
+                               opsi={produk.map((p) => ({ nilai: p.kode, label: p.kode, ket: p.nama }))} />
                       </td>
-                    ))}
-                    <td className="r">
-                      <button className="isyarat-x" title={`Lepaskan ${t.alias || "baris ini"}`}
-                              onClick={() => setTarget(target.filter((_, y) => y !== i))}>×</button>
-                    </td>
-                  </tr>
+                      <td>
+                        <Pilih nilai={t.peran} cari={false} onPilih={(v) => ubah({ peran: v })}
+                               opsi={PERAN_OPSI} />
+                      </td>
+                      <td className="faint small">{ringkasan}</td>
+                      <td className="r">
+                        <button className="btn ghost sm"
+                                onClick={() => setDetailBuka(detailBuka === i ? null : i)}>
+                          {detailBuka === i ? "Tutup" : "Atur"}
+                        </button>
+                      </td>
+                      <td className="r">
+                        <button className="isyarat-x" title={`Lepaskan ${t.alias || "baris ini"}`}
+                                onClick={() => {
+                                  setTarget(target.filter((_, y) => y !== i));
+                                  if (detailBuka === i) setDetailBuka(null);
+                                }}>×</button>
+                      </td>
+                    </tr>
+                    {detailBuka === i && (
+                      <tr className="baris-detail">
+                        <td colSpan={6}>
+                          <DetailTarget t={t} ubah={ubah} />
+                        </td>
+                      </tr>
+                    )}
+                  </Fragment>
                 );
               })}
               {!target.length && (
-                <tr><td colSpan={8} className="empty">
+                <tr><td colSpan={6} className="empty">
                   Belum didaftarkan ke jabatan mana pun, jadi belum akan dihitung.
                 </td></tr>
               )}

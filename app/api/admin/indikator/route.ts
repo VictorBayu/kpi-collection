@@ -11,6 +11,8 @@ const AGREGAT = ["SUM","COUNT","COUNT_DISTINCT","AVG","MIN","MAX"];
 const OPERATOR = ["sama","tidak_sama","termasuk","tidak_termasuk","mengandung",
                   "lebih","lebih_sama","kurang","kurang_sama","antara","kosong","terisi"];
 const PERAN = ["staff","spv","bch"];
+const PERAN_TARGET = ["kpi","reguler","reward","penalty","tier"];
+const JENIS_NILAI = ["nominal","persen"];
 
 /**
  * Membaca definisi indikator dari badan permintaan, sekaligus memeriksanya.
@@ -104,16 +106,26 @@ export const GET = handler(async (req) => {
     : [];
 
   const target = await q<any>(
-    `SELECT id, alias, produk, bobot_kpi, bobot_insentif,
+    `SELECT id, alias, produk, peran, jenis_nilai, nilai_efek,
+            bobot_kpi, bobot_insentif,
             target_kpi3, target_kpi4, target_kpi5, aktif
        FROM indikator_target WHERE indikator_id = $1 ORDER BY alias, produk`, [id]);
+
+  const pita = target.length
+    ? await q<any>(
+        `SELECT id, target_id, urutan, nilai_min, nilai_max, poin_min, poin_max
+           FROM indikator_pita WHERE target_id = ANY($1::uuid[]) ORDER BY target_id, urutan`,
+        [target.map((t) => t.id)])
+    : [];
 
   return Response.json({
     def,
     komponen: komponen.map((k) => ({
       ...k, syarat: syarat.filter((s) => s.komponen_id === k.id),
     })),
-    target,
+    target: target.map((t) => ({
+      ...t, pita: pita.filter((p) => p.target_id === t.id),
+    })),
   });
 });
 
@@ -177,7 +189,9 @@ export const POST = handler(async (req) => {
     }
   }
 
-  // Pendaftaran ke jabatan+produk, juga diganti utuh.
+  // Pendaftaran ke jabatan+produk, juga diganti utuh. Pita ikut dihapus
+  // berantai lewat ON DELETE CASCADE saat baris target-nya dihapus, jadi
+  // cukup ditulis ulang di sini seperti komponen di atas.
   if (Array.isArray(b.target)) {
     await q(`DELETE FROM indikator_target WHERE indikator_id = $1`, [id]);
     for (const t of b.target) {
@@ -190,24 +204,47 @@ export const POST = handler(async (req) => {
       const angkaAtauNull = (v: unknown) =>
         v === "" || v === null || v === undefined ? null : Number(v);
 
-      await q(
+      const peranTarget = PERAN_TARGET.includes(t.peran) ? t.peran : "kpi";
+      const jenisNilai = JENIS_NILAI.includes(t.jenis_nilai) ? t.jenis_nilai : null;
+
+      const [tb] = await q<any>(
         `INSERT INTO indikator_target
-           (indikator_id, alias, produk, bobot_kpi, bobot_insentif,
+           (indikator_id, alias, produk, peran, jenis_nilai, nilai_efek,
+            bobot_kpi, bobot_insentif,
             target_kpi3, target_kpi4, target_kpi5, aktif)
-         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)
          ON CONFLICT (indikator_id, alias, produk) DO UPDATE
-           SET bobot_kpi=EXCLUDED.bobot_kpi,
+           SET peran=EXCLUDED.peran,
+               jenis_nilai=EXCLUDED.jenis_nilai,
+               nilai_efek=EXCLUDED.nilai_efek,
+               bobot_kpi=EXCLUDED.bobot_kpi,
                bobot_insentif=EXCLUDED.bobot_insentif,
                target_kpi3=EXCLUDED.target_kpi3,
                target_kpi4=EXCLUDED.target_kpi4, target_kpi5=EXCLUDED.target_kpi5,
-               aktif=EXCLUDED.aktif, updated_at=now()`,
-        [id, alias, produk,
+               aktif=EXCLUDED.aktif, updated_at=now()
+         RETURNING id`,
+        [id, alias, produk, peranTarget, jenisNilai,
+         angkaAtauNull(t.nilai_efek),
          angkaAtauNull(t.bobot_kpi),
          angkaAtauNull(t.bobot_insentif),
          angkaAtauNull(t.target_kpi3),
          angkaAtauNull(t.target_kpi4),
          angkaAtauNull(t.target_kpi5),
          t.aktif !== false]);
+
+      if (Array.isArray(t.pita) && t.pita.length) {
+        for (let i = 0; i < t.pita.length; i++) {
+          const p = t.pita[i];
+          const poinMin = angkaAtauNull(p.poin_min);
+          const poinMax = angkaAtauNull(p.poin_max);
+          if (poinMin === null || poinMax === null) continue;
+          await q(
+            `INSERT INTO indikator_pita
+               (target_id, urutan, nilai_min, nilai_max, poin_min, poin_max)
+             VALUES ($1,$2,$3,$4,$5,$6)`,
+            [tb.id, i, angkaAtauNull(p.nilai_min), angkaAtauNull(p.nilai_max), poinMin, poinMax]);
+        }
+      }
     }
   }
 
