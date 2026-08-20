@@ -30,6 +30,7 @@ export default function PaguClient() {
   const [pagu, setPagu] = useState<Pagu[]>([]);
   const [produk, setProduk] = useState<{ kode: string; nama: string }[]>([]);
   const [saran, setSaran] = useState<{ alias: string; produk: string }[]>([]);
+  const [semuaJabatan, setSemuaJabatan] = useState<{ alias: string }[]>([]);
   const [muat, setMuat] = useState(true);
   const [sibuk, setSibuk] = useState(false);
   const [pesan, setPesan] = useState<string | null>(null);
@@ -52,6 +53,7 @@ export default function PaguClient() {
     })));
     setProduk(j.produk ?? []);
     setSaran(j.jabatan ?? []);
+    setSemuaJabatan(j.semuaJabatan ?? []);
     setMuat(false);
   }
   useEffect(() => { segarkan(); }, []);
@@ -124,7 +126,8 @@ export default function PaguClient() {
                 <span className="faint small">Jabatan</span>
                 <Pilih nilai={baru.alias} bebas placeholder="Pilih jabatan"
                        onPilih={(v) => setBaru({ ...baru, alias: v.toUpperCase() })}
-                       opsi={Array.from(new Set(saran.map((s) => s.alias)))
+                       opsi={Array.from(new Set(
+                         [...semuaJabatan, ...saran].map((s) => s.alias)))
                          .map((a) => ({ nilai: a, label: a }))} />
               </label>
               <label>

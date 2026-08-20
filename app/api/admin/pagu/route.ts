@@ -19,7 +19,7 @@ export const dynamic = "force-dynamic";
 export const GET = handler(async () => {
   await requireAdmin();
 
-  const [pagu, produk, jabatan] = await Promise.all([
+  const [pagu, produk, jabatan, semuaJabatan] = await Promise.all([
     q<any>(
       `SELECT g.alias, g.produk, g.nominal, g.skor_minimal, g.pembagi, g.mekanisme, g.aktif,
               (SELECT COUNT(*)::int FROM app_user u
@@ -38,9 +38,23 @@ export const GET = handler(async () => {
          FROM indikator_target t
         WHERE t.aktif AND (t.bobot_insentif IS NOT NULL OR t.peran = 'tier')
         ORDER BY t.alias, t.produk`),
+
+    // Semua alias jabatan yang dikenal — dari master alias maupun jabatan
+    // pengguna yang belum dibuatkan aliasnya, sumber yang sama dipakai
+    // Master Produk. Dipakai mengisi dropdown supaya admin selalu bisa
+    // memilih, bahkan sebelum jabatan itu dipetakan ke produk atau diberi
+    // indikator; kalau hanya menawarkan yang sudah berpagu, daftarnya
+    // kosong di awal dan admin mengira fiturnya rusak.
+    q<any>(
+      `SELECT alias FROM jabatan_alias
+       UNION
+       SELECT DISTINCT norm_jabatan(jabatan) AS alias
+         FROM app_user
+        WHERE jabatan IS NOT NULL AND btrim(jabatan) <> ''
+       ORDER BY alias`),
   ]);
 
-  return Response.json({ pagu, produk, jabatan });
+  return Response.json({ pagu, produk, jabatan, semuaJabatan });
 });
 
 export const POST = handler(async (req) => {
