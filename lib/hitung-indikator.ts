@@ -150,14 +150,19 @@ async function hitungSatu(
   const pCatatan   = `$${params.push(catatan)}`;
 
   /**
-   * Skor KPI dari pencapaian.
+   * Skor dari pencapaian.
    *
-   * Interpolasi lurus di antara ambang, bukan lompatan bertingkat: dengan
-   * lompatan, pencapaian 3,99 dan 3,01 bernilai sama padahal jaraknya jauh,
-   * dan itu menghapus insentif untuk memperbaiki sedikit demi sedikit.
-   * Di bawah KPI 3 skornya menurun sebanding sampai nol.
+   * Kalau target ini punya pita (indikator_pita), pakai interpolasi pita —
+   * ini bentuk umum yang menggantikan tiga ambang tetap, dan mendukung
+   * berapa pun banyaknya tingkat, termasuk target yang dipakai indikator
+   * berperan 'tier' (di sana poin pita adalah nomor tier itu sendiri).
+   *
+   * Kalau tidak ada pita terdaftar, jatuh balik ke tiga ambang KPI3/4/5
+   * lama dengan interpolasi lurus, supaya indikator yang belum dipindah
+   * ke pita tetap jalan seperti sebelumnya.
    */
-  const skor = `
+  const skorPita = `poin_dari_pita(t.target_id, h.nilai)`;
+  const skorLama = `
     CASE
       WHEN h.nilai IS NULL OR t.target_kpi3 IS NULL THEN NULL
       WHEN t.target_kpi5 IS NOT NULL AND h.nilai >= t.target_kpi5 THEN 5
@@ -171,12 +176,20 @@ async function hitungSatu(
       WHEN t.target_kpi3 = 0 THEN 0
       ELSE GREATEST(0, 3 * h.nilai / NULLIF(t.target_kpi3, 0))
     END`;
+  const skor = `
+    CASE
+      WHEN h.nilai IS NULL THEN NULL
+      WHEN t.ada_pita THEN ${skorPita}
+      ELSE (${skorLama})
+    END`;
 
   const sql = `
     WITH terdaftar AS (
       SELECT u.nik, u.nama, u.jabatan, u.cabang,
+             t.id AS target_id, t.peran, t.jenis_nilai, t.nilai_efek,
              t.bobot_kpi, t.bobot_insentif,
-             t.target_kpi3, t.target_kpi4, t.target_kpi5
+             t.target_kpi3, t.target_kpi4, t.target_kpi5,
+             EXISTS (SELECT 1 FROM indikator_pita p WHERE p.target_id = t.id) AS ada_pita
         FROM indikator_target t
         JOIN jabatan_produk jp ON jp.alias = t.alias AND jp.produk = t.produk
         JOIN app_user u ON norm_jabatan(u.jabatan) = t.alias AND u.aktif
@@ -193,6 +206,7 @@ async function hitungSatu(
       (periode, nik, nama, jabatan, cabang, produk, indikator, indikator_id,
        bobot, bobot_insentif, pencapaian, skor_kpi, skor_terbobot, skor_terbobot_ins,
        target_kpi3, target_kpi4, target_kpi5, satuan, catatan,
+       peran, jenis_nilai, nilai_efek,
        sumber, batch_id, dihitung_pada)
     SELECT ${pPeriode}::date, t.nik, t.nama, t.jabatan, t.cabang, ${pProduk},
            ${pNama}, ${pIndikator}::uuid,
@@ -201,13 +215,19 @@ async function hitungSatu(
            -- Bobot kosong berarti indikator ini memang tidak ikut skema
            -- tersebut, jadi hasilnya NULL — bukan nol. Nol akan terbaca
            -- sebagai "ikut dinilai tapi tidak dapat apa-apa", padahal
-           -- yang benar adalah "tidak ikut dinilai sama sekali".
-           CASE WHEN t.bobot_kpi IS NULL THEN NULL
+           -- yang benar adalah "tidak ikut dinilai sama sekali". Peran di
+           -- luar kpi/reguler (reward, penalty, tier) juga dipaksa NULL di
+           -- sini walau bobotnya terisi, supaya baris semacam itu tidak
+           -- pernah ikut menyumbang skor KPI atau skor insentif reguler
+           -- secara tidak sengaja — sumbangannya ke nominal dihitung
+           -- terpisah, bukan lewat jalur bobot ini.
+           CASE WHEN t.peran NOT IN ('kpi','reguler') OR t.bobot_kpi IS NULL THEN NULL
                 ELSE ROUND((${skor})::numeric * t.bobot_kpi / 100, 2) END,
-           CASE WHEN t.bobot_insentif IS NULL THEN NULL
+           CASE WHEN t.peran NOT IN ('kpi','reguler') OR t.bobot_insentif IS NULL THEN NULL
                 ELSE ROUND((${skor})::numeric * t.bobot_insentif / 100, 2) END,
            t.target_kpi3, t.target_kpi4, t.target_kpi5,
            ${pSatuan}, ${pCatatan},
+           t.peran, t.jenis_nilai, t.nilai_efek,
            'api', NULL, now()
       FROM terdaftar t
       LEFT JOIN hitung h ON h.nik = t.nik
@@ -224,6 +244,9 @@ async function hitungSatu(
       target_kpi5   = EXCLUDED.target_kpi5,
       satuan        = EXCLUDED.satuan,
       catatan       = EXCLUDED.catatan,
+      peran         = EXCLUDED.peran,
+      jenis_nilai   = EXCLUDED.jenis_nilai,
+      nilai_efek    = EXCLUDED.nilai_efek,
       nama          = EXCLUDED.nama,
       jabatan       = EXCLUDED.jabatan,
       cabang        = EXCLUDED.cabang,
@@ -234,61 +257,117 @@ async function hitungSatu(
 }
 
 /**
- * Mengubah skor insentif terbobot menjadi nominal rupiah.
+ * Mengubah skor dan efek indikator menjadi nominal insentif akhir.
  *
  * Dijalankan sekali setelah SELURUH indikator selesai dihitung, bukan per
- * indikator. Nominal insentif berasal dari gabungan beberapa indikator
- * sekaligus, jadi menghitungnya sebelum semua terkumpul akan menghasilkan
- * angka setengah jadi yang sempat tersimpan.
+ * indikator, karena nominal berasal dari gabungan beberapa indikator
+ * berperan berbeda sekaligus (skor reguler, tier, reward, penalty).
+ * Menghitungnya sebelum semua terkumpul akan menghasilkan angka setengah
+ * jadi yang sempat tersimpan.
  *
- * Rumusnya: (jumlah skor terbobot insentif ÷ pembagi) × pagu jabatan.
- * Pagu dan pembagi datang dari master, bukan ditanam di kode, karena
- * besarannya kebijakan yang berubah tanpa perlu menyentuh program.
+ * Nominal dasar berasal dari salah satu dari dua mekanisme, dipilih per
+ * jabatan+produk lewat insentif_pagu.mekanisme — keduanya hidup
+ * berdampingan karena tidak semua jabatan memakai tier:
  *
- * Skor di bawah ambang minimal menghasilkan nol — tapi barisnya tetap
- * ditulis. Orang yang tidak mencapai ambang perlu melihat bahwa dirinya
- * dinilai dan hasilnya nol, bukan sekadar tidak muncul sama sekali.
+ *  - pagu : (jumlah skor terbobot insentif ÷ pembagi) × pagu jabatan,
+ *           nol bila skor di bawah ambang minimal.
+ *  - tier : dicari langsung dari tabel insentif_tier memakai tier (dari
+ *           indikator berperan 'tier') disilang kelas cabang periode ini.
+ *
+ * Reward dan penalty lalu menambah/mengurangi nominal dasar itu. Efeknya
+ * mengikuti hasil hitungan indikator masing-masing (bukan nilai tetap):
+ * nilai_efek × pencapaian. Untuk jenis nominal, hasilnya rupiah langsung;
+ * untuk jenis persen, hasilnya persentase yang baru diterapkan ke nominal
+ * dasar pada langkah terakhir — karena itu reward/penalty dihitung
+ * SETELAH nominal dasar diketahui, bukan sebelumnya.
+ *
+ * Baris tetap ditulis walau nominalnya nol. Orang yang tidak mencapai
+ * ambang perlu melihat bahwa dirinya dinilai dan hasilnya nol, bukan
+ * sekadar tidak muncul sama sekali.
  */
 async function hitungInsentif(periode: string): Promise<number> {
   const hasil = await q<any>(
-    `WITH skor AS (
+    `WITH dasar AS (
        SELECT k.nik, MAX(k.nama) AS nama, MAX(k.jabatan) AS jabatan,
               MAX(k.cabang) AS cabang, k.produk,
-              SUM(k.skor_terbobot_ins) AS total_skor
+              SUM(k.skor_terbobot_ins) AS total_skor,
+              MAX(ROUND(k.skor_kpi)) FILTER (WHERE k.peran = 'tier') AS tier,
+              COALESCE(SUM(k.nilai_efek * k.pencapaian)
+                FILTER (WHERE k.peran = 'reward'  AND k.jenis_nilai = 'nominal'), 0) AS reward_nominal,
+              COALESCE(SUM(k.nilai_efek * k.pencapaian)
+                FILTER (WHERE k.peran = 'reward'  AND k.jenis_nilai = 'persen'),  0) AS reward_persen,
+              COALESCE(SUM(k.nilai_efek * k.pencapaian)
+                FILTER (WHERE k.peran = 'penalty' AND k.jenis_nilai = 'nominal'), 0) AS penalty_nominal,
+              COALESCE(SUM(k.nilai_efek * k.pencapaian)
+                FILTER (WHERE k.peran = 'penalty' AND k.jenis_nilai = 'persen'),  0) AS penalty_persen
          FROM kpi_row k
         WHERE k.sumber = 'api' AND k.periode = $1
-          AND k.skor_terbobot_ins IS NOT NULL
         GROUP BY k.nik, k.produk
+     ),
+     lengkap AS (
+       SELECT d.*, kelas_cabang(d.cabang, $1::date) AS kelas
+         FROM dasar d
+     ),
+     pokok AS (
+       SELECT l.*, g.alias, g.mekanisme,
+              g.nominal AS pagu_nominal, g.skor_minimal, g.pembagi,
+              CASE
+                WHEN g.mekanisme = 'tier' THEN
+                  COALESCE((SELECT it.nominal FROM insentif_tier it
+                             WHERE it.alias = g.alias AND it.produk = g.produk
+                               AND it.tier = l.tier AND it.kelas = l.kelas), 0)
+                WHEN l.total_skor IS NULL OR l.total_skor < g.skor_minimal THEN 0
+                ELSE ROUND(l.total_skor / NULLIF(g.pembagi, 0) * g.nominal, 0)
+              END AS nominal_dasar
+         FROM lengkap l
+         JOIN insentif_pagu g
+           ON g.alias = norm_jabatan(l.jabatan) AND g.produk = l.produk AND g.aktif
      )
      INSERT INTO insentif_row
        (periode, nik, kategori, produk, jabatan, cabang,
-        skor_insentif, nominal, sumber, batch_id, keterangan, dihitung_pada)
-     SELECT $1::date, s.nik, 'Insentif ' || s.produk, s.produk, s.jabatan, s.cabang,
-            ROUND(s.total_skor, 2),
-            CASE
-              WHEN s.total_skor < g.skor_minimal THEN 0
-              ELSE ROUND(s.total_skor / NULLIF(g.pembagi, 0) * g.nominal, 0)
-            END,
+        skor_insentif, tier, kelas_cabang,
+        nominal_dasar, nominal_reward, nominal_penalty, nominal,
+        sumber, batch_id, keterangan, dihitung_pada)
+     SELECT $1::date, p.nik, 'Insentif ' || p.produk, p.produk, p.jabatan, p.cabang,
+            ROUND(p.total_skor, 2), p.tier, p.kelas,
+            p.nominal_dasar,
+            ROUND(p.reward_nominal + (p.reward_persen / 100) * p.nominal_dasar, 0),
+            ROUND(p.penalty_nominal + (p.penalty_persen / 100) * p.nominal_dasar, 0),
+            GREATEST(0, ROUND(
+              p.nominal_dasar
+              + p.reward_nominal + (p.reward_persen / 100) * p.nominal_dasar
+              - p.penalty_nominal - (p.penalty_persen / 100) * p.nominal_dasar
+            , 0)),
             'api', NULL,
             CASE
-              WHEN s.total_skor < g.skor_minimal
-                THEN 'Skor ' || ROUND(s.total_skor, 2) ||
-                     ' di bawah minimal ' || g.skor_minimal
-              ELSE ROUND(s.total_skor, 2) || ' / ' || g.pembagi ||
-                   ' x pagu ' || g.nominal
+              WHEN p.mekanisme = 'tier' THEN
+                'Tier ' || COALESCE(p.tier::text, '-') ||
+                ' x kelas ' || COALESCE(p.kelas, '-') ||
+                CASE WHEN p.kelas IS NULL OR p.tier IS NULL
+                       OR p.nominal_dasar = 0 AND p.tier IS NOT NULL AND p.kelas IS NOT NULL
+                     THEN ' (cek: tier/kelas belum lengkap atau tidak ada di tabel)'
+                     ELSE '' END
+              WHEN p.total_skor IS NULL OR p.total_skor < p.skor_minimal
+                THEN 'Skor ' || COALESCE(ROUND(p.total_skor, 2)::text, '-') ||
+                     ' di bawah minimal ' || p.skor_minimal
+              ELSE ROUND(p.total_skor, 2) || ' / ' || p.pembagi ||
+                   ' x pagu ' || p.pagu_nominal
             END,
             now()
-       FROM skor s
-       JOIN insentif_pagu g
-         ON g.alias = norm_jabatan(s.jabatan) AND g.produk = s.produk AND g.aktif
+       FROM pokok p
      ON CONFLICT (nik, periode, produk) WHERE sumber = 'api'
      DO UPDATE SET
-       skor_insentif = EXCLUDED.skor_insentif,
-       nominal       = EXCLUDED.nominal,
-       keterangan    = EXCLUDED.keterangan,
-       jabatan       = EXCLUDED.jabatan,
-       cabang        = EXCLUDED.cabang,
-       dihitung_pada = now()`,
+       skor_insentif   = EXCLUDED.skor_insentif,
+       tier            = EXCLUDED.tier,
+       kelas_cabang    = EXCLUDED.kelas_cabang,
+       nominal_dasar   = EXCLUDED.nominal_dasar,
+       nominal_reward  = EXCLUDED.nominal_reward,
+       nominal_penalty = EXCLUDED.nominal_penalty,
+       nominal         = EXCLUDED.nominal,
+       keterangan      = EXCLUDED.keterangan,
+       jabatan         = EXCLUDED.jabatan,
+       cabang          = EXCLUDED.cabang,
+       dihitung_pada   = now()`,
     [periode]);
 
   return Array.isArray(hasil) ? hasil.length : 0;

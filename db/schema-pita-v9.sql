@@ -155,3 +155,15 @@ ALTER TABLE insentif_row ADD COLUMN IF NOT EXISTS kelas_cabang    TEXT;
 ALTER TABLE insentif_row ADD COLUMN IF NOT EXISTS nominal_dasar   NUMERIC(18,2);
 ALTER TABLE insentif_row ADD COLUMN IF NOT EXISTS nominal_reward  NUMERIC(18,2);
 ALTER TABLE insentif_row ADD COLUMN IF NOT EXISTS nominal_penalty NUMERIC(18,2);
+
+-- ---------------------------------------------------------------------
+-- 7. PERAN DAN EFEK DISALIN KE BARIS KPI
+--    kpi_row menyalin bobot dan target dari indikator_target saat
+--    dihitung (lihat v5), bukan menyambung baliknya tiap dibaca. Peran,
+--    jenis nilai, dan besaran efek ikut disalin dengan alasan yang sama —
+--    baris reward/penalty butuh ini untuk dijumlahkan tanpa join balik ke
+--    pendaftaran indikator saat menghitung nominal insentif.
+-- ---------------------------------------------------------------------
+ALTER TABLE kpi_row ADD COLUMN IF NOT EXISTS peran       TEXT;
+ALTER TABLE kpi_row ADD COLUMN IF NOT EXISTS jenis_nilai TEXT;
+ALTER TABLE kpi_row ADD COLUMN IF NOT EXISTS nilai_efek  NUMERIC(18,2);
