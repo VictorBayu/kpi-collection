@@ -23,11 +23,20 @@ const num = (v: any) => (v === null || v === undefined ? null : Number(v));
  */
 export const periodeTersedia = unstable_cache(
   async () =>
+    // Dibaca dari v_periode_tersedia, bukan langsung dari import_batch:
+    // sejak indikator dihitung dari API, periode bisa lahir tanpa ada
+    // unggahan Excel sama sekali. Membaca import_batch saja membuat
+    // periode hasil tarikan API tidak pernah muncul di pemilih periode.
+    //
+    // Satu periode bisa punya dua sumber sekaligus (Excel lalu dihitung
+    // ulang dari API); DISTINCT ON menyisakan satu baris per periode agar
+    // pemilihnya tidak menampilkan bulan yang sama dua kali.
     q<{ periode: string; diterbitkan_pada: string; nama_file: string; total: number }>(
-      `SELECT b.periode, b.diterbitkan_pada, b.nama_file, b.baris_valid AS total
-         FROM import_batch b
-        WHERE b.tipe = 'kpi' AND b.status = 'published'
-        ORDER BY b.periode DESC LIMIT 12`),
+      `SELECT DISTINCT ON (periode)
+              periode, diperbarui AS diterbitkan_pada, nama_file, total
+         FROM v_periode_tersedia
+        ORDER BY periode DESC, diperbarui DESC NULLS LAST
+        LIMIT 12`),
   ["periode-tersedia"],
   { revalidate: 3600, tags: ["batch-kpi"] },
 );

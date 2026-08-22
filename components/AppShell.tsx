@@ -24,6 +24,7 @@ export default async function AppShell({ children }: { children: React.ReactNode
     s?.peran === "admin"
       ? [
           { href: "/admin/kpi", label: "Data KPI" },
+          { href: "/admin/analitik", label: "Dashboard" },
           { href: "/admin/import", label: "Unggah data" },
           {
             label: "Data & indikator",

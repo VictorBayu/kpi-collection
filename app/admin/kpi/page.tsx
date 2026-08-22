@@ -4,6 +4,7 @@ import AppShell from "@/components/AppShell";
 import { readSession } from "@/lib/auth";
 import { periodeTersedia, cabangPeriode, karyawanCabang } from "@/lib/kpi";
 import { rp, angka, namaPeriode, toISODate } from "@/lib/format";
+import PilihPeriode from "@/components/PilihPeriode";
 
 export const metadata = { title: "Data KPI — Admin" };
 
@@ -67,17 +68,10 @@ export default async function AdminKpi({
             <h2>Data KPI seluruh cabang</h2>
             <p>Pilih cabang untuk melihat pencapaian tiap karyawan. Diurutkan dari skor terendah.</p>
           </div>
-          <form>
-            <label className="faint" htmlFor="periode">Periode</label>{" "}
-            <select id="periode" name="periode" defaultValue={periode} className="select">
-              {daftar.map((p) => (
-                <option key={String(p.periode)} value={toISODate(p.periode)}>
-                  {namaPeriode(p.periode)}
-                </option>
-              ))}
-            </select>{" "}
-            <button className="btn sm ghost">Lihat</button>
-          </form>
+          {/* Cabang yang sedang dibuka ikut dibawa: berpindah bulan tidak
+              melempar admin kembali ke cabang pertama. */}
+          <PilihPeriode daftar={daftar.map((p) => toISODate(p.periode))} aktif={periode}
+                        simpan={{ cabang: sp.cabang }} />
         </div>
 
         <div className="split-kpi">

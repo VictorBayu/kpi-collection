@@ -1433,3 +1433,42 @@ tr.kurang > td{background:var(--bad-soft)}
 @media (max-width: 860px){
   .pagu-medan{grid-template-columns:1fr 1fr}
 }
+
+/* ---------------------------------------------------------------------
+   Pemilih periode cutoff
+   Menggantikan pasangan <select> + tombol "Lihat"; memilih langsung
+   memuat, jadi tidak ada tombol yang perlu diberi tempat.
+   --------------------------------------------------------------------- */
+.periode-pilih{display:flex;align-items:center;gap:10px}
+.periode-label{font-size:11px;font-weight:700;letter-spacing:.06em;
+  text-transform:uppercase;color:var(--ink-faint);flex:none}
+.periode-kotak{width:190px}
+.periode-pilih.menunggu{opacity:.6;pointer-events:none}
+.periode-memuat{font-size:11.5px;color:var(--ink-faint)}
+
+/* ---------------------------------------------------------------------
+   Dasbor analitik
+   --------------------------------------------------------------------- */
+.kartu-angka{display:grid;grid-template-columns:repeat(5,1fr);gap:12px}
+.angka-kotak{background:var(--surface);border:1px solid var(--line);
+  border-radius:var(--r);padding:14px 16px;display:flex;flex-direction:column;gap:3px}
+.angka-kotak span{font-size:11px;letter-spacing:.04em;color:var(--ink-faint);
+  text-transform:uppercase;font-weight:600}
+.angka-kotak b{font-size:23px;font-weight:700;letter-spacing:-.02em;
+  font-variant-numeric:tabular-nums;line-height:1.15}
+.angka-kotak b.baik{color:#1F8A5B}
+.angka-kotak b.buruk{color:#C2410C}
+.angka-kotak i{font-size:11.5px;color:var(--ink-faint);font-style:normal}
+@media (max-width:1100px){ .kartu-angka{grid-template-columns:repeat(3,1fr)} }
+@media (max-width:680px){ .kartu-angka{grid-template-columns:repeat(2,1fr)} }
+
+.grafik-dua{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-top:16px}
+@media (max-width:1000px){ .grafik-dua{grid-template-columns:1fr} }
+
+.grafik-bungkus{position:relative;width:100%}
+.grafik-memuat,.grafik-kosong{display:flex;align-items:center;justify-content:center;
+  flex-direction:column;gap:4px;text-align:center;padding:20px;
+  font-size:13px;color:var(--ink-faint);background:var(--line-soft);
+  border-radius:10px}
+.grafik-catatan{padding:10px 16px 14px;font-size:12.5px;color:var(--ink-soft);
+  border-top:1px solid var(--line-soft)}
