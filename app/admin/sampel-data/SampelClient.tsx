@@ -23,7 +23,7 @@ const waktu = (s: string) =>
   new Date(s).toLocaleString("id-ID", { dateStyle: "short", timeStyle: "short" });
 
 /**
- * Sampel data mentah.
+ * Sample Data API — contoh baris data mentah.
  *
  * data_mentah punya sekitar tujuh puluh kolom — cukup untuk mesin hitung,
  * tapi kalau ditampilkan apa adanya admin harus menggulir ke samping tanpa
@@ -79,7 +79,7 @@ export default function SampelClient() {
     <>
       <div className="sectionhead">
         <div>
-          <h2>Sampel Data Mentah</h2>
+          <h2>Sample Data API</h2>
           <p>
             Contoh baris dari tarikan terakhir, kolom terkurasi. Untuk
             memeriksa status dan riwayat penarikannya, lihat{" "}

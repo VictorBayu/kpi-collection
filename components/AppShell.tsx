@@ -28,9 +28,9 @@ export default async function AppShell({ children }: { children: React.ReactNode
           {
             label: "Data & indikator",
             grup: [
-              { href: "/admin/indikator", label: "Pembangun indikator" },
+              { href: "/admin/indikator", label: "Create Indicator" },
               { href: "/admin/data-api", label: "Data API" },
-              { href: "/admin/sampel-data", label: "Sampel data mentah" },
+              { href: "/admin/sampel-data", label: "Sample Data API" },
               { href: "/admin/riwayat", label: "Riwayat impor Excel" },
             ],
           },
@@ -41,7 +41,7 @@ export default async function AppShell({ children }: { children: React.ReactNode
               { href: "/admin/produk", label: "Master Produk" },
               { href: "/admin/pagu", label: "Pagu Insentif" },
               { href: "/admin/tier", label: "Tabel Tier Insentif" },
-              { href: "/admin/kelas-cabang", label: "Kelas Cabang" },
+              { href: "/admin/kelas-cabang", label: "Tier Cabang" },
               { href: "/admin/cabang", label: "Master Cabang API" },
               { href: "/admin/pengguna", label: "Pengguna & Akses" },
             ],

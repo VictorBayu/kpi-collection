@@ -26,7 +26,7 @@ type Target = {
 };
 
 const PERAN_OPSI = [
-  { nilai: "kpi", label: "Skor KPI / Insentif reguler", ket: "diatur lewat Bobot KPI dan/atau Bobot insentif" },
+  { nilai: "kpi", label: "KPI / Insentif", ket: "diatur lewat bobot KPI dan bobot insentif" },
   { nilai: "reward", label: "Reward", ket: "menambah nominal insentif" },
   { nilai: "penalty", label: "Penalty", ket: "mengurangi nominal insentif" },
   { nilai: "tier", label: "Penentu tier", ket: "menentukan tier lewat pita, tidak ikut skor" },
@@ -136,7 +136,7 @@ function DetailTarget({ t, ubah }: { t: Target; ubah: (patch: Partial<Target>) =
       <div className="target-detail">
         <p className="faint small">
           Poin di sini adalah nomor tier itu sendiri (1, 2, 3, …), bukan skor.
-          Tier hasil pita ini disilang kelas cabang untuk mencari nominal di
+          Tier hasil pita ini disilang tier cabang untuk mencari nominal di
           halaman Tabel Tier Insentif.
         </p>
         <EditorPita pita={t.pita} ubah={(pita) => ubah({ pita })} labelPoin="Tier" />
@@ -193,7 +193,7 @@ function DetailTarget({ t, ubah }: { t: Target; ubah: (patch: Partial<Target>) =
 }
 
 /**
- * Pembangun indikator.
+ * Create Indicator — pembangun indikator.
  *
  * Kiri daftar indikator, kanan perakit rumusnya. Perakitnya berbentuk
  * susunan kartu yang bisa diseret: tiap kartu satu agregasi bersyarat,
@@ -565,9 +565,9 @@ export default function IndikatorClient() {
               tulisannya terpotong dua baris. */}
           <table className="rapat tbl-target">
             <colgroup>
-              <col /><col style={{ width: 96 }} />
-              <col style={{ width: 150 }} /><col />
-              <col style={{ width: 72 }} /><col style={{ width: 44 }} />
+              <col style={{ width: "22%" }} /><col style={{ width: 92 }} />
+              <col style={{ width: "26%" }} /><col />
+              <col style={{ width: 76 }} /><col style={{ width: 40 }} />
             </colgroup>
             <thead>
               <tr>
@@ -612,7 +612,7 @@ export default function IndikatorClient() {
                         <Pilih nilai={t.peran} cari={false} onPilih={(v) => ubah({ peran: v })}
                                opsi={PERAN_OPSI} />
                       </td>
-                      <td className="faint small">{ringkasan}</td>
+                      <td className="faint small sel-ringkas">{ringkasan}</td>
                       <td className="r">
                         <button className="btn ghost sm"
                                 onClick={() => setDetailBuka(detailBuka === i ? null : i)}>

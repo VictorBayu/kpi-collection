@@ -305,7 +305,7 @@ async function hitungInsentif(periode: string): Promise<number> {
         GROUP BY k.nik, k.produk
      ),
      lengkap AS (
-       SELECT d.*, kelas_cabang(d.cabang, $1::date) AS kelas
+       SELECT d.*, kelas_cabang(d.cabang, d.produk, $1::date) AS kelas
          FROM dasar d
      ),
      pokok AS (

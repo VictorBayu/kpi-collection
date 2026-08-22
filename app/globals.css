@@ -590,7 +590,14 @@ tfoot td{font-weight:700;border-top:1px solid var(--line);background:#F9FBFD}
 .pilih.buka .pilih-tombol{border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-soft)}
 .pilih-nilai{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .pilih-kosong{flex:1;color:var(--ink-faint)}
-.pilih-ket{font-size:11px;color:var(--ink-faint);white-space:nowrap}
+/* Keterangan di dalam tombol harus bisa menyusut. Tanpa min-width:0 dan
+   shrink, teks nowrap ini memaksa tombol melebar melewati selnya dan
+   menimpa kolom sebelahnya — terlihat sebagai tulisan bertumpuk. */
+.pilih-ket{font-size:11px;color:var(--ink-faint);white-space:nowrap;
+  min-width:0;flex-shrink:1;overflow:hidden;text-overflow:ellipsis}
+/* Di dalam sel tabel ruangnya terlalu sempit untuk label sekaligus
+   keterangan; keterangannya tetap terbaca di panel saat dropdown dibuka. */
+td .pilih-ket{display:none}
 .pilih-panah{color:var(--ink-faint);font-size:11px;flex:none;transition:transform .15s}
 .pilih.buka .pilih-panah{transform:rotate(180deg)}
 .pilih-bayangan{position:absolute;opacity:0;width:1px;height:1px;pointer-events:none;border:0;padding:0}
@@ -1377,6 +1384,9 @@ tr.kurang > td{background:var(--bad-soft)}
 .tbl-target td{padding-top:8px;padding-bottom:8px}
 .tbl-target input{text-align:right}
 .tbl-target .pilih-tombol{white-space:nowrap}
+/* Ringkasan boleh terpotong rapi daripada mendorong kolom lain melebar. */
+.sel-ringkas{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
+  padding-right:10px}
 
 /* Kotak bobot dengan sufiks persen menempel di dalamnya. */
 .bobot-isi{display:flex;align-items:center;gap:4px}
@@ -1387,19 +1397,31 @@ tr.kurang > td{background:var(--bad-soft)}
 /* Baris pendaftaran yang detailnya sedang terbuka, dan panel detailnya. */
 .baris-buka td{background:var(--line-soft)}
 .baris-detail td{padding:0;border-top:none}
-.target-detail{padding:14px 16px 16px;background:var(--line-soft);
-  border-radius:0 0 10px 10px;display:flex;flex-direction:column;gap:10px}
-.target-detail-baris{display:flex;gap:16px;flex-wrap:wrap}
-.target-detail-baris label{display:flex;flex-direction:column;gap:4px;min-width:140px}
-.target-detail-baris input,.target-detail-baris .bobot-isi{width:140px}
-.target-detail .mt{margin-top:4px}
+.target-detail{padding:16px 18px 18px;background:var(--line-soft);
+  border-radius:0 0 10px 10px;display:flex;flex-direction:column;gap:12px;
+  border-top:1px solid var(--line)}
+.target-detail > p{margin:0;line-height:1.5;max-width:72ch}
+.target-detail-baris{display:flex;gap:18px;flex-wrap:wrap}
+.target-detail-baris label{display:flex;flex-direction:column;gap:5px;min-width:150px}
+.target-detail-baris input,.target-detail-baris .bobot-isi{width:150px}
+.target-detail .mt{margin-top:2px}
 
 /* Editor pita: baris nilai_min–nilai_max → poin_min–poin_max. */
-.pita-editor{display:flex;flex-direction:column;gap:8px;align-items:flex-start}
-.tbl-pita{width:100%;table-layout:fixed}
-.tbl-pita th{font-size:10.5px}
-.tbl-pita td{padding:3px 4px}
+.pita-editor{display:flex;flex-direction:column;gap:9px;align-items:flex-start;
+  width:100%;max-width:560px}
+.tbl-pita{width:100%;table-layout:fixed;background:var(--surface);
+  border:1px solid var(--line);border-radius:10px;overflow:hidden}
+.tbl-pita th{font-size:10px;letter-spacing:.05em;padding:7px 8px}
+.tbl-pita td{padding:5px 6px}
+.tbl-pita tr:last-child td{border-bottom:none}
 .tbl-pita input{text-align:right}
+.tbl-pita input::placeholder{font-size:11px;color:var(--line)}
+
+/* Empat medan sejajar untuk panel tambah-baris (cabang/produk/tanggal/tier). */
+.medan-4{display:grid;grid-template-columns:1.6fr .8fr 1fr .9fr;gap:14px;
+  align-items:start;margin-bottom:12px}
+.medan-4 label{display:flex;flex-direction:column;gap:5px;min-width:0}
+@media (max-width:820px){ .medan-4{grid-template-columns:1fr 1fr} }
 
 /* Master pagu insentif */
 .tbl-pagu{table-layout:fixed}

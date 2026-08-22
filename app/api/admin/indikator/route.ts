@@ -84,7 +84,16 @@ export const GET = handler(async (req) => {
       q<any>(`SELECT kolom, label, jenis, agregat, kelompok
                 FROM mentah_kolom ORDER BY urutan, label`),
       q<any>(`SELECT kode, nama FROM produk_master WHERE aktif ORDER BY urutan, kode`),
-      q<any>(`SELECT DISTINCT alias FROM jabatan_produk ORDER BY alias`),
+      // Semua alias jabatan yang dikenal, bukan hanya yang sudah dipetakan
+      // ke produk. Kalau dibatasi ke jabatan_produk, daftarnya kosong
+      // sebelum pemetaan produk diisi dan admin mengira fiturnya rusak.
+      q<any>(
+        `SELECT alias FROM jabatan_alias
+         UNION
+         SELECT DISTINCT norm_jabatan(jabatan) AS alias
+           FROM app_user
+          WHERE jabatan IS NOT NULL AND btrim(jabatan) <> ''
+         ORDER BY alias`),
     ]);
     return Response.json({ daftar, kolom, produk, jabatan });
   }

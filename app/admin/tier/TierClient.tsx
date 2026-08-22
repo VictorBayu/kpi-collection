@@ -20,8 +20,8 @@ const KELAS_OPSI = [
  *
  * Dipakai jabatan+produk yang mekanismenya diset "tabel tier" di Pagu
  * Insentif — nominalnya bukan skor linear, tapi dicari langsung dari
- * kombinasi tier (dari indikator berperan "Penentu tier") dan kelas
- * cabang orangnya.
+ * kombinasi tier (dari indikator berperan "Penentu tier") dan tier
+ * cabang tempatnya bertugas.
  */
 export default function TierClient() {
   const [baris, setBaris] = useState<Baris[]>([]);
@@ -79,7 +79,7 @@ export default function TierClient() {
           <h2>Tabel Tier Insentif</h2>
           <p>
             Nominal untuk jabatan+produk bermekanisme "tabel tier" — dicari
-            lewat kombinasi tier dan kelas cabang, bukan rumus skor ÷ pembagi × pagu.
+            lewat kombinasi tier orang dan tier cabang, bukan rumus skor ÷ pembagi × pagu.
           </p>
         </div>
         <button className="btn sm"
@@ -135,7 +135,7 @@ export default function TierClient() {
                        onChange={(e) => setBaru({ ...baru, tier: e.target.value })} />
               </label>
               <label>
-                <span className="faint small">Kelas cabang</span>
+                <span className="faint small">Tier cabang</span>
                 <Pilih nilai={baru.kelas} cari={false}
                        onPilih={(v) => setBaru({ ...baru, kelas: v })}
                        opsi={KELAS_OPSI} />
@@ -173,7 +173,7 @@ export default function TierClient() {
           <thead>
             <tr>
               <th>Jabatan</th><th>Produk</th><th className="r">Tier</th>
-              <th>Kelas</th><th className="r">Nominal</th><th></th>
+              <th>Tier cabang</th><th className="r">Nominal</th><th></th>
             </tr>
           </thead>
           <tbody>
@@ -220,8 +220,8 @@ export default function TierClient() {
 
       <p className="faint small mt">
         {rp(0)} berarti kombinasi itu memang belum diisi — bukan dihitung nol
-        secara sengaja. Kelas cabang orangnya diatur di{" "}
-        <Link className="lnk" href="/admin/kelas-cabang">Kelas Cabang</Link>.
+        secara sengaja. Tier cabang diatur di{" "}
+        <Link className="lnk" href="/admin/kelas-cabang">Tier Cabang</Link>.
       </p>
     </>
   );

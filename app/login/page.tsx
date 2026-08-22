@@ -12,7 +12,7 @@ export const metadata = { title: "Masuk — KPI Collection" };
  */
 export default async function LoginPage() {
   const s = await readSession();
-  if (s) redirect(s.peran === "admin" ? "/admin/import" : "/dashboard");
+  if (s) redirect(s.peran === "admin" ? "/admin/kpi" : "/dashboard");
 
   return (
     <div className="loginwrap">

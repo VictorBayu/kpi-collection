@@ -142,7 +142,7 @@ export default function PaguClient() {
                        onPilih={(v) => setBaru({ ...baru, mekanisme: v })}
                        opsi={[
                          { nilai: "pagu", label: "Rumus pagu", ket: "skor ÷ pembagi × pagu" },
-                         { nilai: "tier", label: "Tabel tier", ket: "tier × kelas cabang → nominal" },
+                         { nilai: "tier", label: "Tabel tier", ket: "tier orang × tier cabang → nominal" },
                        ]} />
               </label>
               {baru.mekanisme === "tier" ? null : (
@@ -292,7 +292,7 @@ export default function PaguClient() {
 
       <p className="faint small mt">
         Bobot insentif tiap indikator diatur di{" "}
-        <Link className="lnk" href="/admin/indikator">Pembangun indikator</Link>.
+        <Link className="lnk" href="/admin/indikator">Create Indicator</Link>.
         Perubahan pagu baru berlaku pada penghitungan berikutnya.
       </p>
     </>
