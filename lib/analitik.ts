@@ -186,27 +186,32 @@ export async function rincianInsentif(periode: string) {
  */
 export async function komposisiJabatan(periode: string) {
   const rows = await q<any>(
+    // Dikelompokkan per jabatan saja, bukan jabatan+produk. Selain
+    // memangkas jumlah batang hampir separuh, ini juga lebih tepat:
+    // skor KPI seseorang adalah jumlah seluruh indikatornya lintas
+    // produk. Memecahnya per produk membuat pemegang jabatan MIX
+    // terhitung dua kali dengan skor yang masing-masing tidak utuh, dan
+    // angkanya jadi tidak cocok dengan kartu ringkasan di atas.
     `WITH per_orang AS (
        SELECT k.nik,
               COALESCE(NULLIF(BTRIM(k.jabatan), ''), '(TANPA JABATAN)') AS jabatan,
-              COALESCE(NULLIF(BTRIM(k.produk),  ''), '(TANPA PRODUK)')  AS produk,
               SUM(k.skor_terbobot) AS skor
          FROM v_kpi_aktif k WHERE k.periode = $1
-        GROUP BY k.nik, 2, 3
+        GROUP BY k.nik, 2
      )
-     SELECT jabatan, produk,
+     SELECT jabatan,
             COUNT(*)::int                                       AS orang,
             COUNT(*) FILTER (WHERE skor >= 4)::int              AS kpi4,
             COUNT(*) FILTER (WHERE skor >= 3 AND skor < 4)::int AS kpi3,
             COUNT(*) FILTER (WHERE skor < 3)::int               AS bawah,
             ROUND(AVG(skor), 2)                                 AS skor_rata
        FROM per_orang
-      GROUP BY jabatan, produk
-      ORDER BY 7 ASC`, [periode]);
+      GROUP BY jabatan
+      ORDER BY 6 ASC`, [periode]);
 
   return rows.map((r) => ({
-    label: `${r.jabatan} · ${r.produk}`,
-    jabatan: r.jabatan, produk: r.produk,
+    label: r.jabatan,
+    jabatan: r.jabatan,
     orang: r.orang, kpi4: r.kpi4, kpi3: r.kpi3, bawah: r.bawah,
     skorRata: Number(r.skor_rata),
     persenBawah: r.orang ? Math.round((r.bawah / r.orang) * 100) : 0,

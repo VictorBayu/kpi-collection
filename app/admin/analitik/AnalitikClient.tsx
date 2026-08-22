@@ -5,7 +5,7 @@ import AmChart from "@/components/AmChart";
 import Pilih from "@/components/Pilih";
 
 type Komposisi = {
-  label: string; jabatan: string; produk: string;
+  label: string; jabatan: string;
   orang: number; kpi4: number; kpi3: number; bawah: number;
   skorRata: number; persenBawah: number;
 };
@@ -174,7 +174,7 @@ export default function AnalitikClient({
         }));
       s.columns.template.setAll({
         fill: am5.color(warna), stroke: am5.color(warna), strokeOpacity: 0,
-        height: am5.percent(72),
+        height: am5.percent(64),
         tooltipText:
           `[bold]{categoryY}[/]\n${nama}: [bold]{valueX} orang[/] ` +
           "({valueXTotalPercent.formatNumber('#.')}%)\n" +
@@ -406,21 +406,32 @@ export default function AnalitikClient({
       am5xy.LineSeries.new(root, {
         xAxis: sumbuX, yAxis: sumbuY,
         valueXField: "skorRata", valueYField: "perOrang",
-        tooltip: am5.Tooltip.new(root, {
-          labelText:
-            "[bold]{cabang}[/]\nSkor rata-rata: [bold]{valueX}[/]\n" +
-            "Insentif per orang: Rp {valueY.formatNumber('#,###')}\n{orang} karyawan",
-        }),
       }));
     // Hanya titik, tanpa garis penghubung: urutan datanya tidak berarti apa-apa.
     seri.strokes.template.setAll({ strokeOpacity: 0 });
-    seri.bullets.push(() =>
-      am5.Bullet.new(root, {
-        sprite: am5.Circle.new(root, {
-          radius: 6, fillOpacity: 0.75, strokeOpacity: 0,
-          fill: am5.color(BIRU), tooltipText: "{cabang}",
-        }),
-      }));
+
+    // Tooltip dipasang pada bulatannya, bukan pada serinya. Tooltip di
+    // level seri mengikuti posisi kursor sepanjang sumbu dan menampilkan
+    // titik terdekat menurut sumbu X saja — pada sebaran, titik itu
+    // hampir selalu bukan titik yang benar-benar ditunjuk, sehingga
+    // keterangannya tidak cocok dengan yang dilihat.
+    seri.bullets.push(() => {
+      const titik = am5.Circle.new(root, {
+        radius: 6, fillOpacity: 0.7, strokeOpacity: 0,
+        fill: am5.color(BIRU),
+        tooltipText:
+          "[bold]{cabang}[/]\nSkor rata-rata: [bold]{skorRata}[/]\n" +
+          "Insentif per orang: Rp {perOrang.formatNumber('#,###')}\n" +
+          "Total insentif: Rp {insentif.formatNumber('#,###')}\n{orang} karyawan",
+      });
+      // Titik yang ditunjuk dibesarkan dan dipertegas: di gerombolan yang
+      // rapat, tooltip saja tidak cukup memberi tahu itu milik titik mana.
+      titik.states.create("hover", {
+        radius: 9, fillOpacity: 1,
+        strokeOpacity: 1, stroke: am5.color(0xffffff), strokeWidth: 2,
+      });
+      return am5.Bullet.new(root, { sprite: titik });
+    });
     seri.data.setAll(biaya);
 
     // Garis ambang KPI 3: pemisah antara "layak dibayar" dan "perlu ditanya".
@@ -431,7 +442,9 @@ export default function AnalitikClient({
     });
     jangkar.get("label").setAll({ text: "KPI 3", fontSize: 10, fill: am5.color(MERAH) });
 
-    chart.set("cursor", am5xy.XYCursor.new(root, { xAxis: sumbuX, yAxis: sumbuY, behavior: "none" }));
+    // Sengaja tanpa XYCursor: garis bantunya menarik tooltip mengikuti
+    // sumbu, bukan titik yang ditunjuk, dan itu justru yang bikin
+    // keterangannya tidak cocok dengan titik yang dilihat.
     seri.appear(700); chart.appear(700, 100);
   }, [biaya]);
 
@@ -461,11 +474,11 @@ export default function AnalitikClient({
       <section className="card mb">
         <div className="cardhead rowbetween">
           <div>
-            <h3 style={{ fontSize: 15 }}>Komposisi pencapaian per jabatan · produk</h3>
+            <h3 style={{ fontSize: 15 }}>Komposisi pencapaian per jabatan</h3>
             <p className="muted small">
-              Setiap batang satu jabatan-produk, dibagi menurut proporsi
-              pencapaiannya. Dibaca dalam persen supaya jabatan besar dan kecil
-              bisa dibandingkan tingkat masalahnya, bukan ukurannya.
+              Setiap batang satu jabatan, dibagi menurut proporsi pencapaiannya.
+              Dibaca dalam persen supaya jabatan besar dan kecil bisa
+              dibandingkan tingkat masalahnya, bukan ukurannya.
             </p>
           </div>
           <div style={{ width: 190 }}>
@@ -479,8 +492,12 @@ export default function AnalitikClient({
           </div>
         </div>
         <div className="card-pad">
+          {/* Tinggi per batang dipatok kecil (26px). Dengan 34px, dua belas
+              jabatan sudah memenuhi seluruh layar dan grafik terasa
+              menggantung tanpa ujung; angka ini muat sekitar lima belas
+              batang dalam satu layar penuh. */}
           <AmChart gambar={gambarKomposisi}
-                   tinggi={Math.max(320, komposisiUrut.length * 34 + 70)}
+                   tinggi={Math.max(260, komposisiUrut.length * 26 + 64)}
                    kunci={`komposisi-${urutKomposisi}`} kosong={!komposisi.length}
                    pesanKosong="Belum ada data KPI di periode ini." />
         </div>
