@@ -25,78 +25,6 @@ export function labelPita(skor: number): string {
 }
 
 /**
- * Data Sankey: jabatan → produk → pita pencapaian.
- *
- * Tiga tingkat, bukan dua, supaya alirannya bisa ditelusuri: dari jabatan
- * mana orangnya, memegang produk apa, lalu bermuara di pencapaian seperti
- * apa. Dengan dua tingkat saja, jabatan yang tampak buruk tidak ketahuan
- * apakah buruk di semua produk atau hanya di satu.
- */
-export async function alirJabatanProduk(periode: string) {
-  const rows = await q<any>(
-    `WITH per_orang AS (
-       SELECT k.nik,
-              COALESCE(NULLIF(BTRIM(k.jabatan), ''), '(TANPA JABATAN)') AS jabatan,
-              COALESCE(NULLIF(BTRIM(k.produk),  ''), '(TANPA PRODUK)')  AS produk,
-              SUM(k.skor_terbobot) AS skor
-         FROM v_kpi_aktif k
-        WHERE k.periode = $1
-        GROUP BY k.nik, 2, 3
-     )
-     SELECT jabatan, produk,
-            CASE WHEN skor >= 4 THEN 'KPI 4 ke atas'
-                 WHEN skor >= 3 THEN 'KPI 3'
-                 ELSE 'Di bawah KPI 3' END AS pita,
-            COUNT(*)::int      AS orang,
-            ROUND(AVG(skor),2) AS skor_rata
-       FROM per_orang
-      GROUP BY jabatan, produk, 3
-      ORDER BY jabatan, produk`, [periode]);
-
-  // amCharts Sankey menerima daftar tautan; simpul dibentuk sendiri dari
-  // pasangan from-to. Dua lapis tautan dijadikan satu daftar.
-  //
-  // Pemisah kunci peta memakai karakter kendali, bukan spasi: nama jabatan
-  // seperti "FC TT R2" sendirinya sudah mengandung spasi, jadi memecah
-  // dengan spasi akan memotongnya di tempat yang salah.
-  const PISAH = "\u0001";
-
-  // Simpul produk diberi imbuhan supaya tidak melebur dengan simpul
-  // jabatan bila namanya kebetulan sama — amCharts menganggap dua simpul
-  // bernama sama sebagai satu simpul, dan alirannya jadi kacau.
-  const namaProduk = (p: string) => `Produk ${p}`;
-
-  const tautanJP = new Map<string, { orang: number; skor: number }>();
-  const tautanPP = new Map<string, { orang: number; skor: number }>();
-
-  for (const r of rows) {
-    const orang = Number(r.orang);
-    const skor = Number(r.skor_rata) * orang;
-
-    const kunciJP = `${r.jabatan}${PISAH}${namaProduk(r.produk)}`;
-    const a = tautanJP.get(kunciJP) ?? { orang: 0, skor: 0 };
-    tautanJP.set(kunciJP, { orang: a.orang + orang, skor: a.skor + skor });
-
-    const kunciPP = `${namaProduk(r.produk)}${PISAH}${r.pita}`;
-    const b = tautanPP.get(kunciPP) ?? { orang: 0, skor: 0 };
-    tautanPP.set(kunciPP, { orang: b.orang + orang, skor: b.skor + skor });
-  }
-
-  const jadikan = (peta: typeof tautanJP) =>
-    Array.from(peta, ([kunci, v]) => {
-      const [from, to] = kunci.split(PISAH);
-      return {
-        from, to,
-        value: v.orang,
-        skorRata: v.orang ? Number((v.skor / v.orang).toFixed(2)) : 0,
-      };
-    });
-
-  return [...jadikan(tautanJP), ...jadikan(tautanPP)]
-    .sort((a, b) => b.value - a.value);
-}
-
-/**
  * Data Radar: rata-rata skor tiap indikator secara nasional.
  *
  * Dipakai melihat indikator mana yang secara menyeluruh kuat dan mana yang
@@ -211,5 +139,220 @@ export async function perArea(periode: string) {
     skorRata: Number(r.skor_rata),
     orang: r.orang,
     bawah: r.bawah,
+  }));
+}
+
+/**
+ * Rincian insentif: reguler, reward, penalty.
+ *
+ * Total saja menyembunyikan hal yang justru paling perlu diawasi — apakah
+ * angka besar itu datang dari pencapaian pokok, dari bonus tambahan, atau
+ * sudah dipotong penalti besar. Tiga angka itu dikelola aturan berbeda dan
+ * pantas dilihat terpisah.
+ *
+ * Baris lama dari Excel tidak punya rincian ini (kolomnya baru ada sejak
+ * insentif dihitung dari API), jadi selisih total dengan jumlah ketiganya
+ * dikembalikan apa adanya sebagai `tanpaRincian` alih-alih dipaksa masuk
+ * salah satu kelompok.
+ */
+export async function rincianInsentif(periode: string) {
+  const [r] = await q<any>(
+    `SELECT COALESCE(SUM(nominal), 0)                     AS total,
+            COALESCE(SUM(nominal_dasar), 0)               AS dasar,
+            COALESCE(SUM(nominal_reward), 0)              AS reward,
+            COALESCE(SUM(nominal_penalty), 0)             AS penalty,
+            COALESCE(SUM(nominal) FILTER (WHERE nominal_dasar IS NULL), 0) AS tanpa_rincian,
+            COUNT(*) FILTER (WHERE nominal > 0)::int      AS penerima
+       FROM v_insentif_aktif WHERE periode = $1`, [periode]);
+
+  return {
+    total: Number(r?.total ?? 0),
+    dasar: Number(r?.dasar ?? 0),
+    reward: Number(r?.reward ?? 0),
+    penalty: Number(r?.penalty ?? 0),
+    tanpaRincian: Number(r?.tanpa_rincian ?? 0),
+    penerima: r?.penerima ?? 0,
+  };
+}
+
+/**
+ * Komposisi pencapaian per jabatan+produk.
+ *
+ * Pengganti Sankey. Sankey menarik saat alirannya sedikit, tapi dengan dua
+ * belas jabatan garisnya saling menyilang sampai tidak ada yang bisa
+ * ditelusuri — persis kebalikan dari tujuannya. Batang bertumpuk menjawab
+ * pertanyaan yang sama ("jabatan mana yang bermasalah, seberapa parah")
+ * dalam bentuk yang bisa dibaca sekali lihat dan diurutkan.
+ */
+export async function komposisiJabatan(periode: string) {
+  const rows = await q<any>(
+    `WITH per_orang AS (
+       SELECT k.nik,
+              COALESCE(NULLIF(BTRIM(k.jabatan), ''), '(TANPA JABATAN)') AS jabatan,
+              COALESCE(NULLIF(BTRIM(k.produk),  ''), '(TANPA PRODUK)')  AS produk,
+              SUM(k.skor_terbobot) AS skor
+         FROM v_kpi_aktif k WHERE k.periode = $1
+        GROUP BY k.nik, 2, 3
+     )
+     SELECT jabatan, produk,
+            COUNT(*)::int                                       AS orang,
+            COUNT(*) FILTER (WHERE skor >= 4)::int              AS kpi4,
+            COUNT(*) FILTER (WHERE skor >= 3 AND skor < 4)::int AS kpi3,
+            COUNT(*) FILTER (WHERE skor < 3)::int               AS bawah,
+            ROUND(AVG(skor), 2)                                 AS skor_rata
+       FROM per_orang
+      GROUP BY jabatan, produk
+      ORDER BY 7 ASC`, [periode]);
+
+  return rows.map((r) => ({
+    label: `${r.jabatan} · ${r.produk}`,
+    jabatan: r.jabatan, produk: r.produk,
+    orang: r.orang, kpi4: r.kpi4, kpi3: r.kpi3, bawah: r.bawah,
+    skorRata: Number(r.skor_rata),
+    persenBawah: r.orang ? Math.round((r.bawah / r.orang) * 100) : 0,
+  }));
+}
+
+/**
+ * Tren skor rata-rata beberapa periode terakhir.
+ *
+ * Angka satu bulan tidak memberi tahu arah. Direksi hampir selalu menanyakan
+ * hal yang sama setelah melihat angka: naik atau turun dari bulan lalu —
+ * dan itu tidak terjawab oleh dasbor yang hanya menampilkan satu potret.
+ */
+export async function trenPeriode(batas = 12) {
+  const rows = await q<any>(
+    `WITH per_orang AS (
+       SELECT periode, nik, SUM(skor_terbobot) AS skor
+         FROM v_kpi_aktif GROUP BY periode, nik
+     ),
+     ins AS (
+       SELECT periode, SUM(nominal) AS insentif
+         FROM v_insentif_aktif GROUP BY periode
+     )
+     SELECT p.periode,
+            ROUND(AVG(p.skor), 2)                       AS skor_rata,
+            COUNT(*)::int                               AS orang,
+            COUNT(*) FILTER (WHERE p.skor < 3)::int     AS bawah,
+            COALESCE(i.insentif, 0)                     AS insentif
+       FROM per_orang p
+       LEFT JOIN ins i ON i.periode = p.periode
+      GROUP BY p.periode, i.insentif
+      ORDER BY p.periode DESC
+      LIMIT $1`, [batas]);
+
+  return rows
+    .map((r) => ({
+      periode: typeof r.periode === "string" ? r.periode : new Date(r.periode).toISOString().slice(0, 10),
+      skorRata: Number(r.skor_rata),
+      orang: r.orang,
+      bawah: r.bawah,
+      insentif: Number(r.insentif),
+      persenBawah: r.orang ? Math.round((r.bawah / r.orang) * 100) : 0,
+    }))
+    .reverse();   // grafik dibaca kiri ke kanan: lama → baru
+}
+
+/**
+ * Sebaran skor per setengah poin.
+ *
+ * Rata-rata menyembunyikan bentuk. Rata-rata 2,8 bisa berarti hampir semua
+ * orang di 2,8 — atau separuh di 1,5 dan separuh di 4,1, yang menuntut
+ * tindakan sama sekali berbeda.
+ */
+export async function sebaranSkor(periode: string) {
+  const rows = await q<any>(
+    `WITH per_orang AS (
+       SELECT nik, SUM(skor_terbobot) AS skor
+         FROM v_kpi_aktif WHERE periode = $1 GROUP BY nik
+     )
+     SELECT FLOOR(LEAST(skor, 5) * 2) / 2 AS pita, COUNT(*)::int AS orang
+       FROM per_orang GROUP BY 1 ORDER BY 1`, [periode]);
+
+  return rows.map((r) => ({
+    pita: Number(r.pita),
+    label: `${Number(r.pita).toFixed(1)}–${(Number(r.pita) + 0.5).toFixed(1)}`,
+    orang: r.orang,
+  }));
+}
+
+/**
+ * Cabang terbaik dan terburuk.
+ *
+ * Enam puluh lima cabang terlalu banyak untuk dibandingkan sekaligus; yang
+ * dibutuhkan hanya dua ujungnya — mana yang perlu ditolong dan mana yang
+ * pantas ditiru.
+ */
+export async function ujungCabang(periode: string, n = 8) {
+  const rows = await q<any>(
+    `WITH per_orang AS (
+       SELECT norm_wilayah(cabang) AS cabang, nik, SUM(skor_terbobot) AS skor
+         FROM v_kpi_aktif WHERE periode = $1 GROUP BY 1, nik
+     ),
+     per_cabang AS (
+       SELECT cabang, ROUND(AVG(skor), 2) AS skor_rata, COUNT(*)::int AS orang,
+              COUNT(*) FILTER (WHERE skor < 3)::int AS bawah
+         FROM per_orang
+        WHERE cabang IS NOT NULL
+        GROUP BY cabang
+       HAVING COUNT(*) >= 3   -- cabang berisi satu-dua orang mudah jadi ujung
+     )
+     SELECT * FROM per_cabang ORDER BY skor_rata DESC`, [periode]);
+
+  const semua = rows.map((r) => ({
+    cabang: r.cabang, skorRata: Number(r.skor_rata),
+    orang: r.orang, bawah: r.bawah,
+  }));
+
+  return {
+    terbaik: semua.slice(0, n),
+    terburuk: semua.slice(-n).reverse(),
+    jumlahCabang: semua.length,
+  };
+}
+
+/**
+ * Insentif per orang dibanding skor, per cabang.
+ *
+ * Pertanyaan yang hanya bisa dijawab dengan menyandingkan keduanya: apakah
+ * yang dibayar mahal memang yang berprestasi. Titik di kanan-bawah — biaya
+ * tinggi, skor rendah — adalah yang paling perlu ditanyakan.
+ */
+export async function biayaVsSkor(periode: string) {
+  const rows = await q<any>(
+    `WITH skor AS (
+       SELECT norm_wilayah(cabang) AS cabang, nik, SUM(skor_terbobot) AS skor
+         FROM v_kpi_aktif WHERE periode = $1 GROUP BY 1, nik
+     ),
+     per_cabang AS (
+       SELECT cabang, ROUND(AVG(skor), 2) AS skor_rata, COUNT(*)::int AS orang
+         FROM skor WHERE cabang IS NOT NULL GROUP BY cabang
+     ),
+     -- Insentif dikaitkan lewat NIK, bukan lewat kolom cabang di
+     -- insentif_row. Kolom cabang di sana sering kosong (baris API
+     -- mengisinya dari data KPI yang bisa saja belum lengkap), dan
+     -- menggabung lewat kolom kosong menghasilkan nol yang terlihat
+     -- seperti "cabang ini memang tidak dapat insentif".
+     ins AS (
+       SELECT s.cabang, SUM(i.nominal) AS insentif
+         FROM v_insentif_aktif i
+         JOIN (SELECT DISTINCT nik, cabang FROM skor) s ON s.nik = i.nik
+        WHERE i.periode = $1
+        GROUP BY s.cabang
+     )
+     SELECT c.cabang, c.skor_rata, c.orang,
+            COALESCE(n.insentif, 0) AS insentif,
+            ROUND(COALESCE(n.insentif, 0) / NULLIF(c.orang, 0)) AS per_orang
+       FROM per_cabang c
+       LEFT JOIN ins n ON n.cabang = c.cabang
+      WHERE c.orang >= 3
+      ORDER BY c.cabang`, [periode]);
+
+  return rows.map((r) => ({
+    cabang: r.cabang,
+    skorRata: Number(r.skor_rata),
+    orang: r.orang,
+    insentif: Number(r.insentif),
+    perOrang: Number(r.per_orang ?? 0),
   }));
 }

@@ -4,8 +4,9 @@ import AppShell from "@/components/AppShell";
 import { readSession } from "@/lib/auth";
 import { periodeTersedia } from "@/lib/kpi";
 import {
-  alirJabatanProduk, radarIndikator, jabatanBerdata,
-  ringkasNasional, perArea,
+  radarIndikator, jabatanBerdata, ringkasNasional, perArea,
+  rincianInsentif, komposisiJabatan, trenPeriode, sebaranSkor,
+  ujungCabang, biayaVsSkor,
 } from "@/lib/analitik";
 import { angka, rp, toISODate } from "@/lib/format";
 import PilihPeriode from "@/components/PilihPeriode";
@@ -45,12 +46,18 @@ export default async function Page({
 
   // Dijalankan berbarengan; tidak ada yang bergantung hasil yang lain, dan
   // berurutan berarti pembaca menunggu penjumlahan lima kali lebih lama.
-  const [alir, radar, jabatan, ringkas, area] = await Promise.all([
-    alirJabatanProduk(periode),
+  const [komposisi, radar, jabatan, ringkas, area,
+         rincian, tren, sebaran, ujung, biaya] = await Promise.all([
+    komposisiJabatan(periode),
     radarIndikator(periode),
     jabatanBerdata(periode),
     ringkasNasional(periode),
     perArea(periode),
+    rincianInsentif(periode),
+    trenPeriode(12),
+    sebaranSkor(periode),
+    ujungCabang(periode),
+    biayaVsSkor(periode),
   ]);
 
   // Radar per jabatan disiapkan di server sekaligus, bukan diambil ulang
@@ -104,11 +111,60 @@ export default async function Page({
           <div className="angka-kotak">
             <span>Total insentif</span>
             <b>{rp(ringkas.insentif)}</b>
+            <i>{rincian.penerima} penerima</i>
           </div>
         </div>
 
-        <AnalitikClient alir={alir} radar={radar} radarPerJabatan={radarPerJabatan}
-                        jabatan={jabatan} area={area} />
+        {/* Rincian insentif: total saja menyembunyikan hal yang justru paling
+            perlu diawasi — apakah angka besar itu datang dari pencapaian
+            pokok, dari bonus tambahan, atau sudah dipotong penalti besar. */}
+        <section className="card mb">
+          <div className="cardhead">
+            <h3 style={{ fontSize: 15 }}>Rincian insentif</h3>
+            <p className="muted small">
+              Reguler adalah pencapaian pokok; reward menambah, penalty
+              mengurangi. Ketiganya diatur aturan berbeda, jadi pantas
+              diawasi terpisah.
+            </p>
+          </div>
+          <div className="card-pad">
+            <div className="rincian-baris">
+              <div className="rincian-pos">
+                <span>Insentif reguler</span>
+                <b>{rp(rincian.dasar)}</b>
+              </div>
+              <div className="rincian-tanda">+</div>
+              <div className="rincian-pos naik">
+                <span>Reward</span>
+                <b>{rp(rincian.reward)}</b>
+              </div>
+              <div className="rincian-tanda">−</div>
+              <div className="rincian-pos turun">
+                <span>Penalty</span>
+                <b>{rp(rincian.penalty)}</b>
+              </div>
+              <div className="rincian-tanda">=</div>
+              <div className="rincian-pos total">
+                <span>Dibayarkan</span>
+                <b>{rp(rincian.total)}</b>
+              </div>
+            </div>
+
+            {rincian.tanpaRincian > 0 && (
+              <p className="faint small mt">
+                {rp(rincian.tanpaRincian)} berasal dari baris lama yang belum
+                punya rincian reguler/reward/penalty — masuk total, tapi tidak
+                bisa dipecah. Angka ini akan hilang sendiri setelah periode
+                bersangkutan dihitung ulang dari API.
+              </p>
+            )}
+          </div>
+        </section>
+
+        <AnalitikClient komposisi={komposisi} radar={radar}
+                        radarPerJabatan={radarPerJabatan}
+                        jabatan={jabatan} area={area} tren={tren}
+                        sebaran={sebaran} ujung={ujung} biaya={biaya} />
       </main>
     </AppShell>
   );

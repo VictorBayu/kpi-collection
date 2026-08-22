@@ -1472,3 +1472,24 @@ tr.kurang > td{background:var(--bad-soft)}
   border-radius:10px}
 .grafik-catatan{padding:10px 16px 14px;font-size:12.5px;color:var(--ink-soft);
   border-top:1px solid var(--line-soft)}
+
+/* Rincian insentif: reguler + reward − penalty = dibayarkan.
+   Ditulis sebagai persamaan berjajar, bukan empat kartu terpisah, supaya
+   hubungan antar angkanya terbaca tanpa perlu dijelaskan. */
+.rincian-baris{display:flex;align-items:stretch;gap:10px;flex-wrap:wrap}
+.rincian-pos{flex:1;min-width:150px;display:flex;flex-direction:column;gap:3px;
+  padding:12px 14px;background:var(--line-soft);border-radius:10px}
+.rincian-pos span{font-size:11px;letter-spacing:.04em;text-transform:uppercase;
+  font-weight:600;color:var(--ink-faint)}
+.rincian-pos b{font-size:17px;font-weight:700;font-variant-numeric:tabular-nums;
+  letter-spacing:-.01em}
+.rincian-pos.naik b{color:#1F8A5B}
+.rincian-pos.turun b{color:#C2410C}
+.rincian-pos.total{background:var(--accent-soft)}
+.rincian-pos.total b{color:var(--accent)}
+.rincian-tanda{display:flex;align-items:center;font-size:18px;font-weight:600;
+  color:var(--ink-faint);flex:none}
+@media (max-width:860px){
+  .rincian-tanda{display:none}
+  .rincian-pos{min-width:44%}
+}

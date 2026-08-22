@@ -80,3 +80,20 @@ RETURNS TEXT LANGUAGE sql STABLE AS $$
      AND k.berlaku_mulai <= p_periode
    ORDER BY k.berlaku_mulai DESC LIMIT 1
 $$;
+
+-- ---------------------------------------------------------------------
+-- 4. BANGUN ULANG v_insentif_aktif
+--    View dibuat dengan SELECT * pada v8, dan Postgres membekukan daftar
+--    kolomnya saat view dibuat — kolom tier/kelas/nominal_dasar/reward/
+--    penalty yang ditambahkan v9 karena itu tidak pernah ikut terlihat.
+--    Gejalanya sunyi: kueri ke view berkata kolomnya tidak ada, padahal
+--    tabelnya jelas punya.
+-- ---------------------------------------------------------------------
+DROP VIEW IF EXISTS v_insentif_aktif;
+CREATE VIEW v_insentif_aktif AS
+SELECT i.*
+  FROM insentif_row i
+  JOIN import_batch b ON b.id = i.batch_id
+ WHERE i.sumber = 'excel' AND b.status = 'published'
+UNION ALL
+SELECT i.* FROM insentif_row i WHERE i.sumber = 'api';
