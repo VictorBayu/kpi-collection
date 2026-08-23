@@ -29,6 +29,6 @@ export const POST = handler(async (req) => {
   return Response.json({
     ok: true,
     tujuan: u.must_change_password ? "/ganti-password"
-      : u.peran === "admin" ? "/admin/kpi" : "/dashboard",
+      : u.peran === "admin" ? "/admin/analitik" : "/dashboard",
   });
 });

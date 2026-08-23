@@ -93,10 +93,9 @@ const labelPeriode = (iso: string) => {
   return `${BULAN[Number(bl) - 1] ?? bl} ${th.slice(2)}`;
 };
 
-/** Nama cabang/area masuk tooltip sebagai HTML, jadi dijinakkan dulu. */
-const lolos = (t: string) =>
-  t.replace(/[&<>"]/g, (c) =>
-    ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c] ?? c);
+/** amCharts memakai [kurung siku] sebagai penanda format kaya — nama
+ *  cabang/area yang kebetulan memuat karakter itu perlu di-escape dulu. */
+const lolos = (t: string) => t.replace(/\[/g, "[[");
 
 declare const am5xy: any;
 declare const am5radar: any;
@@ -565,26 +564,25 @@ export default function AnalitikClient({
     return sebaran.map((s) => {
       const daftar = kunci === "area" ? s.area : s.cabang;
       const jml = kunci === "area" ? s.jmlArea : s.jmlCabang;
+      const lebar = Math.max(0, ...daftar.map((r) => r.nama.length));
+      // Rich-text amCharts (bukan HTML — tooltip bawaannya dirender sebagai
+      // SVG, jadi "labelHTML" pada Tooltip diam-diam tidak menggambar
+      // apa pun). Nama dipaksa rata lewat spasi karena format ini tidak
+      // punya tabel.
       const baris = daftar
-        .map(
-          (r) =>
-            `<tr><td style="padding:1px 10px 1px 0">${lolos(r.nama)}</td>` +
-            `<td style="text-align:right;font-weight:600">${r.orang}</td></tr>`,
-        )
-        .join("");
+        .map((r) => `${lolos(r.nama).padEnd(lebar, " ")}   [bold]${r.orang}[/]`)
+        .join("\n");
       const sisa =
         jml > daftar.length
-          ? `<div style="opacity:.65;margin-top:4px">+${jml - daftar.length} ${kunci} lain</div>`
+          ? `\n[fontSize:10.5px]+${jml - daftar.length} ${kunci} lain[/]`
           : "";
       return {
         ...s,
         tip:
-          `<div style="font-size:12px;line-height:1.5">` +
-          `<div style="font-weight:700">Skor ${s.label}</div>` +
-          `<div style="opacity:.75;margin-bottom:5px">${s.orang} karyawan · ${s.persen}% dari total</div>` +
-          `<div style="opacity:.65;text-transform:uppercase;font-size:9.5px;letter-spacing:.05em">` +
-          `${kunci === "area" ? "Area" : "Cabang"} terbanyak</div>` +
-          `<table style="border-collapse:collapse">${baris}</table>${sisa}</div>`,
+          `[bold fontSize:13px]Skor ${s.label}[/]\n` +
+          `${s.orang} karyawan · ${s.persen}% dari total\n\n` +
+          `[fontSize:10px]${(kunci === "area" ? "AREA" : "CABANG")} TERBANYAK[/]\n` +
+          `${baris || "—"}${sisa}`,
       };
     });
   }, [sebaran, rinciSebaran]);
@@ -619,14 +617,18 @@ export default function AnalitikClient({
       const petunjuk = am5.Tooltip.new(root, {
         getFillFromSprite: false,
         autoTextColor: false,
-        labelHTML: "{tip}",
+        labelText: "{tip}",
       });
       petunjuk.get("background").setAll({
         fill: am5.color(0xffffff),
         stroke: am5.color(0xdfe5ee),
         fillOpacity: 1,
       });
-      petunjuk.label.setAll({ fill: am5.color(0x111a2b) });
+      petunjuk.label.setAll({
+        fill: am5.color(0x111a2b),
+        fontSize: 12,
+        lineHeight: am5.percent(140),
+      });
 
       const seri = chart.series.push(
         am5xy.ColumnSeries.new(root, {
