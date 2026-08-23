@@ -1441,10 +1441,10 @@ tr.kurang > td{background:var(--bad-soft)}
    --------------------------------------------------------------------- */
 .periode-pilih{display:flex;align-items:center;gap:10px}
 .periode-label{font-size:11px;font-weight:700;letter-spacing:.06em;
-  text-transform:uppercase;color:var(--ink-faint);flex:none}
+  text-transform:uppercase;color:var(--ink-soft);flex:none}
 .periode-kotak{width:190px}
 .periode-pilih.menunggu{opacity:.6;pointer-events:none}
-.periode-memuat{font-size:11.5px;color:var(--ink-faint)}
+.periode-memuat{font-size:11.5px;color:var(--ink-soft)}
 
 /* ---------------------------------------------------------------------
    Dasbor analitik
@@ -1468,7 +1468,7 @@ tr.kurang > td{background:var(--bad-soft)}
 .grafik-bungkus{position:relative;width:100%}
 .grafik-memuat,.grafik-kosong{display:flex;align-items:center;justify-content:center;
   flex-direction:column;gap:4px;text-align:center;padding:20px;
-  font-size:13px;color:var(--ink-faint);background:var(--line-soft);
+  font-size:13px;color:var(--ink-soft);background:var(--line-soft);
   border-radius:10px}
 .grafik-catatan{padding:10px 16px 14px;font-size:12.5px;color:var(--ink-soft);
   border-top:1px solid var(--line-soft)}
@@ -1480,11 +1480,11 @@ tr.kurang > td{background:var(--bad-soft)}
 .rincian-pos{flex:1;min-width:150px;display:flex;flex-direction:column;gap:3px;
   padding:12px 14px;background:var(--line-soft);border-radius:10px}
 .rincian-pos span{font-size:11px;letter-spacing:.04em;text-transform:uppercase;
-  font-weight:600;color:var(--ink-faint)}
+  font-weight:600;color:var(--ink-soft)}
 .rincian-pos b{font-size:17px;font-weight:700;font-variant-numeric:tabular-nums;
   letter-spacing:-.01em}
-.rincian-pos.naik b{color:#1F8A5B}
-.rincian-pos.turun b{color:#C2410C}
+.rincian-pos.naik b{color:#187048}
+.rincian-pos.turun b{color:#A8380A}
 .rincian-pos.total{background:var(--accent-soft)}
 .rincian-pos.total b{color:var(--accent)}
 .rincian-tanda{display:flex;align-items:center;font-size:18px;font-weight:600;
