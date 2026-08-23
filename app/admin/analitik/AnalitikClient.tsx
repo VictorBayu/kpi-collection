@@ -455,17 +455,16 @@ export default function AnalitikClient({
           yAxis: sumbuY,
           valueXField: "skorRata",
           categoryYField: "indikator",
-          tooltip: am5.Tooltip.new(root, {
-            labelText:
-              "[bold]{categoryY}[/]\nSkor rata-rata: [bold]{valueX}[/]\n" +
-              "Rentang {skorMin}–{skorMaks}\n{orang} orang · {cabang} cabang",
-          }),
+          tooltip: am5.Tooltip.new(root, {}),
         }),
       );
       seri.columns.template.setAll({
         height: am5.percent(58),
         cornerRadiusBR: 4,
         cornerRadiusTR: 4,
+        tooltipText:
+          "[bold]{categoryY}[/]\nSkor rata-rata: [bold]{valueX}[/]\n" +
+          "Rentang {skorMin}–{skorMaks}\n{orang} orang · {cabang} cabang",
       });
       seri.columns.template.adapters.add("fill", (_f: any, t: any) =>
         am5.color(warnaSkor(t.dataItem?.get("valueX") ?? 0)),
@@ -529,17 +528,16 @@ export default function AnalitikClient({
           yAxis: sumbuY,
           valueXField: "skorRata",
           categoryYField: "area",
-          tooltip: am5.Tooltip.new(root, {
-            labelText:
-              "[bold]{categoryY}[/]\nSkor rata-rata: [bold]{valueX}[/]\n" +
-              "{orang} karyawan · {bawah} di bawah KPI 3",
-          }),
+          tooltip: am5.Tooltip.new(root, {}),
         }),
       );
       seri.columns.template.setAll({
         height: am5.percent(62),
         cornerRadiusBR: 4,
         cornerRadiusTR: 4,
+        tooltipText:
+          "[bold]{categoryY}[/]\nSkor rata-rata: [bold]{valueX}[/]\n" +
+          "{orang} karyawan · {bawah} di bawah KPI 3",
       });
       seri.columns.template.adapters.add("fill", (_f: any, t: any) =>
         am5.color(warnaSkor(t.dataItem?.get("valueX") ?? 0)),
@@ -618,7 +616,6 @@ export default function AnalitikClient({
       const petunjuk = am5.Tooltip.new(root, {
         getFillFromSprite: false,
         autoTextColor: false,
-        labelText: "{tip}",
       });
       petunjuk.get("background").setAll({
         fill: am5.color(0xffffff),
@@ -639,12 +636,17 @@ export default function AnalitikClient({
           tooltip: petunjuk,
         }),
       );
+      // Teks tooltip dipasang di templat kolom, bukan hanya di objek
+      // tooltip seri: pada ColumnSeries, tooltip tingkat-seri saja sering
+      // tidak terpicu saat kolom disorot — kolomnya sendiri yang harus
+      // membawa {tip}. Inilah sebab tooltip tak pernah muncul sebelumnya.
       seri.columns.template.setAll({
         width: am5.percent(80),
         cornerRadiusTL: 4,
         cornerRadiusTR: 4,
         fillOpacity: 0.92,
         strokeOpacity: 0,
+        tooltipText: "{tip}",
         tooltipY: 0,
       });
       // Batang yang sedang ditunjuk dipertegas, supaya tidak ada keraguan
