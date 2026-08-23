@@ -45,14 +45,18 @@ export default async function DetailKpi({
   const naikSkor = ring.skorLalu !== null ? ring.skor - ring.skorLalu : null;
 
   // Indikator diolah sekali, lalu diurutkan: yang bermasalah lebih dulu.
+  //
+  // Tingkatnya dibaca dari skor yang SUDAH dihitung mesin, bukan dihitung
+  // ulang di sini dari tiga ambang. Sejak target boleh berupa pita nilai,
+  // menghitung ulang memberi jawaban berbeda dari skor yang tersimpan —
+  // itulah sebabnya sempat ada baris berskor 5,00 tapi diwarnai merah.
   const olah = ind.map((d) => {
     const satuanTampil = tebakSatuan(d.indikator, d.pencapaian);
     const band = nilaiBanding(d.pencapaian, d.rasio, d.target_kpi3);
-    const tk = band.v !== null && d.target_kpi3 !== null
-      ? tingkat(band.v, d.target_kpi3, d.target_kpi4 ?? d.target_kpi3, d.target_kpi5 ?? d.target_kpi3)
-      : null;
-    return { d, satuanTampil, band, tk };
-  }).sort((a, b) => (a.tk ?? 9) - (b.tk ?? 9));
+    const s = d.skor_kpi === null || d.skor_kpi === undefined ? null : Number(d.skor_kpi);
+    const tk = s === null ? null : s >= 5 ? 5 : s >= 4 ? 4 : s >= 3 ? 3 : 0;
+    return { d, satuanTampil, band, tk, skor: s };
+  }).sort((a, b) => (a.skor ?? 99) - (b.skor ?? 99));
 
   const kurang = olah.filter((x) => x.tk === 0).length;
   const insBerpengaruh = ins.filter((r) => r.nominal !== 0);
@@ -127,15 +131,13 @@ export default async function DetailKpi({
                   </tr>
                 </thead>
                 <tbody>
-                  {olah.map(({ d, satuanTampil, band, tk }, i) => {
-                    // Posisi pada rentang KPI 3–5, dipakai untuk bilah mini.
-                    const t3 = d.target_kpi3, t5 = d.target_kpi5 ?? d.target_kpi3;
-                    let persen = 0;
-                    if (band.v !== null && t3 !== null && t5 !== null && t5 !== t3) {
-                      persen = Math.max(0, Math.min(100, ((band.v - t3) / (t5 - t3)) * 100));
-                    } else if (tk !== null) {
-                      persen = tk === 0 ? 8 : tk === 3 ? 40 : tk === 4 ? 70 : 100;
-                    }
+                  {olah.map(({ d, satuanTampil, tk, skor }, i) => {
+                    // Bilah digambar pada skala skor 1–5 — skala yang sama
+                    // dengan angka di kolom sebelahnya, jadi keduanya tidak
+                    // mungkin lagi bercerita hal yang berbeda. Tanda di 50%
+                    // dan 75% adalah ambang KPI 3 dan KPI 4.
+                    const persen = skor === null ? 0
+                      : Math.max(2, Math.min(100, ((skor - 1) / 4) * 100));
                     return (
                       <tr key={i} className={tk === 0 ? "kurang" : ""}>
                         <td>
@@ -147,17 +149,26 @@ export default async function DetailKpi({
                           {d.saldo_awal ? nilai(d.saldo_awal, satuanTampil) : "—"}
                         </td>
                         <td className="r">
-                          <b className={"dk-skor" + (tk === 0 ? " bahaya" : tk === 5 ? " baik" : "")}>
-                            {angka(d.skor_kpi)}
+                          <b className={"dk-skor" + (tk === 0 ? " bahaya" : tk !== null && tk >= 4 ? " baik" : "")}>
+                            {skor === null ? "—" : angka(skor)}
                           </b>
                         </td>
                         <td>
-                          <div className="dk-meter" title={tk === null ? "Target belum diisi" : `KPI ${tk}`}>
-                            <i className={"k" + (tk ?? 0)} style={{ width: `${persen}%` }} />
+                          <div className="dk-meter"
+                               title={skor === null ? "Skor belum terhitung"
+                                      : tk === 0 ? `Skor ${angka(skor)} — di bawah KPI 3`
+                                      : `Skor ${angka(skor)} — setara KPI ${tk}`}>
+                            {skor !== null && (
+                              <i className={"k" + tk} style={{ width: `${persen}%` }} />
+                            )}
                             <em style={{ left: "50%" }} />
+                            <em style={{ left: "75%" }} />
                           </div>
                           <div className="dk-meter-x">
-                            <span>3</span><span>4</span><span>5</span>
+                            <span style={{ left: 0, transform: "none" }}>1</span>
+                            <span style={{ left: "50%" }}>3</span>
+                            <span style={{ left: "75%" }}>4</span>
+                            <span style={{ left: "100%", transform: "translateX(-100%)" }}>5</span>
                           </div>
                         </td>
                       </tr>

@@ -13,8 +13,9 @@ import NavMenu, { type Entri } from "./NavMenu";
  * diambil setelah halaman tampil (NavBadge), supaya perpindahan menu
  * tidak menunggu perjalanan bolak-balik ke database.
  *
- * Menu admin dikelompokkan: yang dibuka tiap hari (Data KPI, Unggah data,
- * Kelola request) tetap tautan langsung; yang sifatnya pengaturan sesekali
+ * Menu admin dikelompokkan: yang dibuka tiap hari (Dashboard, Data KPI,
+ * Supporting) tetap tautan langsung; yang sifatnya pengaturan sesekali —
+ * termasuk unggah data, yang hanya dipakai saat data belum masuk lewat API —
  * masuk dropdown supaya topbar tidak terus memanjang tiap ada menu baru.
  */
 export default async function AppShell({ children }: { children: React.ReactNode }) {
@@ -23,9 +24,8 @@ export default async function AppShell({ children }: { children: React.ReactNode
   const entri: Entri[] =
     s?.peran === "admin"
       ? [
-          { href: "/admin/kpi", label: "Data KPI" },
           { href: "/admin/analitik", label: "Dashboard" },
-          { href: "/admin/import", label: "Unggah data" },
+          { href: "/admin/kpi", label: "Data KPI" },
           {
             label: "Data & indikator",
             grup: [
@@ -38,6 +38,7 @@ export default async function AppShell({ children }: { children: React.ReactNode
           {
             label: "Master",
             grup: [
+              { href: "/admin/import", label: "Unggah data" },
               { href: "/admin/hierarki", label: "Master Hierarki" },
               { href: "/admin/produk", label: "Master Produk" },
               { href: "/admin/pagu", label: "Pagu Insentif" },
@@ -47,7 +48,7 @@ export default async function AppShell({ children }: { children: React.ReactNode
               { href: "/admin/pengguna", label: "Pengguna & Akses" },
             ],
           },
-          { href: "/admin/request", label: "Kelola request", lencana: true },
+          { href: "/admin/request", label: "Supporting", lencana: true },
         ]
       : s?.peran === "atasan"
       ? [

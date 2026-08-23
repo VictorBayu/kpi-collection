@@ -278,7 +278,7 @@ export default function CabangClient() {
         Lihat hasil tarikan dan riwayatnya di{" "}
         <Link className="lnk" href="/admin/data-api">Data API</Link>, atau contoh
         isi datanya di{" "}
-        <Link className="lnk" href="/admin/sampel-data">Sampel data mentah</Link>.
+        <Link className="lnk" href="/admin/sampel-data">Sample Data API</Link>.
       </p>
     </>
   );

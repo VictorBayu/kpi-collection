@@ -268,16 +268,52 @@ export async function trenPeriode(batas = 12) {
 export async function sebaranSkor(periode: string) {
   const rows = await q<any>(
     `WITH per_orang AS (
-       SELECT nik, SUM(skor_terbobot) AS skor
-         FROM v_kpi_aktif WHERE periode = $1 GROUP BY nik
+       SELECT k.nik,
+              COALESCE(NULLIF(BTRIM(u.area), ''), '(TANPA AREA)')  AS area,
+              COALESCE(NULLIF(BTRIM(u.cabang), ''), '(TANPA CABANG)') AS cabang,
+              SUM(k.skor_terbobot) AS skor
+         FROM v_kpi_aktif k
+         LEFT JOIN app_user u ON u.nik = k.nik
+        WHERE k.periode = $1
+        GROUP BY k.nik, 2, 3
+     ),
+     berpita AS (
+       SELECT FLOOR(LEAST(skor, 5) * 2) / 2 AS pita, area, cabang FROM per_orang
+     ),
+     -- Rincian per pita dipotong di lima area/cabang teratas: yang menjelaskan
+     -- sebuah batang biasanya segelintir tempat, dan daftar penuh 60 cabang
+     -- justru membuat tooltip mustahil dibaca.
+     ar AS (
+       SELECT pita, area AS nama, COUNT(*)::int AS orang,
+              ROW_NUMBER() OVER (PARTITION BY pita ORDER BY COUNT(*) DESC, area) AS urut
+         FROM berpita GROUP BY pita, area
+     ),
+     cb AS (
+       SELECT pita, cabang AS nama, COUNT(*)::int AS orang,
+              ROW_NUMBER() OVER (PARTITION BY pita ORDER BY COUNT(*) DESC, cabang) AS urut
+         FROM berpita GROUP BY pita, cabang
      )
-     SELECT FLOOR(LEAST(skor, 5) * 2) / 2 AS pita, COUNT(*)::int AS orang
-       FROM per_orang GROUP BY 1 ORDER BY 1`, [periode]);
+     SELECT p.pita, COUNT(*)::int AS orang,
+            (SELECT COALESCE(json_agg(json_build_object('nama', nama, 'orang', orang)
+                                      ORDER BY urut), '[]'::json)
+               FROM ar WHERE ar.pita = p.pita AND ar.urut <= 5) AS area,
+            (SELECT COALESCE(json_agg(json_build_object('nama', nama, 'orang', orang)
+                                      ORDER BY urut), '[]'::json)
+               FROM cb WHERE cb.pita = p.pita AND cb.urut <= 5) AS cabang,
+            (SELECT COUNT(*)::int FROM ar WHERE ar.pita = p.pita)  AS jml_area,
+            (SELECT COUNT(*)::int FROM cb WHERE cb.pita = p.pita)  AS jml_cabang
+       FROM berpita p GROUP BY p.pita ORDER BY p.pita`, [periode]);
 
+  const total = rows.reduce((a, r) => a + r.orang, 0);
   return rows.map((r) => ({
     pita: Number(r.pita),
     label: `${Number(r.pita).toFixed(1)}–${(Number(r.pita) + 0.5).toFixed(1)}`,
     orang: r.orang,
+    persen: total ? Math.round((r.orang / total) * 1000) / 10 : 0,
+    area: (r.area ?? []) as { nama: string; orang: number }[],
+    cabang: (r.cabang ?? []) as { nama: string; orang: number }[],
+    jmlArea: r.jml_area,
+    jmlCabang: r.jml_cabang,
   }));
 }
 
@@ -289,30 +325,60 @@ export async function sebaranSkor(periode: string) {
  * pantas ditiru.
  */
 export async function ujungCabang(periode: string, n = 8) {
+  // Peringkat saja tidak cukup untuk memutuskan apa-apa: cabang di urutan
+  // buncit yang bulan lalu lebih buncit sedang membaik, dan cabang di
+  // urutan atas yang turun tujuh tangga justru layak ditanyai. Karena itu
+  // peringkat bulan sebelumnya ikut dihitung dan disandingkan.
   const rows = await q<any>(
     `WITH per_orang AS (
-       SELECT norm_wilayah(cabang) AS cabang, nik, SUM(skor_terbobot) AS skor
-         FROM v_kpi_aktif WHERE periode = $1 GROUP BY 1, nik
+       SELECT periode, norm_wilayah(cabang) AS cabang, nik,
+              SUM(skor_terbobot) AS skor
+         FROM v_kpi_aktif
+        WHERE periode IN ($1::date, ($1::date - INTERVAL '1 month')::date)
+        GROUP BY 1, 2, nik
      ),
      per_cabang AS (
-       SELECT cabang, ROUND(AVG(skor), 2) AS skor_rata, COUNT(*)::int AS orang,
+       SELECT periode, cabang, ROUND(AVG(skor), 2) AS skor_rata,
+              COUNT(*)::int AS orang,
               COUNT(*) FILTER (WHERE skor < 3)::int AS bawah
          FROM per_orang
         WHERE cabang IS NOT NULL
-        GROUP BY cabang
+        GROUP BY periode, cabang
        HAVING COUNT(*) >= 3   -- cabang berisi satu-dua orang mudah jadi ujung
+     ),
+     berperingkat AS (
+       SELECT *, RANK() OVER (PARTITION BY periode ORDER BY skor_rata DESC)::int AS peringkat
+         FROM per_cabang
      )
-     SELECT * FROM per_cabang ORDER BY skor_rata DESC`, [periode]);
+     SELECT k.cabang, k.skor_rata, k.orang, k.bawah, k.peringkat,
+            l.peringkat AS peringkat_lalu, l.skor_rata AS skor_lalu
+       FROM berperingkat k
+       LEFT JOIN berperingkat l
+              ON l.cabang = k.cabang
+             AND l.periode = ($1::date - INTERVAL '1 month')::date
+      WHERE k.periode = $1::date
+      ORDER BY k.skor_rata DESC`, [periode]);
 
-  const semua = rows.map((r) => ({
-    cabang: r.cabang, skorRata: Number(r.skor_rata),
-    orang: r.orang, bawah: r.bawah,
-  }));
+  const semua = rows.map((r) => {
+    const lalu = r.peringkat_lalu === null ? null : Number(r.peringkat_lalu);
+    return {
+      cabang: r.cabang,
+      skorRata: Number(r.skor_rata),
+      orang: r.orang,
+      bawah: r.bawah,
+      peringkat: Number(r.peringkat),
+      peringkatLalu: lalu,
+      // Positif berarti naik tangga (angka peringkat mengecil).
+      geser: lalu === null ? null : lalu - Number(r.peringkat),
+      skorLalu: r.skor_lalu === null ? null : Number(r.skor_lalu),
+    };
+  });
 
   return {
     terbaik: semua.slice(0, n),
     terburuk: semua.slice(-n).reverse(),
     jumlahCabang: semua.length,
+    adaPembanding: semua.some((x) => x.peringkatLalu !== null),
   };
 }
 

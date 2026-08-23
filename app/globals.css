@@ -21,7 +21,11 @@
 :root{
   --ink:#111A2B;       /* 17.4 : 1 di putih */
   --ink-soft:#4A5768;  /*  7.4 : 1 */
-  --ink-faint:#677587; /*  4.7 : 1 — tetap terbaca walau ukurannya kecil */
+  /* Digelapkan dari #677587. Yang lama lolos 4,5:1 hanya di atas putih
+     murni; di atas --page, --line-soft, atau --accent-soft rasionya
+     jatuh ke 4,0–4,3 dan gagal WCAG AA. Nilai ini lolos di keempat
+     latar sekaligus (4,79 : 1 pada yang paling terang). */
+  --ink-faint:#5C6979;
   --page:#F1F4F9; --surface:#fff; --line:#DFE5EE; --line-soft:#EFF2F7;
   --accent:#3550C8; --accent-soft:#E9EDFB;   /* 6.7 : 1 */
   --good:#0F7A5A;   --good-soft:#E4F4EE;     /* 5.3 : 1 */
@@ -1100,9 +1104,14 @@ td .pilih-ket{display:none}
 .dk-meter i.k3{background:var(--warn)}
 .dk-meter i.k4{background:var(--accent)}
 .dk-meter i.k5{background:var(--good)}
-.dk-meter em{position:absolute;top:0;width:1px;height:100%;background:rgba(17,26,43,.18)}
-.dk-meter-x{display:flex;justify-content:space-between;font-size:9px;color:var(--ink-faint);
-  margin-top:2px;padding:0 1px}
+.dk-meter em{position:absolute;top:0;width:1px;height:100%;background:rgba(17,26,43,.28)}
+/* Sumbu bukan lagi bagi-rata: angkanya ditempatkan persis di atas ambangnya
+   (KPI 3 di 50%, KPI 4 di 75%), supaya panjang bilah bisa dibaca langsung
+   sebagai skor. */
+.dk-meter-x{position:relative;height:12px;font-size:9px;color:var(--ink-soft);
+  margin-top:2px}
+.dk-meter-x span{position:absolute;top:0;transform:translateX(-50%);
+  font-variant-numeric:tabular-nums}
 
 .dk-ins{list-style:none;margin:0;padding:0}
 .dk-ins li{display:flex;justify-content:space-between;align-items:baseline;gap:10px;
@@ -1472,6 +1481,25 @@ tr.kurang > td{background:var(--bad-soft)}
   border-radius:10px}
 .grafik-catatan{padding:10px 16px 14px;font-size:12.5px;color:var(--ink-soft);
   border-top:1px solid var(--line-soft)}
+
+/* Kepala kartu yang membawa pengendali di sisi kanan. Judul rata atas
+   supaya deskripsi dua baris tidak mendorong tombolnya ke tengah. */
+.cardhead.rowbetween{display:flex;align-items:flex-start;gap:14px;flex-wrap:wrap}
+.cardhead.rowbetween .vbtn{padding:5px 11px;font-size:11.5px}
+
+/* Peringkat cabang. Kolom nomor dan pergerakan sengaja sempit dan tenang;
+   yang harus menonjol adalah nama cabang dan skornya, bukan hiasannya. */
+.tabel-cabang th{font-size:9.5px;letter-spacing:.05em;white-space:nowrap}
+.tabel-cabang td{padding-top:6px;padding-bottom:6px}
+.tabel-cabang tbody tr:hover{background:var(--line-soft)}
+.gerak{display:inline-flex;align-items:center;gap:2px;font-size:11px;
+  font-weight:700;font-variant-numeric:tabular-nums;padding:2px 6px;
+  border-radius:20px;white-space:nowrap;letter-spacing:0}
+.gerak.naik{color:#136344;background:var(--good-soft)}
+.gerak.turun{color:#992D08;background:var(--bad-soft)}
+.gerak.tetap{color:var(--ink-soft);background:var(--line-soft)}
+.gerak.baru{color:var(--ink-soft);background:var(--line-soft);font-weight:600;
+  text-transform:uppercase;font-size:9.5px;letter-spacing:.04em}
 
 /* Rincian insentif: reguler + reward − penalty = dibayarkan.
    Ditulis sebagai persamaan berjajar, bukan empat kartu terpisah, supaya

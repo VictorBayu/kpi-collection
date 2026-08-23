@@ -117,7 +117,7 @@ export default function RequestClient({
     <>
       <div className="sectionhead">
         <div>
-          <h2>{admin ? "Kelola request" : "Request saya"}</h2>
+          <h2>{admin ? "Supporting" : "Request saya"}</h2>
           <p>
             {admin
               ? `${stat.baru} tiket menunggu jawaban. Tiket yang belum disentuh muncul paling atas.`
