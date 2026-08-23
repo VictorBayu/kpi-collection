@@ -566,22 +566,23 @@ export default function AnalitikClient({
       const jml = kunci === "area" ? s.jmlArea : s.jmlCabang;
       const lebar = Math.max(0, ...daftar.map((r) => r.nama.length));
       // Rich-text amCharts (bukan HTML — tooltip bawaannya dirender sebagai
-      // SVG, jadi "labelHTML" pada Tooltip diam-diam tidak menggambar
-      // apa pun). Nama dipaksa rata lewat spasi karena format ini tidak
-      // punya tabel.
+      // SVG, jadi "labelHTML" pada Tooltip diam-diam tidak menggambar apa
+      // pun). Satu petunjuk hanya satu arahan format per kurung — mencoba
+      // "[bold fontSize:13px]" (dua arahan sekaligus) membuat pengurai
+      // gagal diam-diam dan seluruh label tidak tampil sama sekali.
       const baris = daftar
         .map((r) => `${lolos(r.nama).padEnd(lebar, " ")}   [bold]${r.orang}[/]`)
         .join("\n");
       const sisa =
         jml > daftar.length
-          ? `\n[fontSize:10.5px]+${jml - daftar.length} ${kunci} lain[/]`
+          ? `\n+${jml - daftar.length} ${kunci} lain`
           : "";
       return {
         ...s,
         tip:
-          `[bold fontSize:13px]Skor ${s.label}[/]\n` +
+          `[bold]Skor ${s.label}[/]\n` +
           `${s.orang} karyawan · ${s.persen}% dari total\n\n` +
-          `[fontSize:10px]${(kunci === "area" ? "AREA" : "CABANG")} TERBANYAK[/]\n` +
+          `${(kunci === "area" ? "AREA" : "CABANG")} TERBANYAK\n` +
           `${baris || "—"}${sisa}`,
       };
     });
@@ -627,7 +628,6 @@ export default function AnalitikClient({
       petunjuk.label.setAll({
         fill: am5.color(0x111a2b),
         fontSize: 12,
-        lineHeight: am5.percent(140),
       });
 
       const seri = chart.series.push(
