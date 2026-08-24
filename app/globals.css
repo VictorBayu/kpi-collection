@@ -623,15 +623,23 @@ td .pilih-ket{display:none}
 .pilih-daftar{max-height:270px;overflow-y:auto;padding:5px}
 .pilih-grup{padding:8px 10px 4px;font-size:10px;font-weight:700;letter-spacing:.08em;
   text-transform:uppercase;color:var(--ink-faint)}
-.pilih-opsi{width:100%;display:flex;align-items:center;gap:9px;text-align:left;
+/* Opsi disusun membungkus: label dan centang di baris atas, keterangan
+   turun ke baris bawah selebar penuh. Sebelumnya keterangan dipaksa satu
+   baris (nowrap), jadi opsi berketerangan panjang — seperti "Nominal
+   bersyarat" — mendorong labelnya keluar sampai hilang dan panelnya
+   melebar menyamping. */
+.pilih-opsi{width:100%;display:flex;flex-wrap:wrap;align-items:baseline;
+  column-gap:9px;row-gap:1px;text-align:left;
   border:0;background:transparent;border-radius:8px;padding:8px 10px;cursor:pointer;
   font-family:inherit;font-size:13px;color:var(--ink)}
 .pilih-opsi.sorot{background:var(--line-soft)}
 .pilih-opsi.aktif{background:var(--accent-soft);color:var(--accent);font-weight:600}
-.pilih-opsi-label{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.pilih-opsi-ket{font-size:11px;color:var(--ink-faint);white-space:nowrap}
+.pilih-opsi-label{order:1;flex:1 1 auto;min-width:0;overflow:hidden;
+  text-overflow:ellipsis;white-space:nowrap}
+.pilih-centang{order:2;flex:none;color:var(--accent);font-size:12px}
+.pilih-opsi-ket{order:3;flex:1 1 100%;font-size:11px;color:var(--ink-faint);
+  line-height:1.35;white-space:normal}
 .pilih-opsi.aktif .pilih-opsi-ket{color:var(--accent)}
-.pilih-centang{color:var(--accent);font-size:12px}
 .pilih-nihil{padding:14px 12px;font-size:12.5px;color:var(--ink-faint);text-align:center}
 .pilih-baru{color:var(--accent)}
 .field .pilih-tombol{font-size:13.5px}
@@ -1201,11 +1209,6 @@ td .pilih-ket{display:none}
   padding:12px 14px;background:var(--surface);border:1px solid var(--line);
   border-radius:12px;margin-bottom:12px}
 .ind-atur label{display:flex;flex-direction:column;gap:4px;min-width:170px}
-
-/* Operator antar kartu, sengaja di tengah supaya rumusnya terbaca
-   menurun seperti tulisan biasa. */
-.ind-operator{display:flex;justify-content:center;padding:5px 0}
-.ind-operator > div{width:74px}
 
 .ikartu{display:flex;gap:9px;background:var(--surface);border:1px solid var(--line);
   border-radius:12px;padding:11px 13px;transition:.13s}
