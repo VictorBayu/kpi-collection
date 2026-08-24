@@ -26,6 +26,7 @@ export default async function AppShell({ children }: { children: React.ReactNode
       ? [
           { href: "/admin/analitik", label: "Dashboard" },
           { href: "/admin/kpi", label: "Data KPI" },
+          { href: "/admin/harian", label: "KPI Harian" },
           {
             label: "Data & indikator",
             grup: [
@@ -53,11 +54,13 @@ export default async function AppShell({ children }: { children: React.ReactNode
       : s?.peran === "atasan"
       ? [
           { href: "/dashboard", label: "Dasbor saya" },
+          { href: "/harian", label: "Progres harian" },
           { href: "/tim", label: "Tim saya" },
           { href: "/request", label: "Request", lencana: true },
         ]
       : [
           { href: "/dashboard", label: "Dasbor saya" },
+          { href: "/harian", label: "Progres harian" },
           { href: "/request", label: "Request", lencana: true },
         ];
 

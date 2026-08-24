@@ -1519,6 +1519,38 @@ tr.kurang > td{background:var(--bad-soft)}
 .grafik-catatan{padding:10px 16px 14px;font-size:12.5px;color:var(--ink-soft);
   border-top:1px solid var(--line-soft)}
 
+/* ---------------------------------------------------------------------
+   KPI & insentif harian
+   ---------------------------------------------------------------------
+   Bilah status dibuat menonjol tapi tidak berteriak. Angka di halaman ini
+   masih bergerak, dan satu-satunya hal yang mencegah orang menganggapnya
+   final adalah cap waktu yang tidak bisa dilewatkan begitu saja. */
+.harian-status{display:grid;
+  grid-template-columns:minmax(0,1fr) auto;gap:6px 20px;align-items:center;
+  background:var(--surface);border:1px solid var(--line);
+  border-left:3px solid var(--accent);
+  border-radius:var(--r);padding:13px 16px}
+.harian-status.basi{border-left-color:var(--warn)}
+.harian-status-utama{display:flex;align-items:center;gap:10px;min-width:0}
+.harian-status-utama > div{display:flex;flex-direction:column;gap:1px;min-width:0}
+.harian-status-utama b{font-size:13.5px}
+.harian-titik{flex:none;width:8px;height:8px;border-radius:50%;
+  background:var(--good);box-shadow:0 0 0 3px var(--good-soft)}
+.harian-status.basi .harian-titik{background:var(--warn);box-shadow:0 0 0 3px var(--warn-soft)}
+.harian-status-angka{display:flex;gap:18px;font-size:12px;color:var(--ink-soft);
+  white-space:nowrap}
+.harian-status-angka b{font-variant-numeric:tabular-nums;color:var(--ink)}
+.harian-status-catatan{grid-column:1/-1;margin:0;font-size:11.5px;
+  color:var(--ink-soft);line-height:1.4}
+@media (max-width:760px){
+  .harian-status{grid-template-columns:1fr}
+  .harian-status-angka{flex-wrap:wrap;gap:10px 16px}
+}
+
+/* Sebab insentif tertahan, di kolom nominal daftar karyawan. */
+.harian-sebab{font-size:10.5px;line-height:1.35;color:#992D08;margin-top:2px;
+  max-width:30ch;margin-left:auto;text-align:right}
+
 /* Kepala kartu yang membawa pengendali di sisi kanan. Judul rata atas
    supaya deskripsi dua baris tidak mendorong tombolnya ke tengah. */
 .cardhead.rowbetween{display:flex;align-items:flex-start;gap:14px;flex-wrap:wrap}
