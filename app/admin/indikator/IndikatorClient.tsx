@@ -535,6 +535,22 @@ export default function IndikatorClient() {
     komponen, target,
   });
 
+  async function hitungUlang() {
+    setSibuk(true); setPesan(null);
+    try {
+      const r = await fetch("/api/admin/data-api", {
+        method: "PATCH", headers: { "content-type": "application/json" },
+        body: JSON.stringify({ hanyaHitung: true }),
+      });
+      const j = await r.json();
+      if (!r.ok) { setPesan(j.error ?? "Gagal menghitung ulang."); return; }
+      setPesan(
+        `Hitung ulang selesai — ${j.hitung?.indikator ?? 0} indikator, ` +
+        `${j.hitung?.baris ?? 0} baris KPI.`
+      );
+    } finally { setSibuk(false); }
+  }
+
   async function simpan() {
     setSibuk(true); setPesan(null);
     try {
@@ -622,6 +638,10 @@ export default function IndikatorClient() {
           <div className="ind-aksi">
             <button className="btn ghost sm" disabled={sibuk} onClick={jalankanUji}>Uji rumus</button>
             <button className="btn sm" disabled={sibuk || !nama.trim()} onClick={simpan}>Simpan</button>
+            <button className="btn ghost sm" disabled={sibuk} onClick={hitungUlang}
+                    title="Hitung ulang semua indikator dari data mentah yang sudah ada — tanpa menarik data baru">
+              Hitung ulang
+            </button>
             {pilihId && (
               <button className="btn ghost sm bahaya" disabled={sibuk}
                       onClick={async () => {
