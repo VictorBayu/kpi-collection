@@ -116,9 +116,16 @@ export default function Kartu({
           </div>
           <span className="faint small">dari</span>
           <div className="i-kolom">
+            {/* COUNT menghitung baris tanpa kolom. COUNT unik butuh kolom,
+                tapi boleh kolom apa pun — termasuk teks seperti nomor
+                kontrak; membatasinya ke kolom angka membuat "jumlah kontrak
+                unik" mustahil dipilih. Hanya SUM/AVG/MIN/MAX yang benar
+                menuntut kolom angka. */}
             <Pilih nilai={k.kolom ?? ""} onPilih={(v) => onUbah({ kolom: v })}
                    placeholder={k.agregat === "COUNT" ? "semua baris" : "pilih kolom"}
-                   opsi={opsiKolom(k.agregat === "COUNT" ? kolom : bisaAgregat)} />
+                   opsi={opsiKolom(
+                     k.agregat === "COUNT" || k.agregat === "COUNT_DISTINCT"
+                       ? kolom : bisaAgregat)} />
           </div>
         </div>
 

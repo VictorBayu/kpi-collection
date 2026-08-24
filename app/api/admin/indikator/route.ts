@@ -122,7 +122,7 @@ export const GET = handler(async (req) => {
        FROM indikator_target WHERE indikator_id = $1 ORDER BY alias, produk`, [id]);
 
   const ids = target.map((t) => t.id);
-  const [pita, nominal, gerbang, lainnya] = await Promise.all([
+  const [pita, nominal, gerbang] = await Promise.all([
     ids.length
       ? q<any>(
           `SELECT id, target_id, urutan, nilai_min, nilai_max, poin_min, poin_max
@@ -141,14 +141,11 @@ export const GET = handler(async (req) => {
              FROM indikator_gerbang WHERE target_id = ANY($1::uuid[]) ORDER BY target_id, urutan`,
           [ids])
       : Promise.resolve([]),
-    // Indikator lain yang bisa dijadikan gerbang atau pemilih pita.
-    // Dirinya sendiri dikeluarkan: untuk menguji nilai sendiri, gerbang
-    // cukup dibiarkan tanpa sumber.
-    q<any>(
-      `SELECT id, nama, satuan FROM indikator_def
-        WHERE id <> $1 AND aktif ORDER BY nama`, [id]),
   ]);
 
+  // Daftar indikator lain (bahan gerbang/pemilih pita) tidak dikirim dari
+  // sini: klien menurunkannya dari daftar di panel kiri, supaya selalu
+  // terisi bahkan saat menyusun indikator baru yang belum tersimpan.
   return Response.json({
     def,
     komponen: komponen.map((k) => ({
@@ -160,7 +157,6 @@ export const GET = handler(async (req) => {
       nominal: nominal.filter((n) => n.target_id === t.id),
       gerbang: gerbang.filter((g) => g.target_id === t.id),
     })),
-    indikatorLain: lainnya,
   });
 });
 

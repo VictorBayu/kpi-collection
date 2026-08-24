@@ -1,6 +1,6 @@
 "use client";
 
-import { Fragment, useEffect, useState } from "react";
+import { Fragment, useEffect, useMemo, useState } from "react";
 import Pilih from "@/components/Pilih";
 import Kartu, { type Komponen, type Kolom } from "./Kartu";
 
@@ -421,8 +421,6 @@ export default function IndikatorClient() {
   const [peranPic, setPeranPic] = useState("staff");
   const [komponen, setKomponen] = useState<Komponen[]>([kartuKosong(true)]);
   const [target, setTarget] = useState<Target[]>([]);
-  /** Indikator lain, bahan isian gerbang dan pemilih pita nominal. */
-  const [lain, setLain] = useState<IndikatorLain[]>([]);
 
   const [sibuk, setSibuk] = useState(false);
   const [pesan, setPesan] = useState<string | null>(null);
@@ -431,6 +429,20 @@ export default function IndikatorClient() {
   const [lewat, setLewat] = useState<number | null>(null);
   /** Indeks baris pendaftaran yang detailnya sedang terbuka, atau null. */
   const [detailBuka, setDetailBuka] = useState<number | null>(null);
+
+  /**
+   * Indikator lain, bahan isian gerbang dan pemilih pita nominal.
+   *
+   * Diturunkan dari daftar di panel kiri, bukan diambil terpisah, supaya
+   * selalu terisi — termasuk saat menyusun indikator baru yang belum
+   * tersimpan. Diri sendiri dikeluarkan: untuk menguji nilai sendiri,
+   * gerbang cukup dibiarkan tanpa sumber ("Indikator ini sendiri").
+   */
+  const lain: IndikatorLain[] = useMemo(
+    () => daftar
+      .filter((d) => d.id !== pilihId)
+      .map((d) => ({ id: d.id, nama: d.nama, satuan: d.satuan })),
+    [daftar, pilihId]);
 
   async function muatDaftar() {
     const r = await fetch("/api/admin/indikator", { cache: "no-store" });
@@ -466,7 +478,6 @@ export default function IndikatorClient() {
     setPilihId(null); setNama(""); setDeskripsi("");
     setSatuan("persen"); setKaliSeratus(true); setPeranPic("staff");
     setKomponen([kartuKosong(true)]); setTarget([]); setUji(null); setPesan(null);
-    setLain([]);
     setDetailBuka(null);
   }
 
@@ -513,7 +524,6 @@ export default function IndikatorClient() {
         })),
         aktif: t.aktif,
       })));
-      setLain(j.indikatorLain ?? []);
       setDetailBuka(null);
     } finally { setSibuk(false); }
   }
