@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import Pilih from "@/components/Pilih";
+import InputAngka from "@/components/InputAngka";
 import KotakCari from "@/components/KotakCari";
 
 type Baris = { alias: string; produk: string; tier: string; kelas: string; nominal: string };
@@ -142,8 +143,8 @@ export default function TierClient() {
               </label>
               <label>
                 <span className="faint small">Nominal (Rp)</span>
-                <input className="num" inputMode="numeric" value={baru.nominal}
-                       onChange={(e) => setBaru({ ...baru, nominal: e.target.value })} />
+                <InputAngka className="num" value={baru.nominal}
+                       onChange={(v) => setBaru({ ...baru, nominal: v })} />
               </label>
             </div>
             <div className="formact">
@@ -188,9 +189,9 @@ export default function TierClient() {
                 <td className="r num">{b.tier}</td>
                 <td>{KELAS_OPSI.find((k) => k.nilai === b.kelas)?.label ?? b.kelas}</td>
                 <td>
-                  <input className="num r" inputMode="numeric" value={b.nominal}
-                         onChange={(e) => setBaris(baris.map((x) =>
-                           x === b ? { ...x, nominal: e.target.value } : x))}
+                  <InputAngka className="num r" value={b.nominal}
+                         onChange={(v) => setBaris(baris.map((x) =>
+                           x === b ? { ...x, nominal: v } : x))}
                          onBlur={() => simpan(b)} />
                 </td>
                 <td className="r">

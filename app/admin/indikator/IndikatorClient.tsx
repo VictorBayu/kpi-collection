@@ -2,6 +2,7 @@
 
 import { Fragment, useEffect, useMemo, useState } from "react";
 import Pilih from "@/components/Pilih";
+import InputAngka from "@/components/InputAngka";
 import Kartu, { type Komponen, type Kolom } from "./Kartu";
 
 type Ringkas = {
@@ -98,13 +99,13 @@ function EditorPita({ pita, ubah, labelPoin }: {
               <tr key={i}>
                 {(["nilai_min", "nilai_max", "poin_min", "poin_max"] as const).map((f) => (
                   <td key={f}>
-                    <input className="num r" inputMode="decimal"
+                    <InputAngka className="num r" desimal
                            placeholder={f === "nilai_min" && i === 0 ? "− tak terbatas" :
                                         f === "nilai_max" && i === pita.length - 1 ? "tak terbatas" : "—"}
                            value={p[f]}
-                           onChange={(e) => {
+                           onChange={(v) => {
                              const baru = [...pita];
-                             baru[i] = { ...baru[i], [f]: e.target.value };
+                             baru[i] = { ...baru[i], [f]: v };
                              ubah(baru);
                            }} />
                   </td>
@@ -154,14 +155,14 @@ function EditorNominal({ pita, ubah }: {
               <tr key={i}>
                 {(["nilai_min", "nilai_max", "nominal"] as const).map((f) => (
                   <td key={f}>
-                    <input className="num r" inputMode="decimal"
+                    <InputAngka className="num r" desimal={f !== "nominal"}
                            placeholder={f === "nilai_min" && i === 0 ? "− tak terbatas" :
                                         f === "nilai_max" && i === pita.length - 1 ? "tak terbatas" :
-                                        f === "nominal" ? "mis. 750000" : "—"}
+                                        f === "nominal" ? "mis. 750.000" : "—"}
                            value={p[f]}
-                           onChange={(e) => {
+                           onChange={(v) => {
                              const baru = [...pita];
-                             baru[i] = { ...baru[i], [f]: e.target.value };
+                             baru[i] = { ...baru[i], [f]: v };
                              ubah(baru);
                            }} />
                   </td>
@@ -218,8 +219,8 @@ function EditorGerbang({ gerbang, ubah, lain, namaSendiri }: {
                    onPilih={(v) => set(i, { operator: v })}
                    opsi={OP_GERBANG} />
           </div>
-          <input className="num r gerbang-nilai" inputMode="decimal" placeholder="nilai"
-                 value={g.nilai} onChange={(e) => set(i, { nilai: e.target.value })} />
+          <InputAngka className="num r gerbang-nilai" desimal placeholder="nilai"
+                 value={g.nilai} onChange={(v) => set(i, { nilai: v })} />
           <button className="isyarat-x" title="Hapus syarat ini"
                   onClick={() => ubah(gerbang.filter((_, y) => y !== i))}>×</button>
         </div>
@@ -323,9 +324,9 @@ function DetailTarget({ t, ubah, lain, namaSendiri }: {
           </label>
           <label>
             <span className="faint small">Nilai efek per satuan</span>
-            <input className="num" inputMode="decimal" value={t.nilai_efek}
-                   placeholder={t.jenis_nilai === "persen" ? "mis. 1 (=1%)" : "mis. 50000"}
-                   onChange={(e) => ubah({ nilai_efek: e.target.value })} />
+            <InputAngka className="num" desimal value={t.nilai_efek}
+                   placeholder={t.jenis_nilai === "persen" ? "mis. 1 (=1%)" : "mis. 50.000"}
+                   onChange={(v) => ubah({ nilai_efek: v })} />
           </label>
         </div>
       </div>
@@ -383,8 +384,8 @@ function DetailTarget({ t, ubah, lain, namaSendiri }: {
               <span className="faint small">
                 {f === "target_kpi3" ? "KPI 3" : f === "target_kpi4" ? "KPI 4" : "KPI 5"}
               </span>
-              <input className="num" inputMode="decimal" value={t[f]} placeholder="—"
-                     onChange={(e) => ubah({ [f]: e.target.value } as Partial<Target>)} />
+              <InputAngka className="num" desimal value={t[f]} placeholder="—"
+                     onChange={(v) => ubah({ [f]: v } as Partial<Target>)} />
             </label>
           ))}
         </div>

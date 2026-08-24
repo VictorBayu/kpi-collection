@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import Pilih from "@/components/Pilih";
+import InputAngka from "@/components/InputAngka";
 import KotakCari from "@/components/KotakCari";
 
 type Pagu = {
@@ -151,8 +152,8 @@ export default function PaguClient() {
                 <>
                   <label>
                     <span className="faint small">Pagu (Rp)</span>
-                    <input className="num" inputMode="numeric" value={baru.nominal}
-                           onChange={(e) => setBaru({ ...baru, nominal: e.target.value })} />
+                    <InputAngka className="num" value={baru.nominal}
+                           onChange={(v) => setBaru({ ...baru, nominal: v })} />
                   </label>
                   <label>
                     <span className="faint small">Skor minimal</span>
@@ -266,8 +267,8 @@ export default function PaguClient() {
                   ) : (
                     <>
                       <td>
-                        <input className="num r" inputMode="numeric" value={p.nominal}
-                               onChange={(e) => ubah({ nominal: e.target.value })}
+                        <InputAngka className="num r" value={p.nominal}
+                               onChange={(v) => ubah({ nominal: v })}
                                onBlur={() => simpan(p)} />
                       </td>
                       <td>
