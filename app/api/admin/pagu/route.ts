@@ -29,14 +29,15 @@ export const GET = handler(async () => {
 
     q<any>(`SELECT kode, nama FROM produk_master WHERE aktif ORDER BY urutan, kode`),
 
-    // Hanya jabatan yang benar-benar punya indikator berbobot insentif,
-    // atau punya indikator penentu tier. Sisanya tidak akan pernah
-    // menghasilkan nominal, jadi menawarkannya di sini hanya membuat
-    // daftar panjang tanpa guna.
+    // Hanya jabatan yang benar-benar bisa menghasilkan nominal: punya
+    // indikator berbobot insentif, penentu tier, atau nominal bersyarat.
+    // Sisanya tidak akan pernah dibayar, jadi menawarkannya di sini hanya
+    // membuat daftar panjang tanpa guna.
     q<any>(
       `SELECT DISTINCT t.alias, t.produk
          FROM indikator_target t
-        WHERE t.aktif AND (t.bobot_insentif IS NOT NULL OR t.peran = 'tier')
+        WHERE t.aktif AND (t.bobot_insentif IS NOT NULL
+                           OR t.peran IN ('tier','nominal'))
         ORDER BY t.alias, t.produk`),
 
     // Semua alias jabatan yang dikenal — dari master alias maupun jabatan
@@ -66,7 +67,7 @@ export const POST = handler(async (req) => {
   if (!alias) throw new HttpError(400, "Jabatan belum dipilih.");
   if (!produk) throw new HttpError(400, "Produk belum dipilih.");
 
-  const mekanisme = b.mekanisme === "tier" ? "tier" : "pagu";
+  const mekanisme = ["tier", "bersyarat"].includes(b.mekanisme) ? b.mekanisme : "pagu";
   const nominal = Number(b.nominal ?? 0);
   const skorMin = Number(b.skor_minimal ?? 3);
   const pembagi = Number(b.pembagi ?? 5);

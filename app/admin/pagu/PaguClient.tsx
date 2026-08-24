@@ -49,7 +49,7 @@ export default function PaguClient() {
       nominal: String(p.nominal ?? 0),
       skor_minimal: String(p.skor_minimal ?? 3),
       pembagi: String(p.pembagi ?? 5),
-      mekanisme: p.mekanisme === "tier" ? "tier" : "pagu",
+      mekanisme: ["tier", "bersyarat"].includes(p.mekanisme) ? p.mekanisme : "pagu",
     })));
     setProduk(j.produk ?? []);
     setSaran(j.jabatan ?? []);
@@ -143,9 +143,11 @@ export default function PaguClient() {
                        opsi={[
                          { nilai: "pagu", label: "Rumus pagu", ket: "skor ÷ pembagi × pagu" },
                          { nilai: "tier", label: "Tabel tier", ket: "tier orang × tier cabang → nominal" },
+                         { nilai: "bersyarat", label: "Nominal bersyarat",
+                           ket: "dari indikator berperan Nominal bersyarat" },
                        ]} />
               </label>
-              {baru.mekanisme === "tier" ? null : (
+              {baru.mekanisme === "tier" || baru.mekanisme === "bersyarat" ? null : (
                 <>
                   <label>
                     <span className="faint small">Pagu (Rp)</span>
@@ -165,7 +167,16 @@ export default function PaguClient() {
                 </>
               )}
             </div>
-            {baru.mekanisme === "tier" ? (
+            {baru.mekanisme === "bersyarat" ? (
+              <p className="faint small">
+                Nominalnya datang dari indikator yang perannya disetel{" "}
+                <b>Nominal bersyarat</b> di{" "}
+                <Link className="lnk" href="/admin/indikator">Create Indicator</Link>:
+                cair penuh bila semua syarat lolos, nol bila ada yang gagal.
+                Tidak ada pagu, skor minimal, maupun pembagi yang perlu diisi
+                di sini karena besarnya tidak mengikuti skor.
+              </p>
+            ) : baru.mekanisme === "tier" ? (
               <p className="faint small">
                 Nominalnya dicari dari{" "}
                 <Link className="lnk" href="/admin/tier">Tabel Tier Insentif</Link>{" "}
@@ -222,7 +233,11 @@ export default function PaguClient() {
               const ubah = (patch: Partial<Pagu>) =>
                 setPagu(pagu.map((x) =>
                   x.alias === p.alias && x.produk === p.produk ? { ...x, ...patch } : x));
+              // Kedua mekanisme ini nominalnya tidak berasal dari pagu/skor,
+              // jadi ketiga kolom angka diganti tautan ke tempat aslinya
+              // diatur — bukan dibiarkan kosong dan membingungkan.
               const tier = p.mekanisme === "tier";
+              const bersyarat = p.mekanisme === "bersyarat";
               return (
                 <tr key={p.alias + p.produk}>
                   <td>
@@ -236,12 +251,16 @@ export default function PaguClient() {
                            opsi={[
                              { nilai: "pagu", label: "Rumus pagu" },
                              { nilai: "tier", label: "Tabel tier" },
+                             { nilai: "bersyarat", label: "Nominal bersyarat" },
                            ]} />
                   </td>
-                  {tier ? (
+                  {tier || bersyarat ? (
                     <td colSpan={3}>
-                      <Link className="lnk small" href="/admin/tier">
-                        Diatur di Tabel Tier Insentif →
+                      <Link className="lnk small"
+                            href={bersyarat ? "/admin/indikator" : "/admin/tier"}>
+                        {bersyarat
+                          ? "Diatur pada indikator berperan Nominal bersyarat →"
+                          : "Diatur di Tabel Tier Insentif →"}
                       </Link>
                     </td>
                   ) : (

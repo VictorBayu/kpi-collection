@@ -8,6 +8,12 @@ export type Indikator = {
   skor_kpi: number | null; skor_terbobot: number | null;
   target_kpi3: number | null; target_kpi4: number | null; target_kpi5: number | null;
   catatan: string | null;
+  /** Peran indikator ini bagi pemegangnya; 'nominal' membayar datar bersyarat. */
+  peran: string | null;
+  /** Rupiah yang dibayar baris ini (peran 'nominal'), setelah gerbang dinilai. */
+  nominal_baris: number | null;
+  /** Syarat yang gagal, sudah dalam bahasa manusia. Kosong berarti lolos. */
+  gerbang_gagal: string | null;
 };
 
 const num = (v: any) => (v === null || v === undefined ? null : Number(v));
@@ -44,7 +50,8 @@ export const periodeTersedia = unstable_cache(
 export async function indikatorKaryawan(nik: string, periode: string): Promise<Indikator[]> {
   const rows = await q<any>(
     `SELECT produk, indikator, saldo_awal, pencapaian, rasio, skor_kpi, skor_terbobot,
-            target_kpi3, target_kpi4, target_kpi5, catatan
+            target_kpi3, target_kpi4, target_kpi5, catatan,
+            peran, nominal_baris, gerbang_gagal
        FROM v_kpi_aktif
       WHERE nik = $1 AND periode = $2
       ORDER BY indikator`, [nik, periode]);
@@ -54,6 +61,7 @@ export async function indikatorKaryawan(nik: string, periode: string): Promise<I
     saldo_awal: num(r.saldo_awal), pencapaian: num(r.pencapaian), rasio: num(r.rasio),
     skor_kpi: num(r.skor_kpi), skor_terbobot: num(r.skor_terbobot),
     target_kpi3: num(r.target_kpi3), target_kpi4: num(r.target_kpi4), target_kpi5: num(r.target_kpi5),
+    nominal_baris: num(r.nominal_baris),
   }));
 }
 

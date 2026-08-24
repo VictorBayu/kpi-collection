@@ -143,6 +143,21 @@ export default async function DetailKpi({
                         <td>
                           <div className="dk-nama">{d.indikator}</div>
                           {d.produk && <div className="dk-produk">{d.produk}</div>}
+                          {/* Nominal nol tanpa penjelasan adalah keluhan yang
+                              pasti datang; sebabnya sudah tersimpan sejak
+                              angkanya dihitung, jadi tinggal ditampilkan. */}
+                          {d.peran === "nominal" && (
+                            d.gerbang_gagal
+                              ? <div className="dk-gerbang gagal"
+                                     title={d.gerbang_gagal}>
+                                  Tidak cair — {d.gerbang_gagal}
+                                </div>
+                              : d.nominal_baris
+                              ? <div className="dk-gerbang lolos">
+                                  Semua syarat lolos · {rp(d.nominal_baris)}
+                                </div>
+                              : null
+                          )}
                         </td>
                         <td className="r num dk-nilai">{nilai(d.pencapaian, satuanTampil)}</td>
                         <td className="r num faint">

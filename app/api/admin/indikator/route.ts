@@ -11,8 +11,9 @@ const AGREGAT = ["SUM","COUNT","COUNT_DISTINCT","AVG","MIN","MAX"];
 const OPERATOR = ["sama","tidak_sama","termasuk","tidak_termasuk","mengandung",
                   "lebih","lebih_sama","kurang","kurang_sama","antara","kosong","terisi"];
 const PERAN = ["staff","spv","bch"];
-const PERAN_TARGET = ["kpi","reguler","reward","penalty","tier"];
+const PERAN_TARGET = ["kpi","reguler","reward","penalty","tier","nominal","pendukung"];
 const JENIS_NILAI = ["nominal","persen"];
+const OP_GERBANG = ["lebih","lebih_sama","kurang","kurang_sama","sama"];
 
 /**
  * Membaca definisi indikator dari badan permintaan, sekaligus memeriksanya.
@@ -115,17 +116,38 @@ export const GET = handler(async (req) => {
     : [];
 
   const target = await q<any>(
-    `SELECT id, alias, produk, peran, jenis_nilai, nilai_efek,
+    `SELECT id, alias, produk, peran, jenis_nilai, nilai_efek, pemilih_id,
             bobot_kpi, bobot_insentif,
             target_kpi3, target_kpi4, target_kpi5, aktif
        FROM indikator_target WHERE indikator_id = $1 ORDER BY alias, produk`, [id]);
 
-  const pita = target.length
-    ? await q<any>(
-        `SELECT id, target_id, urutan, nilai_min, nilai_max, poin_min, poin_max
-           FROM indikator_pita WHERE target_id = ANY($1::uuid[]) ORDER BY target_id, urutan`,
-        [target.map((t) => t.id)])
-    : [];
+  const ids = target.map((t) => t.id);
+  const [pita, nominal, gerbang, lainnya] = await Promise.all([
+    ids.length
+      ? q<any>(
+          `SELECT id, target_id, urutan, nilai_min, nilai_max, poin_min, poin_max
+             FROM indikator_pita WHERE target_id = ANY($1::uuid[]) ORDER BY target_id, urutan`,
+          [ids])
+      : Promise.resolve([]),
+    ids.length
+      ? q<any>(
+          `SELECT id, target_id, urutan, nilai_min, nilai_max, nominal
+             FROM indikator_nominal WHERE target_id = ANY($1::uuid[]) ORDER BY target_id, urutan`,
+          [ids])
+      : Promise.resolve([]),
+    ids.length
+      ? q<any>(
+          `SELECT id, target_id, urutan, label, sumber_id, operator, nilai
+             FROM indikator_gerbang WHERE target_id = ANY($1::uuid[]) ORDER BY target_id, urutan`,
+          [ids])
+      : Promise.resolve([]),
+    // Indikator lain yang bisa dijadikan gerbang atau pemilih pita.
+    // Dirinya sendiri dikeluarkan: untuk menguji nilai sendiri, gerbang
+    // cukup dibiarkan tanpa sumber.
+    q<any>(
+      `SELECT id, nama, satuan FROM indikator_def
+        WHERE id <> $1 AND aktif ORDER BY nama`, [id]),
+  ]);
 
   return Response.json({
     def,
@@ -133,8 +155,12 @@ export const GET = handler(async (req) => {
       ...k, syarat: syarat.filter((s) => s.komponen_id === k.id),
     })),
     target: target.map((t) => ({
-      ...t, pita: pita.filter((p) => p.target_id === t.id),
+      ...t,
+      pita: pita.filter((p) => p.target_id === t.id),
+      nominal: nominal.filter((n) => n.target_id === t.id),
+      gerbang: gerbang.filter((g) => g.target_id === t.id),
     })),
+    indikatorLain: lainnya,
   });
 });
 
@@ -218,14 +244,15 @@ export const POST = handler(async (req) => {
 
       const [tb] = await q<any>(
         `INSERT INTO indikator_target
-           (indikator_id, alias, produk, peran, jenis_nilai, nilai_efek,
+           (indikator_id, alias, produk, peran, jenis_nilai, nilai_efek, pemilih_id,
             bobot_kpi, bobot_insentif,
             target_kpi3, target_kpi4, target_kpi5, aktif)
-         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13)
          ON CONFLICT (indikator_id, alias, produk) DO UPDATE
            SET peran=EXCLUDED.peran,
                jenis_nilai=EXCLUDED.jenis_nilai,
                nilai_efek=EXCLUDED.nilai_efek,
+               pemilih_id=EXCLUDED.pemilih_id,
                bobot_kpi=EXCLUDED.bobot_kpi,
                bobot_insentif=EXCLUDED.bobot_insentif,
                target_kpi3=EXCLUDED.target_kpi3,
@@ -234,12 +261,46 @@ export const POST = handler(async (req) => {
          RETURNING id`,
         [id, alias, produk, peranTarget, jenisNilai,
          angkaAtauNull(t.nilai_efek),
+         t.pemilih_id ? String(t.pemilih_id) : null,
          angkaAtauNull(t.bobot_kpi),
          angkaAtauNull(t.bobot_insentif),
          angkaAtauNull(t.target_kpi3),
          angkaAtauNull(t.target_kpi4),
          angkaAtauNull(t.target_kpi5),
          t.aktif !== false]);
+
+      // Pita nominal dan gerbang hanya berlaku pada peran 'nominal'.
+      // Menyimpannya untuk peran lain akan membuat baris yatim yang tidak
+      // pernah dibaca siapa pun tapi tetap muncul saat peran diganti.
+      if (peranTarget === "nominal") {
+        for (let i = 0; i < (Array.isArray(t.nominal) ? t.nominal : []).length; i++) {
+          const n = t.nominal[i];
+          const rp = angkaAtauNull(n.nominal);
+          if (rp === null) continue;
+          const bMin = angkaAtauNull(n.nilai_min);
+          const bMax = angkaAtauNull(n.nilai_max);
+          if (bMin !== null && bMax !== null && bMax < bMin) {
+            throw new HttpError(400,
+              `Pita nominal ke-${i + 1}: batas atas lebih kecil daripada batas bawah.`);
+          }
+          await q(
+            `INSERT INTO indikator_nominal (target_id, urutan, nilai_min, nilai_max, nominal)
+             VALUES ($1,$2,$3,$4,$5)`, [tb.id, i, bMin, bMax, rp]);
+        }
+
+        for (let i = 0; i < (Array.isArray(t.gerbang) ? t.gerbang : []).length; i++) {
+          const g = t.gerbang[i];
+          const nilai = angkaAtauNull(g.nilai);
+          if (nilai === null) continue;
+          const op = OP_GERBANG.includes(g.operator) ? g.operator : "lebih_sama";
+          await q(
+            `INSERT INTO indikator_gerbang
+               (target_id, urutan, label, sumber_id, operator, nilai)
+             VALUES ($1,$2,$3,$4,$5,$6)`,
+            [tb.id, i, g.label ? String(g.label).trim() || null : null,
+             g.sumber_id ? String(g.sumber_id) : null, op, nilai]);
+        }
+      }
 
       if (Array.isArray(t.pita) && t.pita.length) {
         for (let i = 0; i < t.pita.length; i++) {
@@ -289,6 +350,29 @@ export const DELETE = handler(async (req) => {
   const admin = await requireAdmin();
   const id = new URL(req.url).searchParams.get("id");
   if (!id) throw new HttpError(400, "Indikator belum dipilih.");
+
+  // Indikator yang dipakai sebagai syarat atau pemilih pita tidak boleh
+  // hilang begitu saja: syaratnya akan lenyap dan nominal mulai cair tanpa
+  // penahan. Basis data sudah menolaknya lewat RESTRICT, tapi pesan
+  // Postgres tidak memberi tahu indikator mana yang memakainya — itu yang
+  // sebenarnya perlu diketahui admin untuk bisa membereskannya.
+  const pemakai = await q<any>(
+    `SELECT DISTINCT d.nama
+       FROM indikator_target t
+       JOIN indikator_def d ON d.id = t.indikator_id
+      WHERE t.pemilih_id = $1
+      UNION
+     SELECT DISTINCT d.nama
+       FROM indikator_gerbang g
+       JOIN indikator_target t ON t.id = g.target_id
+       JOIN indikator_def d ON d.id = t.indikator_id
+      WHERE g.sumber_id = $1`, [id]);
+
+  if (pemakai.length) {
+    throw new HttpError(400,
+      `Masih dipakai sebagai syarat atau pemilih nominal oleh: ` +
+      `${pemakai.map((p) => p.nama).join(", ")}. Lepaskan dulu di sana.`);
+  }
 
   // Baris KPI yang sudah terlanjur dihitung ikut dibuang; kalau ditinggal,
   // dasbor akan terus menampilkan indikator yang definisinya sudah hilang

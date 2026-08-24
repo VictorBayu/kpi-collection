@@ -216,11 +216,13 @@ async function hitungSatu(
            -- tersebut, jadi hasilnya NULL — bukan nol. Nol akan terbaca
            -- sebagai "ikut dinilai tapi tidak dapat apa-apa", padahal
            -- yang benar adalah "tidak ikut dinilai sama sekali". Peran di
-           -- luar kpi/reguler (reward, penalty, tier) juga dipaksa NULL di
-           -- sini walau bobotnya terisi, supaya baris semacam itu tidak
-           -- pernah ikut menyumbang skor KPI atau skor insentif reguler
-           -- secara tidak sengaja — sumbangannya ke nominal dihitung
-           -- terpisah, bukan lewat jalur bobot ini.
+           -- luar kpi/reguler (reward, penalty, tier, nominal, pendukung)
+           -- juga dipaksa NULL di sini walau bobotnya terisi, supaya baris
+           -- semacam itu tidak pernah ikut menyumbang skor KPI atau skor
+           -- insentif reguler secara tidak sengaja — sumbangannya ke
+           -- nominal dihitung terpisah, bukan lewat jalur bobot ini.
+           -- 'pendukung' bahkan tidak membayar apa pun: ia ada semata
+           -- supaya angkanya bisa dibaca gerbang dan pemilih pita.
            CASE WHEN t.peran NOT IN ('kpi','reguler') OR t.bobot_kpi IS NULL THEN NULL
                 ELSE ROUND((${skor})::numeric * t.bobot_kpi / 100, 2) END,
            CASE WHEN t.peran NOT IN ('kpi','reguler') OR t.bobot_insentif IS NULL THEN NULL
@@ -253,6 +255,110 @@ async function hitungSatu(
       dihitung_pada = now()`;
 
   const hasil = await q<any>(sql, params);
+  return Array.isArray(hasil) ? hasil.length : 0;
+}
+
+/**
+ * Menilai gerbang kelayakan lalu menetapkan nominal datar per baris.
+ *
+ * Dijalankan setelah seluruh indikator selesai dihitung dan sebelum
+ * insentif dirangkum, karena sebuah gerbang boleh menunjuk indikator lain
+ * — "jumlah kontrak >= 5" tidak bisa dinilai sebelum jumlah kontraknya
+ * sendiri ada di kpi_row.
+ *
+ * Hasilnya ditulis balik ke barisnya (nominal_baris, gerbang_gagal), bukan
+ * dihitung ulang saat merangkum insentif. Dua alasan: kueri insentif tidak
+ * perlu menjangkau baris indikator lain milik orang yang sama, dan alasan
+ * "kenapa saya tidak dapat" ikut tersimpan permanen — pertanyaan itu pasti
+ * datang, dan jawabannya sebaiknya sudah ada sejak angkanya dihitung.
+ */
+async function nilaiGerbang(periode: string): Promise<number> {
+  const hasil = await q<any>(
+    `WITH baris AS (
+       SELECT k.id, k.nik, k.produk, k.periode, k.indikator_id,
+              k.pencapaian, t.id AS target_id, t.pemilih_id
+         FROM kpi_row k
+         JOIN indikator_target t
+           ON t.indikator_id = k.indikator_id
+          AND t.produk       = k.produk
+          AND t.alias        = norm_jabatan(k.jabatan)
+          AND t.aktif
+        WHERE k.sumber = 'api' AND k.periode = $1 AND k.peran = 'nominal'
+     ),
+     -- Tiap gerbang dicarikan angka ukurnya. sumber_id kosong berarti
+     -- diuji pada indikator baris ini sendiri; terisi berarti pada
+     -- indikator lain milik orang dan produk yang sama.
+     diukur AS (
+       SELECT b.id AS row_id, g.urutan, g.operator, g.nilai,
+              COALESCE(NULLIF(BTRIM(g.label), ''), d.nama, 'Syarat') AS label,
+              (SELECT s.pencapaian FROM kpi_row s
+                WHERE s.sumber = 'api' AND s.periode = b.periode
+                  AND s.nik = b.nik AND s.produk = b.produk
+                  AND s.indikator_id = COALESCE(g.sumber_id, b.indikator_id)
+                LIMIT 1) AS ukur
+         FROM baris b
+         JOIN indikator_gerbang g ON g.target_id = b.target_id
+         LEFT JOIN indikator_def d ON d.id = g.sumber_id
+     ),
+     dinilai AS (
+       SELECT row_id, urutan, label, ukur, operator, nilai,
+              CASE
+                -- Angka ukur tidak ada berarti indikator sumbernya belum
+                -- didaftarkan atau belum terhitung. Dianggap GAGAL, bukan
+                -- lulus: membayar karena syaratnya tak terperiksa adalah
+                -- kekeliruan yang jauh lebih mahal daripada menahan bayar.
+                WHEN ukur IS NULL           THEN FALSE
+                WHEN operator = 'lebih'      THEN ukur >  nilai
+                WHEN operator = 'lebih_sama' THEN ukur >= nilai
+                WHEN operator = 'kurang'     THEN ukur <  nilai
+                WHEN operator = 'kurang_sama'THEN ukur <= nilai
+                WHEN operator = 'sama'       THEN ukur =  nilai
+                ELSE FALSE
+              END AS lulus
+         FROM diukur
+     ),
+     rekap AS (
+       SELECT b.id, b.target_id, b.pemilih_id, b.nik, b.produk, b.periode,
+              b.indikator_id, b.pencapaian,
+              -- Tanpa gerbang sama sekali berarti tidak ada yang menahan.
+              COALESCE(bool_and(d.lulus), TRUE) AS lolos,
+              string_agg(
+                d.label || ' ' ||
+                CASE d.operator WHEN 'lebih' THEN '>' WHEN 'lebih_sama' THEN '>='
+                                WHEN 'kurang' THEN '<' WHEN 'kurang_sama' THEN '<='
+                                ELSE '=' END || ' ' ||
+                TRIM(TRAILING '.' FROM TRIM(TRAILING '0' FROM d.nilai::text)) ||
+                ' (nilai ' || COALESCE(
+                  TRIM(TRAILING '.' FROM TRIM(TRAILING '0' FROM d.ukur::text)),
+                  'tidak ada') || ')',
+                '; ' ORDER BY d.urutan
+              ) FILTER (WHERE NOT d.lulus) AS gagal
+         FROM baris b
+         LEFT JOIN dinilai d ON d.row_id = b.id
+        GROUP BY b.id, b.target_id, b.pemilih_id, b.nik, b.produk,
+                 b.periode, b.indikator_id, b.pencapaian
+     ),
+     -- Nilai pemilih pita: indikator lain kalau ditunjuk, kalau tidak
+     -- nilai baris ini sendiri.
+     final AS (
+       SELECT r.*,
+              CASE WHEN r.pemilih_id IS NULL THEN r.pencapaian
+                   ELSE (SELECT s.pencapaian FROM kpi_row s
+                          WHERE s.sumber = 'api' AND s.periode = r.periode
+                            AND s.nik = r.nik AND s.produk = r.produk
+                            AND s.indikator_id = r.pemilih_id
+                          LIMIT 1) END AS nilai_pemilih
+         FROM rekap r
+     )
+     UPDATE kpi_row k
+        SET nominal_baris = CASE WHEN f.lolos
+                                 THEN nominal_dari_pita(f.target_id, f.nilai_pemilih)
+                                 ELSE 0 END,
+            gerbang_gagal = f.gagal
+       FROM final f
+      WHERE k.id = f.id`,
+    [periode]);
+
   return Array.isArray(hasil) ? hasil.length : 0;
 }
 
@@ -299,7 +405,15 @@ async function hitungInsentif(periode: string): Promise<number> {
               COALESCE(SUM(k.nilai_efek * k.pencapaian)
                 FILTER (WHERE k.peran = 'penalty' AND k.jenis_nilai = 'nominal'), 0) AS penalty_nominal,
               COALESCE(SUM(k.nilai_efek * k.pencapaian)
-                FILTER (WHERE k.peran = 'penalty' AND k.jenis_nilai = 'persen'),  0) AS penalty_persen
+                FILTER (WHERE k.peran = 'penalty' AND k.jenis_nilai = 'persen'),  0) AS penalty_persen,
+              -- Nominal datar bersyarat sudah dinilai per baris oleh
+              -- nilaiGerbang(); di sini tinggal dijumlahkan.
+              COALESCE(SUM(k.nominal_baris)
+                FILTER (WHERE k.peran = 'nominal'), 0) AS nominal_bersyarat,
+              COUNT(*) FILTER (WHERE k.peran = 'nominal')::int AS jml_bersyarat,
+              string_agg(k.gerbang_gagal, '; ')
+                FILTER (WHERE k.peran = 'nominal' AND k.gerbang_gagal IS NOT NULL)
+                AS sebab_gagal
          FROM kpi_row k
         WHERE k.sumber = 'api' AND k.periode = $1
         GROUP BY k.nik, k.produk
@@ -312,6 +426,7 @@ async function hitungInsentif(periode: string): Promise<number> {
        SELECT l.*, g.alias, g.mekanisme,
               g.nominal AS pagu_nominal, g.skor_minimal, g.pembagi,
               CASE
+                WHEN g.mekanisme = 'bersyarat' THEN l.nominal_bersyarat
                 WHEN g.mekanisme = 'tier' THEN
                   COALESCE((SELECT it.nominal FROM insentif_tier it
                              WHERE it.alias = g.alias AND it.produk = g.produk
@@ -340,6 +455,14 @@ async function hitungInsentif(periode: string): Promise<number> {
             , 0)),
             'api', NULL,
             CASE
+              WHEN p.mekanisme = 'bersyarat' THEN
+                CASE
+                  WHEN p.jml_bersyarat = 0
+                    THEN 'Mekanisme bersyarat, tapi belum ada indikator berperan nominal'
+                  WHEN p.sebab_gagal IS NOT NULL
+                    THEN 'Tidak cair — ' || p.sebab_gagal
+                  ELSE 'Semua syarat terpenuhi, nominal dari pita'
+                END
               WHEN p.mekanisme = 'tier' THEN
                 'Tier ' || COALESCE(p.tier::text, '-') ||
                 ' x kelas ' || COALESCE(p.kelas, '-') ||
@@ -419,6 +542,20 @@ export async function hitungSemuaIndikator(periode?: string): Promise<HasilHitun
       }
     }
     if (adaYangJalan) terhitung++;
+  }
+
+  // Gerbang dinilai setelah semua indikator ada di kpi_row — sebuah
+  // gerbang boleh menunjuk indikator lain, jadi urutannya tidak bisa
+  // dibalik. Kegagalannya tidak menghentikan perhitungan insentif:
+  // baris bersyarat akan bernominal kosong, dan itu lebih baik daripada
+  // seluruh insentif satu periode tidak terbit.
+  try {
+    await nilaiGerbang(p);
+  } catch (e) {
+    gagal.push({
+      indikator: "Gerbang nominal bersyarat",
+      pesan: e instanceof Error ? e.message : String(e),
+    });
   }
 
   // Nominal insentif dihitung terakhir, setelah seluruh skor terkumpul.

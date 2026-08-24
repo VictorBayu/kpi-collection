@@ -9,10 +9,16 @@ type Ringkas = {
   peran_pic: string; aktif: boolean; komponen: number; terdaftar: number;
 };
 type Pita = { nilai_min: string; nilai_max: string; poin_min: string; poin_max: string };
+/** Pita rupiah: nilai pemilih → nominal datar, tanpa interpolasi. */
+type PitaNominal = { nilai_min: string; nilai_max: string; nominal: string };
+/** Gerbang kelayakan. sumber_id kosong = diuji pada nilai indikator ini sendiri. */
+type Gerbang = { label: string; sumber_id: string; operator: string; nilai: string };
+type IndikatorLain = { id: string; nama: string; satuan: string };
 type Target = {
   alias: string; produk: string;
   /** kpi/reguler ikut skor tertimbang; reward/penalty menambah/mengurangi
-   *  nominal; tier menentukan tier lewat pita, tidak ikut skor mana pun. */
+   *  nominal; tier menentukan tier lewat pita; nominal membayar datar bila
+   *  semua gerbang lolos; pendukung hanya dihitung sebagai bahan gerbang. */
   peran: string;
   /** Hanya dipakai peran reward/penalty. */
   jenis_nilai: string; nilai_efek: string;
@@ -22,6 +28,11 @@ type Target = {
   /** Pita menggantikan tiga ambang di atas kalau diisi; boleh berapa pun
    *  tingkatnya, dan untuk peran tier poin-nya adalah nomor tier itu sendiri. */
   pita: Pita[];
+  /** Peran 'nominal': indikator yang nilainya memilih pita rupiah. Kosong
+   *  berarti dipilih oleh nilai indikator ini sendiri. */
+  pemilih_id: string;
+  nominal: PitaNominal[];
+  gerbang: Gerbang[];
   aktif: boolean;
 };
 
@@ -30,9 +41,24 @@ const PERAN_OPSI = [
   { nilai: "reward", label: "Reward", ket: "menambah nominal insentif" },
   { nilai: "penalty", label: "Penalty", ket: "mengurangi nominal insentif" },
   { nilai: "tier", label: "Penentu tier", ket: "menentukan tier lewat pita, tidak ikut skor" },
+  { nilai: "nominal", label: "Nominal bersyarat",
+    ket: "bayar datar bila semua syarat lolos; besarnya dari pita rupiah" },
+  { nilai: "pendukung", label: "Pendukung",
+    ket: "hanya dihitung sebagai bahan syarat, tidak dinilai dan tidak dibayar" },
+];
+
+const OP_GERBANG = [
+  { nilai: "kurang", label: "kurang dari  <" },
+  { nilai: "kurang_sama", label: "maksimal  ≤" },
+  { nilai: "lebih", label: "lebih dari  >" },
+  { nilai: "lebih_sama", label: "minimal  ≥" },
+  { nilai: "sama", label: "sama dengan  =" },
 ];
 
 const pitaKosong = (): Pita => ({ nilai_min: "", nilai_max: "", poin_min: "", poin_max: "" });
+const nominalKosong = (): PitaNominal => ({ nilai_min: "", nilai_max: "", nominal: "" });
+const gerbangKosong = (): Gerbang =>
+  ({ label: "", sumber_id: "", operator: "lebih_sama", nilai: "" });
 type Contoh = { nik: string; nama: string; cabang: string | null; baris: number; nilai: number | null };
 
 const kartuKosong = (pertama: boolean): Komponen => ({
@@ -99,8 +125,183 @@ function EditorPita({ pita, ubah, labelPoin }: {
   );
 }
 
+/**
+ * Editor pita nominal: rentang nilai → rupiah datar.
+ *
+ * Sengaja dipisah dari EditorPita walau tampak mirip. Di sana hasilnya
+ * poin dan diinterpolasi di dalam pita; di sini hasilnya rupiah dan justru
+ * tidak boleh diinterpolasi — bahan kerja 150 JT dapat 750.000 penuh, bukan
+ * sebagian karena belum sampai batas atas. Menggabungkan keduanya akan
+ * menyembunyikan perbedaan yang justru paling perlu disadari admin.
+ */
+function EditorNominal({ pita, ubah }: {
+  pita: PitaNominal[]; ubah: (pita: PitaNominal[]) => void;
+}) {
+  return (
+    <div className="pita-editor">
+      {pita.length > 0 && (
+        <table className="rapat tbl-pita">
+          <thead>
+            <tr>
+              <th className="r">Dari (≥)</th>
+              <th className="r">Sampai (&lt;)</th>
+              <th className="r">Nominal (Rp)</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody>
+            {pita.map((p, i) => (
+              <tr key={i}>
+                {(["nilai_min", "nilai_max", "nominal"] as const).map((f) => (
+                  <td key={f}>
+                    <input className="num r" inputMode="decimal"
+                           placeholder={f === "nilai_min" && i === 0 ? "− tak terbatas" :
+                                        f === "nilai_max" && i === pita.length - 1 ? "tak terbatas" :
+                                        f === "nominal" ? "mis. 750000" : "—"}
+                           value={p[f]}
+                           onChange={(e) => {
+                             const baru = [...pita];
+                             baru[i] = { ...baru[i], [f]: e.target.value };
+                             ubah(baru);
+                           }} />
+                  </td>
+                ))}
+                <td className="r">
+                  <button className="isyarat-x" title="Hapus pita ini"
+                          onClick={() => ubah(pita.filter((_, y) => y !== i))}>×</button>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      )}
+      <button className="btn ghost sm" onClick={() => ubah([...pita, nominalKosong()])}>
+        + Tambah pita nominal
+      </button>
+    </div>
+  );
+}
+
+/**
+ * Editor gerbang — "komponen di dalam komponen".
+ *
+ * Tiap baris satu syarat yang harus lolos. Sumber kosong berarti syaratnya
+ * diuji pada nilai indikator ini sendiri; itulah cara menulis "Flowrate <
+ * 4,5%" tanpa perlu indikator bantu.
+ */
+function EditorGerbang({ gerbang, ubah, lain, namaSendiri }: {
+  gerbang: Gerbang[];
+  ubah: (g: Gerbang[]) => void;
+  lain: IndikatorLain[];
+  namaSendiri: string;
+}) {
+  const set = (i: number, patch: Partial<Gerbang>) => {
+    const baru = [...gerbang];
+    baru[i] = { ...baru[i], ...patch };
+    ubah(baru);
+  };
+  return (
+    <div className="gerbang-editor">
+      {gerbang.map((g, i) => (
+        <div className="gerbang-baris" key={i}>
+          <span className="gerbang-no">{i + 1}</span>
+          <div className="gerbang-isi">
+            <Pilih nilai={g.sumber_id} cari
+                   onPilih={(v) => set(i, { sumber_id: v })}
+                   opsi={[
+                     { nilai: "", label: `Indikator ini sendiri`, ket: namaSendiri || undefined },
+                     ...lain.map((l) => ({ nilai: l.id, label: l.nama, ket: l.satuan })),
+                   ]} />
+          </div>
+          <div className="gerbang-op">
+            <Pilih nilai={g.operator} cari={false}
+                   onPilih={(v) => set(i, { operator: v })}
+                   opsi={OP_GERBANG} />
+          </div>
+          <input className="num r gerbang-nilai" inputMode="decimal" placeholder="nilai"
+                 value={g.nilai} onChange={(e) => set(i, { nilai: e.target.value })} />
+          <button className="isyarat-x" title="Hapus syarat ini"
+                  onClick={() => ubah(gerbang.filter((_, y) => y !== i))}>×</button>
+        </div>
+      ))}
+      <button className="btn ghost sm" onClick={() => ubah([...gerbang, gerbangKosong()])}>
+        + Tambah syarat
+      </button>
+    </div>
+  );
+}
+
 /** Panel detail satu baris pendaftaran, isinya menyesuaikan peran yang dipilih. */
-function DetailTarget({ t, ubah }: { t: Target; ubah: (patch: Partial<Target>) => void }) {
+function DetailTarget({ t, ubah, lain, namaSendiri }: {
+  t: Target;
+  ubah: (patch: Partial<Target>) => void;
+  lain: IndikatorLain[];
+  namaSendiri: string;
+}) {
+  if (t.peran === "pendukung") {
+    return (
+      <div className="target-detail">
+        <p className="faint small">
+          Indikator ini dihitung dan disimpan, tapi tidak dinilai dan tidak
+          membayar apa pun. Gunanya semata supaya angkanya bisa dibaca sebagai
+          syarat atau pemilih pita oleh indikator berperan{" "}
+          <b>Nominal bersyarat</b> — misalnya jumlah kontrak atau rupiah bahan
+          kerja. Tidak ada yang perlu diisi di sini.
+        </p>
+      </div>
+    );
+  }
+
+  if (t.peran === "nominal") {
+    const pemilihSendiri = !t.pemilih_id;
+    return (
+      <div className="target-detail">
+        <p className="faint small">
+          Nominal datar: cair penuh bila <b>semua</b> syarat di bawah lolos,
+          nol bila ada satu saja yang gagal. Besarnya tidak mengikuti skor,
+          melainkan diambil dari pita rupiah.
+        </p>
+
+        <div className="detail-sub">
+          <h5>Syarat kelayakan</h5>
+          <p className="faint small">
+            Kosong berarti tidak ada yang menahan — nominalnya selalu cair.
+          </p>
+          <EditorGerbang gerbang={t.gerbang} lain={lain} namaSendiri={namaSendiri}
+                         ubah={(gerbang) => ubah({ gerbang })} />
+        </div>
+
+        <div className="detail-sub">
+          <h5>Besar nominal</h5>
+          <label className="blok">
+            <span className="faint small">Dipilih berdasarkan nilai</span>
+            <Pilih nilai={t.pemilih_id} cari
+                   onPilih={(v) => ubah({ pemilih_id: v })}
+                   opsi={[
+                     { nilai: "", label: "Indikator ini sendiri", ket: namaSendiri || undefined },
+                     ...lain.map((l) => ({ nilai: l.id, label: l.nama, ket: l.satuan })),
+                   ]} />
+          </label>
+          <p className="faint small mt">
+            {pemilihSendiri
+              ? "Pita dicocokkan ke hasil hitung indikator ini sendiri."
+              : "Pita dicocokkan ke hasil hitung indikator di atas, milik orang dan produk yang sama."}
+            {" "}Batas bawah termasuk, batas atas tidak — pita “≥ 100.000.000”
+            berarti 100 JT pas ikut masuk.
+          </p>
+          <EditorNominal pita={t.nominal} ubah={(nominal) => ubah({ nominal })} />
+        </div>
+
+        {!t.gerbang.length && !t.nominal.length && (
+          <p className="banner warn small mt">
+            Belum ada syarat maupun pita nominal — indikator ini belum akan
+            membayar apa pun.
+          </p>
+        )}
+      </div>
+    );
+  }
+
   if (t.peran === "reward" || t.peran === "penalty") {
     const label = t.peran === "reward" ? "menambah" : "mengurangi";
     return (
@@ -220,6 +421,8 @@ export default function IndikatorClient() {
   const [peranPic, setPeranPic] = useState("staff");
   const [komponen, setKomponen] = useState<Komponen[]>([kartuKosong(true)]);
   const [target, setTarget] = useState<Target[]>([]);
+  /** Indikator lain, bahan isian gerbang dan pemilih pita nominal. */
+  const [lain, setLain] = useState<IndikatorLain[]>([]);
 
   const [sibuk, setSibuk] = useState(false);
   const [pesan, setPesan] = useState<string | null>(null);
@@ -263,6 +466,7 @@ export default function IndikatorClient() {
     setPilihId(null); setNama(""); setDeskripsi("");
     setSatuan("persen"); setKaliSeratus(true); setPeranPic("staff");
     setKomponen([kartuKosong(true)]); setTarget([]); setUji(null); setPesan(null);
+    setLain([]);
     setDetailBuka(null);
   }
 
@@ -298,8 +502,18 @@ export default function IndikatorClient() {
           nilai_min: angkaStr(p.nilai_min), nilai_max: angkaStr(p.nilai_max),
           poin_min: angkaStr(p.poin_min), poin_max: angkaStr(p.poin_max),
         })),
+        pemilih_id: t.pemilih_id ?? "",
+        nominal: (t.nominal ?? []).map((n: any) => ({
+          nilai_min: angkaStr(n.nilai_min), nilai_max: angkaStr(n.nilai_max),
+          nominal: angkaStr(n.nominal),
+        })),
+        gerbang: (t.gerbang ?? []).map((g: any) => ({
+          label: g.label ?? "", sumber_id: g.sumber_id ?? "",
+          operator: g.operator ?? "lebih_sama", nilai: angkaStr(g.nilai),
+        })),
         aktif: t.aktif,
       })));
+      setLain(j.indikatorLain ?? []);
       setDetailBuka(null);
     } finally { setSibuk(false); }
   }
@@ -550,7 +764,8 @@ export default function IndikatorClient() {
                         peran: "kpi", jenis_nilai: "nominal", nilai_efek: "",
                         bobot_kpi: "", bobot_insentif: "",
                         target_kpi3: "", target_kpi4: "", target_kpi5: "",
-                        pita: [], aktif: true,
+                        pita: [], pemilih_id: "", nominal: [], gerbang: [],
+                        aktif: true,
                       }]);
                       setDetailBuka(target.length);
                     }}>
@@ -591,6 +806,17 @@ export default function IndikatorClient() {
                         : "Belum diisi nilai efeknya")
                     : t.peran === "tier"
                     ? (adaPita ? `${t.pita.length} pita tier` : "Belum ada pita")
+                    : t.peran === "pendukung"
+                    ? "Bahan syarat, tidak dinilai"
+                    : t.peran === "nominal"
+                    ? [
+                        t.gerbang.length
+                          ? `${t.gerbang.length} syarat`
+                          : "Tanpa syarat",
+                        t.nominal.length
+                          ? `${t.nominal.length} pita nominal`
+                          : "belum ada pita nominal",
+                      ].join(" · ")
                     : [
                         t.bobot_kpi && `KPI ${t.bobot_kpi}%`,
                         t.bobot_insentif && `Insentif ${t.bobot_insentif}%`,
@@ -630,7 +856,8 @@ export default function IndikatorClient() {
                     {detailBuka === i && (
                       <tr className="baris-detail">
                         <td colSpan={6}>
-                          <DetailTarget t={t} ubah={ubah} />
+                          <DetailTarget t={t} ubah={ubah} lain={lain}
+                                        namaSendiri={nama} />
                         </td>
                       </tr>
                     )}
