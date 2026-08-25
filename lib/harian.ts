@@ -161,11 +161,24 @@ export async function karyawanHarian(cabang: string) {
 export async function progresNik(nik: string) {
   const periode = periodeHarian();
   const rows = await q<any>(
-    `SELECT k.indikator, k.produk, k.satuan, k.pencapaian, k.skor_kpi,
+    `SELECT k.indikator, k.indikator_id, k.jabatan, k.produk, k.satuan,
+            k.pencapaian, k.skor_kpi,
             k.bobot, k.bobot_insentif, k.skor_terbobot, k.skor_terbobot_ins,
             k.target_kpi3, k.target_kpi4, k.target_kpi5,
             k.peran, k.nominal_baris, k.gerbang_gagal, k.catatan,
-            COALESCE(d.kali_seratus, false) AS kali_seratus
+            COALESCE(d.kali_seratus, false) AS kali_seratus,
+            -- Pita target lengkap (kalau ada), untuk menampilkan seluruh
+            -- ambang dan menghitung target tingkat berikutnya di tampilan.
+            (SELECT COALESCE(json_agg(json_build_object(
+                      'min', p.nilai_min, 'max', p.nilai_max,
+                      'poinMin', p.poin_min, 'poinMax', p.poin_max
+                    ) ORDER BY p.urutan), '[]'::json)
+               FROM indikator_target t
+               JOIN indikator_pita p ON p.target_id = t.id
+              WHERE t.indikator_id = k.indikator_id
+                AND t.produk = k.produk
+                AND t.alias = norm_jabatan(k.jabatan)
+                AND t.aktif) AS pita
        FROM kpi_row k
        LEFT JOIN indikator_def d ON d.id = k.indikator_id
       WHERE k.sumber = 'api' AND k.periode = $1 AND k.nik = $2
@@ -198,6 +211,10 @@ export async function progresNik(nik: string) {
     // sudah berupa angka persen (mis. 35,04) — bukan rasio 0–1. Penanda ini
     // dibawa supaya tampilan tidak mengalikan 100 untuk kedua kalinya.
     persenSudah: r.kali_seratus === true,
+    pita: ((r.pita ?? []) as any[]).map((b) => ({
+      min: num(b.min), max: num(b.max),
+      poinMin: num(b.poinMin), poinMax: num(b.poinMax),
+    })),
   }));
 }
 
