@@ -164,8 +164,10 @@ export async function progresNik(nik: string) {
     `SELECT k.indikator, k.produk, k.satuan, k.pencapaian, k.skor_kpi,
             k.bobot, k.bobot_insentif, k.skor_terbobot, k.skor_terbobot_ins,
             k.target_kpi3, k.target_kpi4, k.target_kpi5,
-            k.peran, k.nominal_baris, k.gerbang_gagal, k.catatan
+            k.peran, k.nominal_baris, k.gerbang_gagal, k.catatan,
+            COALESCE(d.kali_seratus, false) AS kali_seratus
        FROM kpi_row k
+       LEFT JOIN indikator_def d ON d.id = k.indikator_id
       WHERE k.sumber = 'api' AND k.periode = $1 AND k.nik = $2
       ORDER BY
         CASE k.peran WHEN 'nominal' THEN 0 WHEN 'kpi' THEN 1 WHEN 'reguler' THEN 1
@@ -192,6 +194,10 @@ export async function progresNik(nik: string) {
     nominalBaris: num(r.nominal_baris),
     gerbangGagal: r.gerbang_gagal as string | null,
     catatan: r.catatan as string | null,
+    // Bila indikatornya sudah "dikalikan 100", pencapaian yang tersimpan
+    // sudah berupa angka persen (mis. 35,04) — bukan rasio 0–1. Penanda ini
+    // dibawa supaya tampilan tidak mengalikan 100 untuk kedua kalinya.
+    persenSudah: r.kali_seratus === true,
   }));
 }
 

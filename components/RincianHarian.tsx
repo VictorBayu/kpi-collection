@@ -1,4 +1,22 @@
 import { rp, angka, nilai, tebakSatuan } from "@/lib/format";
+
+/**
+ * Format pencapaian yang paham apakah nilainya sudah berupa persen.
+ *
+ * Indikator dengan "kalikan 100" menyimpan pencapaian sebagai angka persen
+ * (35,04), bukan rasio (0,3504). Formatter persen umum selalu mengalikan
+ * 100, jadi untuk nilai yang sudah persen kita cukup menempelkan "%" —
+ * kalau tidak, 35,04 tampil jadi 3504%.
+ */
+function pencapaianTampil(
+  v: number | null, satuan: string, persenSudah: boolean,
+): string {
+  if (v === null) return "—";
+  if (persenSudah && satuan === "persen") {
+    return v.toLocaleString("id-ID", { maximumFractionDigits: 2 }) + "%";
+  }
+  return nilai(v, satuan);
+}
 import type { progresNik, ringkasHarian } from "@/lib/harian";
 
 type Baris = Awaited<ReturnType<typeof progresNik>>[number];
@@ -98,12 +116,13 @@ export default function RincianHarian({
                   <th className="r">Pencapaian</th>
                   {nominalPeran
                     ? <th className="r">Nominal</th>
-                    : <><th className="r">Skor</th><th className="r">Bobot</th></>}
+                    : <><th className="r">Nilai KPI</th><th className="r">Bobot</th></>}
                 </tr>
               </thead>
               <tbody>
                 {isi.map((b, i) => {
                   const satuan = b.satuan ?? tebakSatuan(b.indikator, b.pencapaian);
+                  const persenSudah = (b as { persenSudah?: boolean }).persenSudah ?? false;
                   const lv = b.skorKpi === null ? null
                     : b.skorKpi >= 4 ? 4 : b.skorKpi >= 3 ? 3 : 0;
                   return (
@@ -119,7 +138,7 @@ export default function RincianHarian({
                             : null
                         )}
                       </td>
-                      <td className="r num dk-nilai">{nilai(b.pencapaian, satuan)}</td>
+                      <td className="r num dk-nilai">{pencapaianTampil(b.pencapaian, satuan, persenSudah)}</td>
                       {nominalPeran ? (
                         <td className="r num">
                           <b className={b.nominalBaris ? "" : "faint"}>
