@@ -51,14 +51,22 @@ function targetBerikut(
       (b.min === null || pencapaian >= b.min) &&
       (b.max === null || pencapaian < b.max),
   );
-  if (!kini) {
-    // Di bawah pita pertama → kejar batas atas pita pertama.
-    const awal = pita[0];
-    return awal ? { ambang: awal.max, poin: awal.poinMax } : null;
+  if (!kini || kini.poinMin === null || kini.poinMax === null) return null;
+
+  // Arah perbaikan tergantung apakah skor naik atau turun terhadap nilai.
+  // Indikator biasa: skor naik saat nilai naik → kejar batas atas band.
+  // Indikator terbalik (Repeat Roll, NPL, dsb.): skor naik saat nilai
+  // turun → kejar batas bawah band. Band datar (skor sama) tidak punya
+  // target berikutnya di dalam dirinya.
+  if (kini.poinMax > kini.poinMin) {
+    if (kini.max === null) return null; // sudah di band teratas terbuka
+    return { ambang: kini.max, poin: kini.poinMax };
   }
-  // Sudah di pita teratas (tak berbatas atas) → tidak ada lagi target.
-  if (kini.max === null) return null;
-  return { ambang: kini.max, poin: kini.poinMax };
+  if (kini.poinMin > kini.poinMax) {
+    if (kini.min === null) return null; // sudah di band terbaik (terbuka bawah)
+    return { ambang: kini.min, poin: kini.poinMin };
+  }
+  return null;
 }
 
 /**

@@ -340,7 +340,12 @@ export async function karyawanCabang(periode: string, cabang: string) {
         WHERE periode = $1 AND COALESCE(UPPER(TRIM(cabang)),'(TANPA CABANG)') = $2
         ORDER BY nik, skor_kpi ASC NULLS LAST)
      SELECT k.nik, COALESCE(u.nama, k.nama_file) AS nama,
-            COALESCE(u.jabatan, k.jabatan_file) AS jabatan,
+            -- Jabatan diutamakan dari snapshot periode (jabatan_file), bukan
+            -- dari jabatan terkini pengguna. Kalau seseorang pindah jabatan
+            -- bulan berikutnya, periode lama harus tetap menampilkan jabatan
+            -- yang berlaku saat itu — bukan yang sekarang. Jabatan terkini
+            -- hanya dipakai bila baris lama tak menyimpannya.
+            COALESCE(k.jabatan_file, u.jabatan) AS jabatan,
             (u.nik IS NULL) AS tanpa_akun,
             COALESCE(s.skor,0) AS skor, COALESCE(i.insentif,0) AS insentif, l.indikator AS terlemah
        FROM (SELECT DISTINCT ON (nik) nik, nama AS nama_file, jabatan AS jabatan_file

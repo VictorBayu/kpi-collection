@@ -32,8 +32,18 @@ export default async function DetailKpi({
   const aktif = daftar.find((p) => toISODate(p.periode) === sp.periode) ?? daftar[0];
   const periode = aktif ? toISODate(aktif.periode) : "";
 
+  // Jabatan diambil dari snapshot periode (baris KPI bulan itu) lebih dulu,
+  // supaya periode lama menampilkan jabatan yang berlaku saat itu meski
+  // orangnya sudah pindah jabatan. Jabatan terkini pengguna hanya jadi
+  // cadangan bila baris periode itu tak menyimpannya.
   const [orang] = await q<any>(
-    `SELECT nama, cabang, area, jabatan FROM app_user WHERE nik = $1`, [nik]);
+    `SELECT u.nama, u.cabang, u.area,
+            COALESCE(
+              (SELECT jabatan FROM v_kpi_aktif
+                WHERE nik = $1 AND periode = $2 AND jabatan IS NOT NULL
+                LIMIT 1),
+              u.jabatan) AS jabatan
+       FROM app_user u WHERE u.nik = $1`, [nik, periode]);
   const [ind, ins, ring] = await Promise.all([
     indikatorNik(nik, periode),
     insentifKaryawan(nik, periode),
