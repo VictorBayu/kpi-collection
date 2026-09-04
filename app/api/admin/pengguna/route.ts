@@ -5,10 +5,20 @@ export const runtime = "nodejs";
 // Selalu dijalankan saat ada permintaan, tidak pernah dibekukan saat build.
 export const dynamic = "force-dynamic";
 
-const PERAN_SAH = ["karyawan", "atasan", "admin"] as const;
+/**
+ * Peran sah dibaca dari database, bukan ditulis di kode.
+ *
+ * Sejak peran bisa dikelola admin (schema-peran-v12), daftar tetap di sini
+ * akan menolak peran baru yang baru saja dibuat lewat layar Peran & Hak
+ * Akses — kegagalan yang membingungkan karena perannya jelas-jelas ada.
+ */
+async function peranSah(): Promise<Set<string>> {
+  const rows = await q<{ kode: string }>(`SELECT kode FROM peran WHERE aktif`);
+  return new Set(rows.map((r) => r.kode));
+}
 
 /** Membersihkan dan memeriksa isian form pengguna. */
-function bacaForm(b: any, wajibPassword: boolean) {
+function bacaForm(b: any, wajibPassword: boolean, sah: Set<string>) {
   const nik = String(b.nik ?? "").trim();
   const nama = String(b.nama ?? "").trim();
   const peran = String(b.peran ?? "karyawan");
@@ -18,7 +28,7 @@ function bacaForm(b: any, wajibPassword: boolean) {
     throw new HttpError(400, "NIK harus berupa angka 4–16 digit.");
   }
   if (nama.length < 2) throw new HttpError(400, "Nama belum diisi.");
-  if (!PERAN_SAH.includes(peran as any)) throw new HttpError(400, "Peran tidak dikenal.");
+  if (!sah.has(peran)) throw new HttpError(400, `Peran "${peran}" tidak dikenal.`);
   if (wajibPassword && password.length < 8) {
     throw new HttpError(400, "Password minimal 8 karakter.");
   }
@@ -236,7 +246,7 @@ export const GET = handler(async (req) => {
 /** Tambah pengguna baru. */
 export const POST = handler(async (req) => {
   const admin = await requireAdmin();
-  const f = bacaForm(await req.json(), true);
+  const f = bacaForm(await req.json(), true, await peranSah());
 
   const [ada] = await q<{ id: string }>(`SELECT id FROM app_user WHERE nik = $1`, [f.nik]);
   if (ada) throw new HttpError(409, `NIK ${f.nik} sudah terdaftar.`);
@@ -264,7 +274,7 @@ export const PUT = handler(async (req) => {
   const [u] = await q<any>(`SELECT id, nik, nama, peran FROM app_user WHERE id = $1`, [userId]);
   if (!u) throw new HttpError(404, "Pengguna tidak ditemukan.");
 
-  const f = bacaForm(body, false);
+  const f = bacaForm(body, false, await peranSah());
 
   // NIK boleh diubah, tapi tidak boleh bentrok dengan akun lain.
   const [bentrok] = await q<{ id: string }>(

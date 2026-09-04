@@ -53,6 +53,24 @@ export default function PenggunaClient() {
   const [jabatanOpsi, setJabatanOpsi] = useState<
     { nilai: string; label: string; ket?: string; grup?: string }[]>([]);
 
+  // Peran juga dibaca dari master, bukan daftar tetap: peran yang baru
+  // dibuat lewat layar Peran & Hak Akses harus langsung bisa dipilih.
+  const [peranOpsi, setPeranOpsi] = useState<
+    { kode: string; nama: string; keterangan: string | null; menu: number }[]>([]);
+
+  useEffect(() => {
+    fetch("/api/admin/peran", { cache: "no-store" })
+      .then((r) => r.json())
+      .then((d) => setPeranOpsi(
+        (d.peran ?? [])
+          .filter((p: any) => p.aktif)
+          .map((p: any) => ({
+            kode: p.kode, nama: p.nama,
+            keterangan: p.keterangan, menu: (p.menu ?? []).length,
+          }))))
+      .catch(() => {});
+  }, []);
+
   useEffect(() => {
     fetch("/api/admin/hierarki").then((r) => r.json()).then((d) => {
       const urutLevel = ["manager_1","manager_2","manager_3","spv_level_2","spv_level_1","staff","admin"];
@@ -191,7 +209,10 @@ export default function PenggunaClient() {
 
   const fmt = (v: string | null) =>
     v ? new Date(v).toLocaleDateString("id-ID", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" }) : "—";
-  const labelPeran = (p: string) => p === "admin" ? "Admin" : p === "atasan" ? "Atasan" : "Karyawan";
+  // Nama peran dibaca dari master peran; kode yang belum punya nama
+  // ditampilkan apa adanya agar tetap terbaca, bukan jadi "Karyawan" keliru.
+  const labelPeran = (p: string) =>
+    peranOpsi.find((x) => x.kode === p)?.nama ?? p;
 
   return (
     <>
@@ -261,11 +282,10 @@ export default function PenggunaClient() {
                 <Pilih
                   nilai={form.peran}
                   onPilih={(v) => setForm({ ...form, peran: v })}
-                  opsi={[
-                    { nilai: "karyawan", label: "Karyawan", ket: "dasbor sendiri" },
-                    { nilai: "atasan",   label: "Atasan",   ket: "+ menu Tim Saya" },
-                    { nilai: "admin",    label: "Admin",    ket: "akses penuh" },
-                  ]}
+                  opsi={peranOpsi.map((p) => ({
+                    nilai: p.kode, label: p.nama,
+                    ket: p.keterangan ?? `${p.menu} menu`,
+                  }))}
                 />
               </label>
               <label className="field">

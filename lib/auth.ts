@@ -11,8 +11,27 @@ export type Session = {
   sub: string;      // app_user.id
   nik: string;
   nama: string;
-  peran: "karyawan" | "atasan" | "admin";
+  /**
+   * Kode peran. Sejak peran bisa dikelola admin (schema-peran-v12), ini
+   * tidak lagi terbatas pada tiga nilai tetap — nilainya merujuk
+   * peran.kode di database.
+   */
+  peran: string;
+  /**
+   * Kode menu yang boleh dibuka, disalin ke token saat login. Ditaruh di
+   * token supaya navigasi dan middleware tidak perlu memanggil database
+   * pada tiap permintaan. Konsekuensinya: perubahan hak akses berlaku
+   * setelah pengguna login ulang (paling lama 8 jam, sesuai masa token).
+   */
+  menu?: string[];
 };
+
+/** Kode menu yang boleh dibuka satu peran, dibaca dari database. */
+export async function menuPeran(peran: string): Promise<string[]> {
+  const rows = await q<{ menu_kode: string }>(
+    `SELECT menu_kode FROM peran_menu WHERE peran_kode = $1`, [peran]);
+  return rows.map((r) => r.menu_kode);
+}
 
 export async function signSession(s: Session) {
   return new SignJWT({ ...s })
@@ -38,6 +57,25 @@ export async function requireAdmin(): Promise<Session> {
   const s = await readSession();
   if (!s) throw new HttpError(401, "Sesi berakhir. Masuk kembali untuk melanjutkan.");
   if (s.peran !== "admin") throw new HttpError(403, "Halaman ini hanya untuk admin data.");
+  return s;
+}
+
+/**
+ * Menjaga halaman/endpoint berdasarkan kode menu, bukan nama peran.
+ *
+ * Dipakai untuk halaman yang kini boleh dibuka lebih dari satu peran
+ * (mis. Dashboard analitik oleh manager dan manajemen HO). Peran 'admin'
+ * selalu lolos supaya salah konfigurasi tidak pernah mengunci admin
+ * keluar dari layar pengaturannya sendiri.
+ */
+export async function requireMenu(kode: string): Promise<Session> {
+  const s = await readSession();
+  if (!s) throw new HttpError(401, "Sesi berakhir. Masuk kembali untuk melanjutkan.");
+  if (s.peran === "admin") return s;
+  const { menuSesi } = await import("./menu");
+  if (!menuSesi(s.peran, s.menu).includes(kode)) {
+    throw new HttpError(403, "Anda tidak punya akses ke halaman ini.");
+  }
   return s;
 }
 

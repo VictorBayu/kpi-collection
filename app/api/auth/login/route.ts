@@ -1,5 +1,6 @@
 import { cookies } from "next/headers";
-import { verifyLogin, signSession, handler, HttpError, COOKIE } from "@/lib/auth";
+import { verifyLogin, signSession, handler, HttpError, COOKIE, menuPeran } from "@/lib/auth";
+import { menuSesi, berandaUntuk } from "@/lib/menu";
 import { auditLog } from "@/lib/db";
 
 export const runtime = "nodejs";
@@ -18,7 +19,13 @@ export const POST = handler(async (req) => {
     throw new HttpError(403, "Akun Anda sedang dinonaktifkan. Hubungi admin data untuk mengaktifkannya kembali.");
   }
 
-  const token = await signSession({ sub: u.id, nik: u.nik, nama: u.nama, peran: u.peran });
+  // Hak menu disalin ke token saat login supaya navigasi dan middleware
+  // tidak perlu memanggil database tiap permintaan.
+  const menu = menuSesi(u.peran, await menuPeran(u.peran));
+
+  const token = await signSession({
+    sub: u.id, nik: u.nik, nama: u.nama, peran: u.peran, menu,
+  });
   (await cookies()).set(COOKIE, token, {
     httpOnly: true, secure: process.env.NODE_ENV === "production",
     sameSite: "lax", path: "/", maxAge: 8 * 60 * 60,
@@ -28,7 +35,6 @@ export const POST = handler(async (req) => {
 
   return Response.json({
     ok: true,
-    tujuan: u.must_change_password ? "/ganti-password"
-      : u.peran === "admin" ? "/admin/analitik" : "/dashboard",
+    tujuan: u.must_change_password ? "/ganti-password" : berandaUntuk(menu),
   });
 });

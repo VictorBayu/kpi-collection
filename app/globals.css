@@ -1110,6 +1110,26 @@ td .pilih-ket{display:none}
 .dk-skor.baik{color:var(--good)}
 
 /* ------------------------------------------------------------
+   Peran & hak akses: daftar menu berkelompok dengan kotak centang.
+   Dua kolom di layar lebar supaya seluruh menu terlihat tanpa
+   menggulir — melihat hak akses secara utuh adalah inti layar ini.
+   ------------------------------------------------------------ */
+.peran-menu{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));
+  gap:14px;padding:14px}
+.peran-grup{border:1px solid var(--line);border-radius:10px;overflow:hidden}
+.peran-grup-kepala{display:flex;align-items:center;justify-content:space-between;
+  gap:10px;padding:9px 12px;background:var(--line-soft);border-bottom:1px solid var(--line);
+  font-size:12.5px}
+.peran-baris{display:flex;align-items:flex-start;gap:9px;padding:8px 12px;
+  border-bottom:1px solid var(--line-soft);cursor:pointer}
+.peran-baris:last-child{border-bottom:0}
+.peran-baris:hover{background:var(--line-soft)}
+.peran-baris input{margin-top:2px}
+.peran-baris span{display:flex;flex-direction:column;line-height:1.35}
+.peran-baris b{font-size:13px;font-weight:600}
+.peran-baris i{font-style:normal;font-size:11px}
+
+/* ------------------------------------------------------------
    Rincian harian: aksen warna pembeda per peran + kolom target
    berikutnya + panel pita yang bisa dibuka per baris.
    Warna kiri tiap kelompok memberi isyarat cepat "jenis" indikator

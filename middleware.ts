@@ -1,6 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { jwtVerify } from "jose";
 import { COOKIE } from "./lib/session-const";
+import { menuSesi, bolehBuka, berandaUntuk } from "./lib/menu";
 
 const secret = () => new TextEncoder().encode(process.env.JWT_SECRET!);
 
@@ -11,15 +12,29 @@ export async function middleware(req: NextRequest) {
   if (!token) return redirect(req, "/login");
 
   let peran = "";
+  let menu: string[] | undefined;
   try {
     const { payload } = await jwtVerify(token, secret());
     peran = String(payload.peran ?? "");
+    if (Array.isArray(payload.menu)) menu = payload.menu.map(String);
   } catch {
     return redirect(req, "/login");
   }
 
-  if (url.pathname.startsWith("/admin") && peran !== "admin") {
-    return NextResponse.redirect(new URL("/dashboard", req.url));
+  /**
+   * Penjagaan rute mengikuti hak menu, bukan lagi nama peran.
+   *
+   * Sejak peran bisa dikelola admin, "/admin/*" tidak lagi identik dengan
+   * peran 'admin' — manager dan manajemen HO pun berhak membuka sebagian
+   * halaman di sana. Hak menu ikut dibawa di token, jadi pemeriksaan ini
+   * tetap tanpa panggilan database. Peran 'admin' selalu lolos agar salah
+   * konfigurasi tidak pernah mengunci admin keluar.
+   */
+  if (peran !== "admin") {
+    const izin = menuSesi(peran, menu);
+    if (!bolehBuka(url.pathname, izin)) {
+      return NextResponse.redirect(new URL(berandaUntuk(izin), req.url));
+    }
   }
 
   /**
