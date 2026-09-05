@@ -66,6 +66,7 @@ const kartuKosong = (pertama: boolean): Komponen => ({
   agregat: "SUM", kolom: null,
   operator_sebelum: pertama ? null : "/",
   gabung_syarat: "dan", syarat: [],
+  pengakuan_kolom: null, pengakuan: [],
 });
 
 const angkaStr = (v: any) => (v === null || v === undefined ? "" : String(v));
@@ -463,7 +464,12 @@ export default function IndikatorClient() {
    */
   useEffect(() => {
     const perlu = new Set<string>();
-    for (const k of komponen) for (const s of k.syarat) if (s.kolom) perlu.add(s.kolom);
+    for (const k of komponen) {
+      for (const s of k.syarat) if (s.kolom) perlu.add(s.kolom);
+      // Kolom penentu pengakuan juga butuh daftar nilainya, supaya admin
+      // memilih "BTC" dari data alih-alih mengetiknya dan salah huruf.
+      if (k.pengakuan_kolom) perlu.add(k.pengakuan_kolom);
+    }
     const belum = [...perlu].filter((c) => !(c in nilaiUnik));
     if (!belum.length) return;
 
@@ -498,6 +504,10 @@ export default function IndikatorClient() {
         gabung_syarat: k.gabung_syarat,
         syarat: (k.syarat ?? []).map((s: any) => ({
           kolom: s.kolom, operator: s.operator, nilai: s.nilai ?? [],
+        })),
+        pengakuan_kolom: k.pengakuan_kolom ?? null,
+        pengakuan: (k.pengakuan ?? []).map((b: any) => ({
+          nilai: b.nilai, persen: angkaStr(b.persen),
         })),
       })));
       setTarget((j.target ?? []).map((t: any) => ({

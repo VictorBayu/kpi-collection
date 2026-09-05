@@ -81,17 +81,32 @@ async function muatIndikator(): Promise<DefIndikator[]> {
   const ids = def.map((d) => d.id);
 
   const komponen = await q<any>(
-    `SELECT id, indikator_id, urutan, agregat, kolom, operator_sebelum, gabung_syarat
+    `SELECT id, indikator_id, urutan, agregat, kolom, operator_sebelum,
+            gabung_syarat, pengakuan_kolom
        FROM indikator_komponen WHERE indikator_id = ANY($1::uuid[])
       ORDER BY indikator_id, urutan`, [ids]);
 
-  const syarat = komponen.length
-    ? await q<any>(
-        `SELECT komponen_id, kolom, operator, nilai
-           FROM indikator_syarat WHERE komponen_id = ANY($1::uuid[])
-          ORDER BY komponen_id, urutan`,
-        [komponen.map((k) => k.id)])
-    : [];
+  const [syarat, pengakuan] = komponen.length
+    ? await Promise.all([
+        q<any>(
+          `SELECT komponen_id, kolom, operator, nilai
+             FROM indikator_syarat WHERE komponen_id = ANY($1::uuid[])
+            ORDER BY komponen_id, urutan`,
+          [komponen.map((k) => k.id)]),
+        q<any>(
+          `SELECT komponen_id, nilai, persen
+             FROM indikator_pengakuan WHERE komponen_id = ANY($1::uuid[])
+            ORDER BY komponen_id, urutan`,
+          [komponen.map((k) => k.id)]),
+      ])
+    : [[], []];
+
+  const perPengakuan = new Map<string, { nilai: string; persen: number }[]>();
+  for (const b of pengakuan) {
+    const arr = perPengakuan.get(b.komponen_id) ?? [];
+    arr.push({ nilai: b.nilai, persen: Number(b.persen) });
+    perPengakuan.set(b.komponen_id, arr);
+  }
 
   const perKomponen = new Map<string, Syarat[]>();
   for (const s of syarat) {
@@ -109,6 +124,8 @@ async function muatIndikator(): Promise<DefIndikator[]> {
       operator_sebelum: k.operator_sebelum,
       gabung_syarat: k.gabung_syarat,
       syarat: perKomponen.get(k.id) ?? [],
+      pengakuan_kolom: k.pengakuan_kolom,
+      pengakuan: perPengakuan.get(k.id) ?? [],
     });
     perIndikator.set(k.indikator_id, arr);
   }

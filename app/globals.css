@@ -1110,6 +1110,24 @@ td .pilih-ket{display:none}
 .dk-skor.baik{color:var(--good)}
 
 /* ------------------------------------------------------------
+   Bobot pengakuan pada kartu komponen. Dipisah garis atas dan diberi
+   latar lembut supaya terbaca sebagai penyetel atas agregat di atasnya,
+   bukan sebagai syarat penyaring tambahan — dua hal yang kalau tampak
+   sederajat membuat admin salah mengira pengakuan ikut menyaring baris.
+   ------------------------------------------------------------ */
+.akui{margin-top:12px;padding:11px 12px;border-top:1px solid var(--line);
+  background:var(--line-soft);border-radius:0 0 10px 10px}
+.akui-kepala{display:flex;align-items:center;justify-content:space-between;
+  gap:10px;margin-bottom:8px}
+.akui-penentu{display:flex;align-items:center;gap:9px;flex-wrap:wrap;margin-bottom:9px}
+.akui-penentu > div{min-width:210px}
+.akui-baris{display:flex;align-items:center;gap:8px;margin-bottom:6px}
+.akui-baris > div:first-child{flex:1;min-width:150px}
+.akui-persen{display:flex;align-items:center;gap:5px}
+.akui-persen input{width:82px;text-align:right}
+.akui-kaki{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-top:8px}
+
+/* ------------------------------------------------------------
    Peran & hak akses: daftar menu berkelompok dengan kotak centang.
    Dua kolom di layar lebar supaya seluruh menu terlihat tanpa
    menggulir — melihat hak akses secara utuh adalah inti layar ini.

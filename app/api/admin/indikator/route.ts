@@ -61,11 +61,50 @@ function bacaKomponen(raw: any): Komponen[] {
       return { kolom: String(s.kolom), operator, nilai };
     });
 
+    // Bobot pengakuan: nilai → persen. Baris tanpa nilai diabaikan (admin
+    // menambah baris kosong lalu belum mengisinya), tapi persen yang bukan
+    // angka ditolak — lebih baik gagal terang-terangan daripada diam-diam
+    // menghitung nol.
+    const pengakuanKolom = k.pengakuan_kolom ? String(k.pengakuan_kolom) : null;
+    const pengakuan = (Array.isArray(k.pengakuan) ? k.pengakuan : [])
+      .filter((b: any) => b && String(b.nilai ?? "").trim() !== "")
+      .map((b: any) => {
+        const persen = Number(b.persen);
+        if (!Number.isFinite(persen)) {
+          throw new HttpError(400,
+            `Persen pengakuan untuk "${b.nilai}" pada komponen ke-${i + 1} bukan angka.`);
+        }
+        if (persen < 0 || persen > 1000) {
+          throw new HttpError(400,
+            `Persen pengakuan untuk "${b.nilai}" harus antara 0 dan 1000.`);
+        }
+        return { nilai: String(b.nilai).trim(), persen };
+      });
+
+    if (pengakuan.length && !pengakuanKolom) {
+      throw new HttpError(400,
+        `Komponen ke-${i + 1}: bobot pengakuan sudah diisi tapi kolom penentunya belum dipilih.`);
+    }
+    if (pengakuan.length && !["SUM", "AVG"].includes(agregat)) {
+      throw new HttpError(400,
+        `Komponen ke-${i + 1}: bobot pengakuan hanya bisa dipakai pada SUM atau AVG.`);
+    }
+    // Nilai ganda membuat cabang CASE kedua tidak pernah tercapai —
+    // gejalanya angka yang tidak sesuai harapan tanpa pesan galat apa pun.
+    const ganda = pengakuan.map((b: { nilai: string }) => b.nilai)
+      .filter((v: string, idx: number, arr: string[]) => arr.indexOf(v) !== idx);
+    if (ganda.length) {
+      throw new HttpError(400,
+        `Komponen ke-${i + 1}: nilai "${ganda[0]}" didaftarkan lebih dari sekali.`);
+    }
+
     return {
       agregat, kolom,
       operator_sebelum: i === 0 ? null : op,
       gabung_syarat: k.gabung_syarat === "atau" ? "atau" as const : "dan" as const,
       syarat,
+      pengakuan_kolom: pengakuanKolom,
+      pengakuan,
     };
   });
 }
@@ -105,15 +144,22 @@ export const GET = handler(async (req) => {
   if (!def) throw new HttpError(404, "Indikator tidak ditemukan.");
 
   const komponen = await q<any>(
-    `SELECT id, urutan, label, agregat, kolom, operator_sebelum, gabung_syarat
+    `SELECT id, urutan, label, agregat, kolom, operator_sebelum, gabung_syarat,
+            pengakuan_kolom
        FROM indikator_komponen WHERE indikator_id = $1 ORDER BY urutan`, [id]);
 
-  const syarat = komponen.length
-    ? await q<any>(
-        `SELECT id, komponen_id, urutan, kolom, operator, nilai
-           FROM indikator_syarat WHERE komponen_id = ANY($1::uuid[]) ORDER BY urutan`,
-        [komponen.map((k) => k.id)])
-    : [];
+  const [syarat, pengakuan] = komponen.length
+    ? await Promise.all([
+        q<any>(
+          `SELECT id, komponen_id, urutan, kolom, operator, nilai
+             FROM indikator_syarat WHERE komponen_id = ANY($1::uuid[]) ORDER BY urutan`,
+          [komponen.map((k) => k.id)]),
+        q<any>(
+          `SELECT id, komponen_id, urutan, nilai, persen
+             FROM indikator_pengakuan WHERE komponen_id = ANY($1::uuid[]) ORDER BY urutan`,
+          [komponen.map((k) => k.id)]),
+      ])
+    : [[], []];
 
   const target = await q<any>(
     `SELECT id, alias, produk, peran, jenis_nilai, nilai_efek, pemilih_id,
@@ -149,7 +195,11 @@ export const GET = handler(async (req) => {
   return Response.json({
     def,
     komponen: komponen.map((k) => ({
-      ...k, syarat: syarat.filter((s) => s.komponen_id === k.id),
+      ...k,
+      syarat: syarat.filter((s) => s.komponen_id === k.id),
+      pengakuan: pengakuan
+        .filter((b) => b.komponen_id === k.id)
+        .map((b) => ({ nilai: b.nilai, persen: Number(b.persen) })),
     })),
     target: target.map((t) => ({
       ...t,
@@ -206,10 +256,12 @@ export const POST = handler(async (req) => {
     const k = komponen[i];
     const [kb] = await q<any>(
       `INSERT INTO indikator_komponen
-         (indikator_id, urutan, label, agregat, kolom, operator_sebelum, gabung_syarat)
-       VALUES ($1,$2,$3,$4,$5,$6,$7) RETURNING id`,
+         (indikator_id, urutan, label, agregat, kolom, operator_sebelum,
+          gabung_syarat, pengakuan_kolom)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8) RETURNING id`,
       [id, i, b.komponen[i]?.label ?? null, k.agregat, k.kolom,
-       k.operator_sebelum, k.gabung_syarat]);
+       k.operator_sebelum, k.gabung_syarat,
+       k.pengakuan?.length ? k.pengakuan_kolom : null]);
 
     for (let j = 0; j < k.syarat.length; j++) {
       const s = k.syarat[j];
@@ -217,6 +269,14 @@ export const POST = handler(async (req) => {
         `INSERT INTO indikator_syarat (komponen_id, urutan, kolom, operator, nilai)
          VALUES ($1,$2,$3,$4,$5)`,
         [kb.id, j, s.kolom, s.operator, s.nilai]);
+    }
+
+    for (let j = 0; j < (k.pengakuan?.length ?? 0); j++) {
+      const bb = k.pengakuan![j];
+      await q(
+        `INSERT INTO indikator_pengakuan (komponen_id, urutan, nilai, persen)
+         VALUES ($1,$2,$3,$4)`,
+        [kb.id, j, bb.nilai, bb.persen]);
     }
   }
 

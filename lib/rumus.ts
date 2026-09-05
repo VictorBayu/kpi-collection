@@ -22,12 +22,21 @@ export type Syarat = {
   nilai: string[];
 };
 
+/** Satu pasangan nilai → persen pengakuan, mis. { nilai: "BTC", persen: 50 }. */
+export type Pengakuan = {
+  nilai: string;
+  persen: number;
+};
+
 export type Komponen = {
   agregat: string;
   kolom: string | null;
   operator_sebelum: string | null;
   gabung_syarat: "dan" | "atau";
   syarat: Syarat[];
+  /** Kolom penentu bobot pengakuan (mis. od_movement). Kosong = diakui penuh. */
+  pengakuan_kolom?: string | null;
+  pengakuan?: Pengakuan[];
 };
 
 export type Rumus = {
@@ -116,7 +125,38 @@ function potonganKomponen(
   }
 
   const kolomSql = k.kolom ? kolomSah(k.kolom) : "";
-  let ekspresi = buat(kolomSql);
+
+  /**
+   * Bobot pengakuan: kolom yang diagregasi dikalikan persen yang bergantung
+   * pada nilai kolom penentu. Nilai dan persennya tetap lewat parameter —
+   * aturan "tidak pernah menempel masukan pengguna ke SQL" berlaku sama di
+   * sini. Nilai yang tidak terdaftar jatuh ke ELSE 0: menambah nilai baru
+   * di data sumber tidak boleh diam-diam ikut terhitung penuh.
+   */
+  let diagregasi = kolomSql;
+  const bobot = k.pengakuan ?? [];
+  if (k.pengakuan_kolom && bobot.length) {
+    if (!["SUM", "AVG"].includes(k.agregat)) {
+      throw new RumusSalah(
+        `Bobot pengakuan hanya bisa dipakai pada SUM atau AVG, bukan ${k.agregat}.`);
+    }
+    if (!k.kolom) throw new RumusSalah("Bobot pengakuan butuh kolom sumber.");
+
+    const penentu = kolomSah(k.pengakuan_kolom);
+    const cabang = bobot.map((b) => {
+      if (!Number.isFinite(b.persen)) {
+        throw new RumusSalah(`Persen pengakuan untuk "${b.nilai}" bukan angka.`);
+      }
+      params.push(b.nilai);
+      const pNilai = `$${params.length}`;
+      params.push(b.persen / 100);
+      const pPersen = `$${params.length}`;
+      return `WHEN ${penentu}::text = ${pNilai} THEN ${pPersen}::numeric`;
+    });
+    diagregasi = `(${kolomSql} * (CASE ${cabang.join(" ")} ELSE 0 END))`;
+  }
+
+  let ekspresi = buat(diagregasi);
 
   if (k.syarat.length) {
     const bagian = k.syarat.map((s) => potonganSyarat(s, kolomSah(s.kolom), params));
@@ -172,11 +212,17 @@ export function susunRumus(
 export function bacaRumus(r: Rumus, labelKolom: (k: string) => string): string {
   const bagian = r.komponen.map((k, i) => {
     const inti = k.kolom ? `${k.agregat} ${labelKolom(k.kolom)}` : "COUNT baris";
+    // Bobot pengakuan ikut ditulis supaya angka ganjil bisa ditelusuri
+    // sampai ke persen yang menyebabkannya, bukan berhenti di nama kolom.
+    const akui = k.pengakuan_kolom && k.pengakuan?.length
+      ? ` {diakui menurut ${labelKolom(k.pengakuan_kolom)}: ` +
+        k.pengakuan.map((b) => `${b.nilai} ${b.persen}%`).join(", ") + "}"
+      : "";
     const syarat = k.syarat.length
       ? " [" + k.syarat.map((s) => `${labelKolom(s.kolom)} ${s.operator} ${s.nilai.join("/")}`)
           .join(k.gabung_syarat === "atau" ? " atau " : " dan ") + "]"
       : "";
-    return (i === 0 ? "" : ` ${k.operator_sebelum} `) + inti + syarat;
+    return (i === 0 ? "" : ` ${k.operator_sebelum} `) + inti + akui + syarat;
   });
   return bagian.join("") + (r.kali_seratus ? " × 100%" : "");
 }
