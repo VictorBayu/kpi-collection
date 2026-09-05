@@ -353,7 +353,9 @@ export async function muatKolomKustom(): Promise<KolomKustom[]> {
   try {
     const rows = await q<KolomKustom>(
       `SELECT kolom, jenis, field_api FROM mentah_kolom
-        WHERE NOT bawaan AND aktif
+        WHERE NOT bawaan AND COALESCE(ditarik, true)
+          AND COALESCE(sumber,'api') = 'api'
+          AND NOT COALESCE(turunan, false)
           AND field_api IS NOT NULL AND btrim(field_api) <> ''
         ORDER BY urutan`);
     // Penyaringan ulang di sini bukan berlebihan: nama kolom ditempel ke
@@ -363,6 +365,37 @@ export async function muatKolomKustom(): Promise<KolomKustom[]> {
     // Katalog belum dimigrasi (kolom bawaan/aktif belum ada) — penarikan
     // tetap berjalan dengan kolom inti saja.
     return [];
+  }
+}
+
+/**
+ * Kolom inti yang sengaja TIDAK ditarik.
+ *
+ * Kolom inti disusun sebagai dua larik sejajar (KOLOM dan keluaran
+ * keNilai). Melewati sebagian berarti menyaring keduanya dengan indeks
+ * yang sama — karena itu penyaringannya dikerjakan lewat indeks, bukan
+ * lewat nama, supaya kedua larik dijamin tetap sejajar.
+ *
+ * Kolom kunci tidak pernah boleh dilewati walau admin mematikannya:
+ * tanpa nomor kontrak dan NIK, baris yang tersimpan tidak bisa
+ * dihubungkan ke siapa pun dan seluruh perhitungan ikut kosong.
+ */
+const KUNCI_WAJIB = new Set([
+  "branch_id", "agreement_no", "product",
+  "nik_staff", "nik_spv", "nik_bch", "staff_pic", "spv_pic", "bch_pic",
+]);
+
+export async function indeksKolomInti(): Promise<number[]> {
+  try {
+    const mati = await q<{ kolom: string }>(
+      `SELECT kolom FROM mentah_kolom
+        WHERE bawaan AND NOT COALESCE(ditarik, true)`);
+    const lewati = new Set(
+      mati.map((r) => r.kolom).filter((k) => !KUNCI_WAJIB.has(k)));
+    if (!lewati.size) return KOLOM.map((_, i) => i);
+    return KOLOM.map((_, i) => i).filter((i) => !lewati.has(KOLOM[i]));
+  } catch {
+    return KOLOM.map((_, i) => i);
   }
 }
 
@@ -416,10 +449,14 @@ const BARIS_PER_INSERT = 100;
  * sehingga satu perintah membawa banyak baris. Nilainya tetap lewat
  * parameter, tidak pernah ditempel ke teks SQL.
  */
-async function sisipkan(baris: Baris[], branchId: string, kustom: KolomKustom[] = []) {
+async function sisipkan(
+  baris: Baris[], branchId: string,
+  kustom: KolomKustom[] = [], indeksInti?: number[],
+) {
   if (!baris.length) return 0;
 
-  const semuaKolom = [...KOLOM, ...kustom.map((k) => k.kolom)];
+  const idx = indeksInti ?? KOLOM.map((_, i) => i);
+  const semuaKolom = [...idx.map((i) => KOLOM[i]), ...kustom.map((k) => k.kolom)];
 
   // Ambil yang terkecil antara batas parameter Postgres (65535) dan batas
   // ukuran badan permintaan Neon. Yang kedua hampir selalu yang mengikat.
@@ -433,7 +470,8 @@ async function sisipkan(baris: Baris[], branchId: string, kustom: KolomKustom[] 
     const tuple: string[] = [];
 
     for (const r of grup) {
-      const nilai = [...keNilai(r, branchId), ...kustom.map((k) => nilaiKustom(r, k))];
+      const inti = keNilai(r, branchId);
+      const nilai = [...idx.map((i) => inti[i]), ...kustom.map((k) => nilaiKustom(r, k))];
       const dasar = params.length;
       tuple.push("(" + nilai.map((_, k) => `$${dasar + k + 1}`).join(",") + ")");
       params.push(...nilai);
@@ -474,6 +512,7 @@ export async function tarikSemua(
   // Dibaca sekali di awal, bukan per cabang: daftarnya sama untuk seluruh
   // putaran, dan membacanya 57 kali hanya menambah perjalanan ke database.
   const kustom = await muatKolomKustom();
+  const indeksInti = await indeksKolomInti();
 
   const [riwayat] = await q<{ id: number }>(
     `INSERT INTO tarik_status (tanggal_loc, cabang_diminta, dipicu_oleh)
@@ -536,7 +575,7 @@ export async function tarikSemua(
       const hasil = await Promise.all(
         grup.map(async (bid) => {
           const baris = await ambilCabang(bid, tanggalLoc);
-          return sisipkan(baris, bid, kustom);
+          return sisipkan(baris, bid, kustom, indeksInti);
         }),
       );
       jumlahBaris += hasil.reduce((a, b) => a + b, 0);
@@ -558,7 +597,8 @@ export async function tarikSemua(
     // `sql` itu sendiri — baik templat sql`...` maupun bentuk fungsi biasa
     // sql(teks, params). Metode lain seperti sql.query() menghasilkan
     // promise yang bentuknya berbeda dan ditolak oleh transaction().
-    const kolomPindah = [...KOLOM, ...kustom.map((k) => k.kolom), "ditarik_pada"].join(",");
+    const kolomPindah = [...indeksInti.map((i) => KOLOM[i]),
+                         ...kustom.map((k) => k.kolom), "ditarik_pada"].join(",");
     await sql.transaction([
       sql`TRUNCATE data_mentah`,
       sql(`INSERT INTO data_mentah (${kolomPindah}) SELECT ${kolomPindah} FROM data_mentah_staging`),

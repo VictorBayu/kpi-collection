@@ -205,7 +205,8 @@ export async function hitungTurunan(t: Turunan): Promise<number> {
     ? `UPDATE data_mentah dm
           SET "${t.kolom}" = (${ekspresi})${tipe}
          FROM data_mentah src
-         LEFT JOIN data_pendukung dp ON dp.agreement_no = src.agreement_no
+         LEFT JOIN data_pendukung dp
+           ON dp.agreement_no = src.agreement_no AND COALESCE(dp.aktif, true)
         WHERE src.id = dm.id`
     : `UPDATE data_mentah dm SET "${t.kolom}" = (${ekspresi})${tipe}`;
 

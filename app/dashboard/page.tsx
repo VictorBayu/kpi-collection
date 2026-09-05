@@ -91,9 +91,35 @@ async function IsiDasbor({
    * pribadi TAPI punya bawahan. Dengan begitu aturan ini tetap benar
    * kalau suatu saat ada jabatan baru dengan sifat serupa.
    */
+  /**
+   * Dasbor saya hanya menjawab satu pertanyaan: bagaimana KPI SAYA.
+   *
+   * Sebelumnya, atasan yang tidak punya indikator sendiri di sini justru
+   * disuguhi ringkasan timnya — termasuk daftar "paling perlu perhatian".
+   * Itu menempatkan informasi tentang orang lain di halaman yang judulnya
+   * tentang diri sendiri, dan menduplikasi Dashboard Tim yang memang
+   * dibuat untuk itu. Sekarang halaman ini mengarahkan ke sana alih-alih
+   * menirunya.
+   */
   if (!ind.length && peran !== "karyawan") {
     const unit = await ringkasanUnit(nik, periode);
-    if (unit.orang > 0) return <DasborUnit u={unit} periode={periode} />;
+    if (unit.orang > 0) {
+      return (
+        <main className="shell">
+          <div className="card card-pad narrow mt">
+            <h2>Anda belum punya indikator sendiri</h2>
+            <p className="muted">
+              Jabatan Anda tidak dinilai lewat indikator pribadi pada periode{" "}
+              {namaPeriode(periode)}. Pencapaian yang Anda pimpin ada di dasbor tim.
+            </p>
+            <p className="mt" style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+              <Link className="btn" href="/tim/dashboard">Ke Dashboard Tim</Link>
+              <Link className="btn ghost" href="/tim">Tim saya</Link>
+            </p>
+          </div>
+        </main>
+      );
+    }
   }
 
   if (!ind.length) return <KosongPeriode periode={periode} />;

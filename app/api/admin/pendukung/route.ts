@@ -55,16 +55,99 @@ const tanggal = (v: any): string | null => {
   return /^\d{4}-\d{2}-\d{2}/.test(s) ? s.slice(0, 10) : null;
 };
 
-export const GET = handler(async () => {
+const PER_HAL = 5;
+
+export const GET = handler(async (req) => {
   await requireAdmin();
-  const [kolom, riwayat, ringkas] = await Promise.all([
-    kolomPendukung(),
+  const url = new URL(req.url);
+  const hal = Math.max(0, Number(url.searchParams.get("hal") ?? 0) || 0);
+  const cari = (url.searchParams.get("cari") ?? "").trim();
+  const saring = url.searchParams.get("saring") ?? "";
+
+  const kolom = await kolomPendukung();
+
+  // Kolom nilai ikut dikirim apa adanya supaya layar bisa menampilkan
+  // isinya tanpa perlu tahu di muka kolom apa saja yang terdaftar —
+  // daftarnya memang berubah sesuai yang didaftarkan admin.
+  const pilihKolom = kolom.map((k) => `"${k.kolom}"`).join(",");
+  const syarat: string[] = [];
+  const params: any[] = [];
+
+  if (cari) {
+    params.push(`%${cari}%`);
+    syarat.push(`agreement_no ILIKE $${params.length}`);
+  }
+  if (saring === "aktif") syarat.push("COALESCE(aktif,true)");
+  if (saring === "nonaktif") syarat.push("NOT COALESCE(aktif,true)");
+  const where = syarat.length ? `WHERE ${syarat.join(" AND ")}` : "";
+
+  const [baris, jml, riwayat, ringkas] = await Promise.all([
+    q<any>(
+      `SELECT id, agreement_no, COALESCE(aktif,true) AS aktif, catatan,
+              ditarik_pada${pilihKolom ? "," + pilihKolom : ""}
+         FROM data_pendukung ${where}
+        ORDER BY ditarik_pada DESC, id DESC
+        LIMIT ${PER_HAL} OFFSET ${hal * PER_HAL}`, params),
+    q<any>(`SELECT COUNT(*)::int AS n FROM data_pendukung ${where}`, params),
     q<any>(`SELECT id, nama_file, kolom_diisi, baris_masuk, baris_tolak, dibuat_pada
-              FROM pendukung_unggah ORDER BY dibuat_pada DESC LIMIT 15`),
-    q<any>(`SELECT COUNT(*)::int AS baris, MAX(ditarik_pada) AS terakhir
+              FROM pendukung_unggah ORDER BY dibuat_pada DESC LIMIT 5`),
+    q<any>(`SELECT COUNT(*)::int AS baris,
+                   COUNT(*) FILTER (WHERE COALESCE(aktif,true))::int AS aktif,
+                   MAX(ditarik_pada) AS terakhir
               FROM data_pendukung`),
   ]);
-  return Response.json({ kolom, riwayat, ringkas: ringkas[0] ?? {} });
+
+  return Response.json({
+    kolom, baris, riwayat,
+    total: jml[0]?.n ?? 0, perHal: PER_HAL,
+    ringkas: ringkas[0] ?? {},
+  });
+});
+
+/** Ubah satu baris: status pakai/tidak, catatan, dan nilai kolomnya. */
+export const PUT = handler(async (req) => {
+  const admin = await requireAdmin();
+  const b = await req.json();
+  const id = Number(b.id);
+  if (!Number.isFinite(id)) throw new HttpError(400, "Baris tidak dikenal.");
+
+  const kolom = await kolomPendukung();
+  const set: string[] = ["aktif = $2", "catatan = $3", "diperbarui = now()"];
+  const params: any[] = [id, b.aktif !== false,
+    b.catatan ? String(b.catatan).trim() : null];
+
+  // Hanya kolom yang benar-benar terdaftar yang boleh disentuh; nama
+  // kolomnya ditempel ke SQL, jadi ia diambil dari katalog — tidak pernah
+  // dari kunci yang dikirim layar.
+  for (const k of kolom) {
+    if (!(k.kolom in (b.nilai ?? {}))) continue;
+    const v = b.nilai[k.kolom];
+    params.push(v === "" || v === null || v === undefined ? null : v);
+    set.push(`"${k.kolom}" = $${params.length}${k.jenis === "angka" ? "::numeric" : ""}`);
+  }
+
+  await q(`UPDATE data_pendukung SET ${set.join(", ")} WHERE id = $1`, params);
+  await auditLog(admin.sub, "pendukung.ubah", String(id));
+  return Response.json({ ok: true });
+});
+
+export const DELETE = handler(async (req) => {
+  const admin = await requireAdmin();
+  const url = new URL(req.url);
+
+  // Membersihkan seluruh isi sekaligus — dipakai saat berkas yang salah
+  // terlanjur diunggah dan lebih cepat memulai dari kosong.
+  if (url.searchParams.get("semua") === "1") {
+    const hasil = await q<{ id: number }>(`DELETE FROM data_pendukung RETURNING id`);
+    await auditLog(admin.sub, "pendukung.kosongkan", undefined, { dihapus: hasil.length });
+    return Response.json({ ok: true, dihapus: hasil.length });
+  }
+
+  const id = Number(url.searchParams.get("id"));
+  if (!Number.isFinite(id)) throw new HttpError(400, "Baris tidak dikenal.");
+  await q(`DELETE FROM data_pendukung WHERE id = $1`, [id]);
+  await auditLog(admin.sub, "pendukung.hapus", String(id));
+  return Response.json({ ok: true });
 });
 
 export const POST = handler(async (req) => {

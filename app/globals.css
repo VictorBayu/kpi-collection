@@ -1109,6 +1109,41 @@ td .pilih-ket{display:none}
 .dk-skor.bahaya{color:var(--bad)}
 .dk-skor.baik{color:var(--good)}
 
+/* ------------------------------------------------------------
+   Cadangan ruang untuk panel yang terisi setelah data datang.
+
+   Sebagian besar CLS di aplikasi ini bukan berasal dari gambar, melainkan
+   dari daftar yang awalnya kosong lalu tiba-tiba tinggi begitu fetch
+   selesai — seluruh isi di bawahnya ikut melompat. Mencadangkan tinggi
+   minimum membuat pergeseran itu tidak pernah terjadi; ongkosnya hanya
+   sedikit ruang kosong pada daftar yang memang pendek.
+   ------------------------------------------------------------ */
+.ind-daftar{min-height:320px}
+.ind-utama{min-height:420px}
+.cabang-scroll{min-height:360px}
+.thread{min-height:220px}
+.peran-menu{min-height:280px}
+.dropzone-wrap,.tickets{min-height:240px}
+/* Tabel di dalam kartu: menahan tinggi kepala + beberapa baris pertama
+   supaya kartu tidak tumbuh dari nol saat baris pertama muncul. */
+.card > table{min-height:120px}
+
+/* Area seret-lepas berkas. */
+.dropzone{display:flex;flex-direction:column;align-items:center;justify-content:center;
+  gap:5px;padding:26px 18px;border:1.5px dashed var(--line);border-radius:12px;
+  background:var(--line-soft);cursor:pointer;text-align:center;
+  transition:border-color .12s,background .12s}
+.dropzone:hover{border-color:var(--accent)}
+.dropzone.aktif{border-color:var(--accent);background:var(--accent-soft)}
+.dropzone.terisi{border-style:solid;border-color:var(--accent);background:var(--accent-soft)}
+
+/* Bilah paging di kaki tabel. */
+.paging{display:flex;align-items:center;justify-content:space-between;gap:12px;
+  padding:11px 14px;border-top:1px solid var(--line);flex-wrap:wrap}
+
+.tag-ok{display:inline-block;margin-left:6px;padding:1px 8px;border-radius:20px;
+  font-size:10.5px;font-weight:600;background:var(--good-soft);color:var(--good)}
+
 /* Lampiran gambar pada tiket Supporting. Pratinjau dibatasi tingginya
    supaya satu tangkapan layar panjang tidak mendorong percakapan sampai
    harus digulir jauh — klik untuk melihat ukuran penuh. */

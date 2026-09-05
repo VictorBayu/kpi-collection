@@ -34,7 +34,23 @@ export default async function AdminKpi({
   const aktif = daftar.find((p) => toISODate(p.periode) === sp.periode) ?? daftar[0];
   const periode = toISODate(aktif.periode);
 
-  const cabang = await cabangPeriode(periode);
+  /**
+   * Daftar cabang dan daftar karyawan diminta BERSAMAAN, bukan berurutan.
+   *
+   * Keduanya hanya bergantung pada periode, jadi tidak ada alasan yang
+   * kedua menunggu yang pertama selesai. Lewat driver serverless tiap
+   * kueri menanggung satu perjalanan jaringan sendiri, sehingga menunggu
+   * berurutan menambah waktu tunggu tanpa menambah apa pun.
+   *
+   * Cabang yang dibuka ditentukan sebelum kueri dijalankan: kalau alamat
+   * tidak menyebut cabang, yang dipakai adalah cabang pertama menurut
+   * urutan yang sama dengan daftar di layar.
+   */
+  const cabangAwal = sp.cabang || null;
+  const [cabang, karyawanAwal] = await Promise.all([
+    cabangPeriode(periode),
+    cabangAwal ? karyawanCabang(periode, cabangAwal) : Promise.resolve(null),
+  ]);
 
   /**
    * Kelompokkan per area, cabang berurut abjad di dalam tiap area.
@@ -57,8 +73,9 @@ export default async function AdminKpi({
       (a.area === "(TANPA AREA)" ? 1 : 0) - (b.area === "(TANPA AREA)" ? 1 : 0) ||
       a.area.localeCompare(b.area, "id"));
 
-  const cabangDipilih = sp.cabang || (perArea[0]?.cabang[0]?.cabang ?? "");
-  const karyawan = cabangDipilih ? await karyawanCabang(periode, cabangDipilih) : [];
+  const cabangDipilih = cabangAwal || (perArea[0]?.cabang[0]?.cabang ?? "");
+  const karyawan = karyawanAwal
+    ?? (cabangDipilih ? await karyawanCabang(periode, cabangDipilih) : []);
 
   return (
     <AppShell>

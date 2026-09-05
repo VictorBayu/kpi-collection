@@ -97,7 +97,7 @@ async function muatKatalog() {
  * Hilangnya baris jauh lebih sulit disadari daripada angka yang kosong.
  */
 const JOIN_PENDUKUNG =
-  ` LEFT JOIN data_pendukung dp ON dp.agreement_no = dm.agreement_no`;
+  ` LEFT JOIN data_pendukung dp\n       ON dp.agreement_no = dm.agreement_no AND COALESCE(dp.aktif, true)`;
 
 /** Seluruh definisi indikator aktif beserta komponen dan syaratnya. */
 async function muatIndikator(): Promise<DefIndikator[]> {

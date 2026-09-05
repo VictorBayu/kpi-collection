@@ -57,7 +57,9 @@ export const GET = handler(async () => {
   const [kolom, dipakai] = await Promise.all([
     q<any>(`SELECT kolom, label, jenis, agregat, kelompok, urutan,
                    field_api, bawaan, aktif, keterangan,
-                   COALESCE(sumber,'api') AS sumber
+                   COALESCE(sumber,'api') AS sumber,
+                   COALESCE(ditarik,true) AS ditarik,
+                   COALESCE(turunan,false) AS turunan
               FROM mentah_kolom ORDER BY sumber, urutan, label`),
     q<any>(
       `SELECT kolom, COUNT(*)::int AS jml FROM (
@@ -115,14 +117,14 @@ export const POST = handler(async (req) => {
   await q(
     `INSERT INTO mentah_kolom
        (kolom, label, jenis, agregat, kelompok, urutan, field_api, keterangan,
-        bawaan, aktif, sumber)
-     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,false,true,$9)`,
+        bawaan, aktif, sumber, ditarik)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,false,true,$9,$10)`,
     [kolom, label, jenis,
      b.agregat === true, b.kelompok ? String(b.kelompok).trim() : null,
      Number.isFinite(Number(b.urutan)) ? Number(b.urutan) : 900,
      b.field_api ? String(b.field_api).trim() : null,
      b.keterangan ? String(b.keterangan).trim() : null,
-     sumber]);
+     sumber, b.ditarik !== false]);
 
   await auditLog(admin.sub, "kolom_api.tambah", kolom, { jenis, sumber });
   return Response.json({ ok: true, kolom });
@@ -162,7 +164,7 @@ export const PUT = handler(async (req) => {
   await q(
     `UPDATE mentah_kolom
         SET label=$2, jenis=$3, agregat=$4, kelompok=$5, urutan=$6,
-            field_api=$7, keterangan=$8, aktif=$9
+            field_api=$7, keterangan=$8, aktif=$9, ditarik=$10
       WHERE kolom=$1`,
     [kolom, label, jenis, b.agregat === true,
      b.kelompok ? String(b.kelompok).trim() : null,
@@ -170,7 +172,7 @@ export const PUT = handler(async (req) => {
      k.bawaan ? (b.field_api ? String(b.field_api).trim() : null)
               : (b.field_api ? String(b.field_api).trim() : null),
      b.keterangan ? String(b.keterangan).trim() : null,
-     b.aktif !== false]);
+     b.aktif !== false, b.ditarik !== false]);
 
   await auditLog(admin.sub, "kolom_api.ubah", kolom);
   return Response.json({ ok: true });

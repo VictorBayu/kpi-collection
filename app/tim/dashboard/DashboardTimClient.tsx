@@ -9,7 +9,14 @@ type Ringkas = {
   anggota: number; dinilai: number; skorRata: number | null;
   bawah: number; baik: number; insentif: number;
 };
-type Cabang = { cabang: string; orang: number; skor: number | null; bawah: number };
+type Radar = {
+  indikator: string[];
+  anggota: { nik: string; nama: string; nilai: Record<string, number> }[];
+};
+type Perhatian = {
+  nik: string; nama: string; jabatan: string | null; cabang: string | null;
+  skor: number | null; terlemah: string | null; skorTerlemah: number | null;
+};
 type Sebaran = { pita: number; orang: number; cabang: string };
 type Indikator = { indikator: string; skor: number | null; orang: number; bawah: number };
 type Tren = { periode: string; skor: number | null; orang: number };
@@ -24,12 +31,17 @@ type Tren = { periode: string; skor: number | null; orang: number };
  * siapa yang sedang di bawah.
  */
 export default function DashboardTimClient({
-  periode, daftarPeriode, ringkas, cabang, sebaran, indikator, tren,
+  periode, daftarPeriode, ringkas, sebaran, indikator, tren, radar, perhatian,
 }: {
   periode: string; daftarPeriode: string[];
-  ringkas: Ringkas; cabang: Cabang[]; sebaran: Sebaran[];
-  indikator: Indikator[]; tren: Tren[];
+  ringkas: Ringkas; sebaran: Sebaran[]; indikator: Indikator[];
+  tren: Tren[]; radar: Radar; perhatian: Perhatian[];
 }) {
+  // Warna deret radar diambil dari satu palet tetap dan diulang. Warna acak
+  // membuat orang yang sama berganti warna tiap muat ulang, sehingga
+  // membandingkan dua kunjungan jadi mustahil.
+  const PALET = [0x3550c8, 0x0f7a5a, 0xa45b12, 0xc0332f,
+                 0x7a5bc0, 0x1d7f9e, 0x8a6d1f, 0x4a5768];
   const warnaSkor = (am5: any, s: number | null) =>
     am5.color(s === null ? 0x8891a0 : s >= 4 ? 0x0f7a5a : s < 3 ? 0xc0332f : 0x3550c8);
 
@@ -74,46 +86,75 @@ export default function DashboardTimClient({
 
       <section className="card mb">
         <div className="cardhead">
-          <h3 style={{ fontSize: 14 }}>Skor rata-rata per cabang</h3>
+          <h3 style={{ fontSize: 14 }}>Perbandingan anggota per indikator</h3>
           <p className="muted small">
-            Diurutkan dari tertinggi. Angka dalam kurung: jumlah orang di bawah KPI 3.
+            Delapan anggota dengan skor terendah pada indikator yang paling banyak
+            dinilai. Semakin ke tepi semakin baik; lekukan ke dalam menandai
+            indikator yang tertinggal.
           </p>
         </div>
         <AmChart
-          tinggi={Math.max(260, cabang.length * 38 + 90)}
-          kunci={periode + cabang.length}
-          kosong={!cabang.length}
-          pesanKosong="Belum ada cabang dengan data pada periode ini."
+          tinggi={430}
+          kunci={periode + "radar" + radar.anggota.length}
+          kosong={!radar.anggota.length || radar.indikator.length < 3}
+          pesanKosong="Butuh minimal tiga indikator dinilai untuk menggambar radar."
           gambar={(root, am5) => {
+            const rad = (window as any).am5radar;
             const xy = (window as any).am5xy;
             root.setThemes([(window as any).am5themes_Animated.new(root)]);
+
             const chart = root.container.children.push(
-              xy.XYChart.new(root, { panX: false, panY: false, layout: root.verticalLayout }));
+              rad.RadarChart.new(root, {
+                panX: false, panY: false,
+                innerRadius: am5.percent(22), radius: am5.percent(72),
+              }));
 
-            const yAxis = chart.yAxes.push(xy.CategoryAxis.new(root, {
-              categoryField: "cabang",
-              renderer: xy.AxisRendererY.new(root, { minGridDistance: 18 }),
+            const xAxis = chart.xAxes.push(xy.CategoryAxis.new(root, {
+              categoryField: "indikator",
+              renderer: rad.AxisRendererCircular.new(root, { minGridDistance: 40 }),
             }));
-            yAxis.data.setAll(cabang.map((c) => ({ ...c, tip: "" })));
-
-            const xAxis = chart.xAxes.push(xy.ValueAxis.new(root, {
-              min: 0, max: 5, renderer: xy.AxisRendererX.new(root, {}),
-            }));
-
-            const seri = chart.series.push(xy.ColumnSeries.new(root, {
-              xAxis, yAxis, valueXField: "skor", categoryYField: "cabang",
-            }));
-            seri.columns.template.setAll({
-              height: am5.percent(66), cornerRadiusTR: 4, cornerRadiusBR: 4,
-              tooltipText: "[bold]{cabang}[/]\n{orang} orang · skor {skor}\n{bawah} di bawah KPI 3",
+            xAxis.get("renderer").labels.template.setAll({
+              fontSize: 11, maxWidth: 110, oversizedBehavior: "wrap", textAlign: "center",
             });
-            seri.columns.template.adapters.add("fill", (_f: any, target: any) =>
-              warnaSkor(am5, target.dataItem?.dataContext?.skor ?? null));
-            seri.columns.template.adapters.add("stroke", (_f: any, target: any) =>
-              warnaSkor(am5, target.dataItem?.dataContext?.skor ?? null));
+            xAxis.data.setAll(radar.indikator.map((i) => ({ indikator: i })));
 
-            seri.data.setAll(cabang);
-            seri.appear(700);
+            const yAxis = chart.yAxes.push(xy.ValueAxis.new(root, {
+              min: 0, max: 5,
+              renderer: rad.AxisRendererRadial.new(root, {}),
+            }));
+
+            radar.anggota.forEach((a, i) => {
+              const warna = am5.color(PALET[i % PALET.length]);
+              const seri = chart.series.push(rad.RadarLineSeries.new(root, {
+                name: a.nama, xAxis, yAxis,
+                valueYField: "skor", categoryXField: "indikator",
+                stroke: warna, fill: warna,
+                tooltip: am5.Tooltip.new(root, {
+                  labelText: "[bold]" + a.nama + "[/]\n{categoryX}: {valueY}",
+                }),
+              }));
+              seri.strokes.template.setAll({ strokeWidth: 2 });
+              // Isi dibuat sangat tipis: delapan lapis isi pekat saling
+              // menutupi sampai tak ada yang terbaca.
+              seri.fills.template.setAll({ visible: true, fillOpacity: 0.06 });
+              seri.bullets.push(() =>
+                am5.Bullet.new(root, {
+                  sprite: am5.Circle.new(root, { radius: 3, fill: warna }),
+                }));
+              seri.data.setAll(radar.indikator.map((ind) => ({
+                indikator: ind,
+                skor: a.nilai[ind] ?? null,
+              })));
+              seri.appear(600);
+            });
+
+            const legenda = chart.children.push(
+              am5.Legend.new(root, {
+                centerX: am5.percent(50), x: am5.percent(50),
+                marginTop: 12, layout: root.gridLayout,
+              }));
+            legenda.labels.template.setAll({ fontSize: 11.5 });
+            legenda.data.setAll(chart.series.values);
           }}
         />
       </section>
@@ -244,8 +285,56 @@ export default function DashboardTimClient({
         </table>
       </section>
 
+      <section className="card mb">
+        <div className="cardhead">
+          <h3 style={{ fontSize: 14 }}>Paling perlu perhatian</h3>
+          <p className="muted small">
+            Anggota dengan skor terendah, beserta indikator yang paling menahannya.
+          </p>
+        </div>
+        <table className="dk-tabel">
+          <thead>
+            <tr>
+              <th>Nama</th><th>Indikator terlemah</th>
+              <th className="r">Skor</th>
+            </tr>
+          </thead>
+          <tbody>
+            {perhatian.map((p) => (
+              <tr key={p.nik} className={(p.skor ?? 9) < 3 ? "kurang" : ""}>
+                <td>
+                  <Link className="lnk" href={`/tim?nik=${encodeURIComponent(p.nik)}`}>
+                    <b>{p.nama}</b>
+                  </Link>
+                  <div className="faint num">
+                    {p.nik} · {p.jabatan ?? "—"}{p.cabang ? ` · ${p.cabang}` : ""}
+                  </div>
+                </td>
+                <td className={p.terlemah ? "" : "faint"}>
+                  {p.terlemah ?? "—"}
+                  {p.skorTerlemah !== null && (
+                    <span className="faint"> · {angka(p.skorTerlemah)}</span>
+                  )}
+                </td>
+                <td className="r">
+                  <b className={"dk-skor" + ((p.skor ?? 9) < 3 ? " bahaya"
+                    : (p.skor ?? 0) >= 4 ? " baik" : "")}>
+                    {p.skor === null ? "—" : angka(p.skor)}
+                  </b>
+                </td>
+              </tr>
+            ))}
+            {!perhatian.length && (
+              <tr><td colSpan={3} className="empty">
+                Belum ada anggota dengan skor pada periode ini.
+              </td></tr>
+            )}
+          </tbody>
+        </table>
+      </section>
+
       <p className="muted small">
-        Ingin melihat per orang? Buka <Link className="lnk" href="/tim">Tim saya</Link>.
+        Ingin melihat rincian per orang? Buka <Link className="lnk" href="/tim">Tim saya</Link>.
       </p>
     </>
   );

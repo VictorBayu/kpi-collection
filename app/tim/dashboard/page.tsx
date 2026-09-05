@@ -4,7 +4,7 @@ import { readSession } from "@/lib/auth";
 import { periodeTersedia } from "@/lib/kpi";
 import { toISODate } from "@/lib/format";
 import {
-  ringkasTim, cabangTim, sebaranTim, indikatorTim, trenTim,
+  ringkasTim, sebaranTim, indikatorTim, trenTim, radarAnggota, perluPerhatian,
 } from "@/lib/analitik-tim";
 import DashboardTimClient from "./DashboardTimClient";
 
@@ -46,12 +46,13 @@ export default async function Page({
   const aktif = daftar.find((p) => toISODate(p.periode) === sp.periode) ?? daftar[0];
   const periode = toISODate(aktif.periode);
 
-  const [ringkas, cabang, sebaran, indikator, tren] = await Promise.all([
+  const [ringkas, sebaran, indikator, tren, radar, perhatian] = await Promise.all([
     ringkasTim(s.nik, periode),
-    cabangTim(s.nik, periode),
     sebaranTim(s.nik, periode),
     indikatorTim(s.nik, periode),
     trenTim(s.nik),
+    radarAnggota(s.nik, periode),
+    perluPerhatian(s.nik, periode),
   ]);
 
   return (
@@ -60,8 +61,8 @@ export default async function Page({
         <DashboardTimClient
           periode={periode}
           daftarPeriode={daftar.map((p) => toISODate(p.periode))}
-          ringkas={ringkas} cabang={cabang} sebaran={sebaran}
-          indikator={indikator} tren={tren}
+          ringkas={ringkas} sebaran={sebaran} indikator={indikator}
+          tren={tren} radar={radar} perhatian={perhatian}
         />
       </main>
     </AppShell>

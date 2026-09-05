@@ -40,6 +40,90 @@ export async function ringkasTim(atasanNik: string, periode: string) {
   };
 }
 
+/**
+ * Skor tiap anggota tim per indikator — bahan grafik radar.
+ *
+ * Radar hanya terbaca kalau sumbunya sedikit, jadi indikator dibatasi pada
+ * yang paling banyak dinilai, dan anggota dibatasi pada yang skornya
+ * terendah. Menampilkan 40 orang sekaligus menghasilkan jaring yang tidak
+ * bisa dibaca siapa pun — yang dicari atasan justru siapa yang tertinggal.
+ */
+export async function radarAnggota(
+  atasanNik: string, periode: string, maksOrang = 8, maksIndikator = 6,
+) {
+  const rows = await q<any>(
+    `WITH tim AS (SELECT nik, nama FROM ${TIM}),
+     nilai AS (
+       SELECT k.nik, MAX(t.nama) AS nama, k.indikator, AVG(k.skor_kpi) AS skor
+         FROM v_kpi_aktif k JOIN tim t ON t.nik = k.nik
+        WHERE k.periode = $2 AND k.skor_kpi IS NOT NULL
+        GROUP BY k.nik, k.indikator),
+     ind_top AS (
+       SELECT indikator FROM nilai GROUP BY indikator
+        ORDER BY COUNT(*) DESC, indikator LIMIT ${Number(maksIndikator) || 6}),
+     orang_top AS (
+       SELECT nik, MAX(nama) AS nama FROM nilai GROUP BY nik
+        ORDER BY AVG(skor) ASC LIMIT ${Number(maksOrang) || 8})
+     SELECT n.nik, o.nama, n.indikator, ROUND(n.skor,2) AS skor
+       FROM nilai n
+       JOIN ind_top i ON i.indikator = n.indikator
+       JOIN orang_top o ON o.nik = n.nik
+      ORDER BY o.nama, n.indikator`,
+    [atasanNik, periode]);
+
+  const indikator = [...new Set(rows.map((r) => r.indikator as string))];
+  type Orang = { nama: string; nilai: Record<string, number> };
+  const perOrang = new Map<string, Orang>();
+  for (const r of rows) {
+    const o: Orang = perOrang.get(r.nik) ?? { nama: r.nama ?? r.nik, nilai: {} };
+    o.nilai[r.indikator] = Number(r.skor);
+    perOrang.set(r.nik, o);
+  }
+
+  return {
+    indikator,
+    anggota: [...perOrang.entries()].map(([nik, o]) => ({
+      nik, nama: o.nama, nilai: o.nilai,
+    })),
+  };
+}
+
+/**
+ * Anggota tim yang paling perlu perhatian — pindahan dari Dasbor saya.
+ *
+ * Ini milik dasbor tim, bukan dasbor pribadi: informasi tentang orang lain
+ * tidak ada urusannya dengan halaman yang menjawab "bagaimana skor saya".
+ */
+export async function perluPerhatian(atasanNik: string, periode: string, n = 8) {
+  const rows = await q<any>(
+    `WITH tim AS (SELECT nik, nama, jabatan, cabang FROM ${TIM}),
+     skor AS (
+       SELECT k.nik, SUM(k.skor_terbobot) AS skor
+         FROM v_kpi_aktif k JOIN tim t ON t.nik = k.nik
+        WHERE k.periode = $2 GROUP BY k.nik),
+     lemah AS (
+       SELECT DISTINCT ON (k.nik) k.nik, k.indikator, k.skor_kpi
+         FROM v_kpi_aktif k JOIN tim t ON t.nik = k.nik
+        WHERE k.periode = $2 AND k.skor_kpi IS NOT NULL
+        ORDER BY k.nik, k.skor_kpi ASC)
+     SELECT t.nik, t.nama, t.jabatan, t.cabang,
+            ROUND(s.skor,2) AS skor, l.indikator AS terlemah,
+            ROUND(l.skor_kpi,2) AS skor_terlemah
+       FROM tim t
+       JOIN skor s ON s.nik = t.nik
+       LEFT JOIN lemah l ON l.nik = t.nik
+      ORDER BY s.skor ASC
+      LIMIT ${Number(n) || 8}`,
+    [atasanNik, periode]);
+
+  return rows.map((r) => ({
+    nik: r.nik, nama: r.nama, jabatan: r.jabatan, cabang: r.cabang,
+    skor: r.skor === null ? null : Number(r.skor),
+    terlemah: r.terlemah as string | null,
+    skorTerlemah: r.skor_terlemah === null ? null : Number(r.skor_terlemah),
+  }));
+}
+
 /** Skor rata-rata tiap cabang di dalam tim — untuk grafik batang. */
 export async function cabangTim(atasanNik: string, periode: string) {
   const rows = await q<any>(

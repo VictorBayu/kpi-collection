@@ -8,13 +8,15 @@ type Kolom = {
   kolom: string; label: string; jenis: string; agregat: boolean;
   kelompok: string | null; urutan: number; field_api: string | null;
   bawaan: boolean; aktif: boolean; keterangan: string | null; dipakai: number;
-  sumber: string;
+  sumber: string; ditarik: boolean; turunan: boolean;
 };
+
+const PER_HAL = 10;
 
 const KOSONG: Kolom = {
   kolom: "", label: "", jenis: "teks", agregat: false, kelompok: "",
   urutan: 900, field_api: "", bawaan: false, aktif: true,
-  keterangan: "", dipakai: 0, sumber: "api",
+  keterangan: "", dipakai: 0, sumber: "api", ditarik: true, turunan: false,
 };
 
 const NAMA_SUMBER: Record<string, string> = {
@@ -43,6 +45,7 @@ export default function KolomApiClient() {
   const [pesan, setPesan] = useState<string | null>(null);
   const [cari, setCari] = useState("");
   const [sunting, setSunting] = useState<(Kolom & { baru: boolean }) | null>(null);
+  const [hal, setHal] = useState(0);
 
   async function segarkan() {
     setMuat(true);
@@ -55,13 +58,23 @@ export default function KolomApiClient() {
   }
   useEffect(() => { segarkan(); }, []);
 
-  const tampil = useMemo(() => {
+  const cocok = useMemo(() => {
     const c = cari.trim().toLowerCase();
     if (!c) return daftar;
     return daftar.filter((k) =>
       [k.kolom, k.label, k.kelompok ?? "", k.field_api ?? ""]
         .join(" ").toLowerCase().includes(c));
   }, [daftar, cari]);
+
+  // Halaman dikembalikan ke awal tiap kali penyaringan berubah; tanpa itu
+  // pencarian yang menyisakan 3 baris sementara halaman masih di 5 akan
+  // menampilkan tabel kosong dan terlihat seperti tidak ada hasil.
+  useEffect(() => { setHal(0); }, [cari]);
+
+  const halTotal = Math.max(1, Math.ceil(cocok.length / PER_HAL));
+  const halAman = Math.min(hal, halTotal - 1);
+  const tampil = cocok.slice(halAman * PER_HAL, halAman * PER_HAL + PER_HAL);
+  const ditarikJml = daftar.filter((k) => k.ditarik && !k.turunan).length;
 
   const kustom = daftar.filter((k) => !k.bawaan).length;
 
@@ -101,10 +114,10 @@ export default function KolomApiClient() {
     <>
       <div className="sectionhead rowbetween">
         <div>
-          <h2>Kolom Data API</h2>
+          <h2>CRUD Kolom API</h2>
           <p>
-            Daftar kolom data mentah yang bisa dipakai saat menyusun rumus indikator.
-            Kolom baru mulai terisi pada tarikan API berikutnya.
+            Menentukan kolom mana yang <b>diambil</b> saat cron menarik data dari API,
+            dan mana yang <b>ditawarkan</b> saat menyusun rumus indikator.
           </p>
         </div>
         <button className="btn" onClick={() => setSunting({ ...KOSONG, baru: true })}>
@@ -198,12 +211,30 @@ export default function KolomApiClient() {
                      onChange={(e) => setSunting({ ...sunting, aktif: e.target.checked })} />
               Aktif — muncul saat menyusun rumus
             </label>
+            <label className="ind-cek">
+              <input type="checkbox" checked={sunting.ditarik} disabled={sunting.turunan}
+                     onChange={(e) => setSunting({ ...sunting, ditarik: e.target.checked })} />
+              Ditarik dari API — diambil tiap cron berjalan
+            </label>
           </div>
 
           {sunting.bawaan && (
             <p className="muted small mt">
               Kolom inti: nama dan jenisnya dikunci, dan tidak bisa dihapus.
-              Bila tidak dipakai lagi, cukup hilangkan centang Aktif.
+              Bila tidak dipakai lagi, hilangkan centang Aktif (sembunyikan dari rumus)
+              atau Ditarik (berhenti diambil dari API).
+            </p>
+          )}
+          {sunting.turunan && (
+            <p className="muted small mt">
+              Kolom turunan tidak pernah diambil dari API — nilainya dihitung
+              sesudah data masuk, lewat menu Kolom Turunan.
+            </p>
+          )}
+          {!sunting.ditarik && !sunting.turunan && (
+            <p className="muted small mt">
+              Kolom ini <b>tidak akan diisi</b> pada tarikan berikutnya. Data lama tetap
+              tersimpan, tapi nilainya berhenti diperbarui.
             </p>
           )}
           {sunting.jenis === "angka" && !sunting.agregat && (
@@ -229,10 +260,11 @@ export default function KolomApiClient() {
         <div className="cardhead rowbetween">
           <div>
             <h3 style={{ fontSize: 14 }}>
-              {daftar.length} kolom · {kustom} kustom
+              {daftar.length} kolom · {ditarikJml} ditarik dari API · {kustom} kustom
             </h3>
             <p className="muted small">
               Kolom inti dibuat bersama sistem dan tidak bisa dihapus.
+              Hanya kolom bertanda &quot;Ditarik: ya&quot; yang diambil saat cron berjalan.
             </p>
           </div>
           <KotakCari nilai={cari} onUbah={setCari} placeholder="Cari kolom…" />
@@ -242,7 +274,7 @@ export default function KolomApiClient() {
           <thead>
             <tr>
               <th>Kolom</th><th>Sumber</th><th>Field API</th><th>Jenis</th>
-              <th>Kelompok</th><th className="r">Dipakai</th><th></th>
+              <th>Ditarik</th><th className="r">Dipakai</th><th></th>
             </tr>
           </thead>
           <tbody>
@@ -262,7 +294,13 @@ export default function KolomApiClient() {
                   {k.jenis}
                   {k.agregat && <span className="faint"> · dapat dijumlah</span>}
                 </td>
-                <td className={k.kelompok ? "" : "faint"}>{k.kelompok ?? "—"}</td>
+                <td>
+                  {k.turunan
+                    ? <span className="faint">olahan</span>
+                    : k.ditarik
+                    ? <span className="tag-ok">ya</span>
+                    : <span className="tag-warn">tidak</span>}
+                </td>
                 <td className="r num">
                   {k.dipakai ? <b>{k.dipakai}</b> : <span className="faint">0</span>}
                 </td>
@@ -279,6 +317,18 @@ export default function KolomApiClient() {
             )}
           </tbody>
         </table>
+
+        {cocok.length > PER_HAL && (
+          <div className="paging">
+            <button className="btn ghost sm" disabled={halAman === 0}
+                    onClick={() => setHal(halAman - 1)}>← Sebelumnya</button>
+            <span className="faint small">
+              Halaman {halAman + 1} dari {halTotal} · {cocok.length} kolom
+            </span>
+            <button className="btn ghost sm" disabled={halAman >= halTotal - 1}
+                    onClick={() => setHal(halAman + 1)}>Berikutnya →</button>
+          </div>
+        )}
       </section>
     </>
   );
