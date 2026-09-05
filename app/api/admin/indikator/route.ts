@@ -122,7 +122,10 @@ export const GET = handler(async (req) => {
                 (SELECT COUNT(*)::int FROM indikator_target t WHERE t.indikator_id = d.id AND t.aktif) AS terdaftar
            FROM indikator_def d ORDER BY d.nama`),
       q<any>(`SELECT kolom, label, jenis, agregat, kelompok
-                FROM mentah_kolom ORDER BY urutan, label`),
+                     , COALESCE(sumber,'api') AS sumber
+                FROM mentah_kolom
+               WHERE COALESCE(aktif, true)
+               ORDER BY urutan, label`),
       q<any>(`SELECT kode, nama FROM produk_master WHERE aktif ORDER BY urutan, kode`),
       // Semua alias jabatan yang dikenal, bukan hanya yang sudah dipetakan
       // ke produk. Kalau dibatasi ke jabatan_produk, daftarnya kosong

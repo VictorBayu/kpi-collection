@@ -16,6 +16,8 @@ export type Komponen = {
 };
 export type Kolom = {
   kolom: string; label: string; jenis: string; agregat: boolean; kelompok: string | null;
+  /** 'api' (data utama) atau 'pendukung'. */
+  sumber?: string;
 };
 
 /** Operator yang menampung banyak nilai sekaligus. */
@@ -74,8 +76,19 @@ export default function Kartu({
   sasaran: boolean;
 }) {
   const bisaAgregat = kolom.filter((c) => c.agregat);
+  /**
+   * Kolom dari data pendukung diberi awalan kelompok tersendiri, bukan
+   * dicampur ke kelompok yang sama dengan data utama. Keduanya digabung
+   * lewat nomor kontrak, jadi admin perlu tahu mana yang berasal dari mana
+   * — kolom pendukung kosong untuk kontrak yang belum ada di sana.
+   */
   const opsiKolom = (daftar: Kolom[]) =>
-    daftar.map((c) => ({ nilai: c.kolom, label: c.label, grup: c.kelompok ?? undefined }));
+    daftar.map((c) => ({
+      nilai: c.kolom, label: c.label,
+      grup: c.sumber === "pendukung"
+        ? `Pendukung — ${c.kelompok ?? "Lain"}`
+        : (c.kelompok ?? undefined),
+    }));
 
   const jenisDari = (kode: string) =>
     kolom.find((c) => c.kolom === kode)?.jenis ?? "teks";

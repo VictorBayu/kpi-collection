@@ -335,6 +335,44 @@ function keNilai(r: Baris, branchId: string): any[] {
   ];
 }
 
+/**
+ * Kolom kustom yang ditambahkan admin lewat layar Kolom Data API.
+ *
+ * Dibaca dari katalog tiap kali menarik, lalu DITAMBAHKAN di belakang
+ * kolom inti — tidak pernah menggantikannya. Kolom inti tetap ditangani
+ * larik tetap di bawah karena penarikan puluhan ribu baris bersandar pada
+ * urutan yang sudah teruji; menjadikannya dinamis hanya menambah cara
+ * untuk gagal. Dengan pemisahan ini, kesalahan pada kolom kustom paling
+ * jauh hanya membuat kolom itu kosong.
+ */
+export type KolomKustom = { kolom: string; jenis: string; field_api: string };
+
+const POLA_KOLOM = /^[a-z][a-z0-9_]{0,50}$/;
+
+export async function muatKolomKustom(): Promise<KolomKustom[]> {
+  try {
+    const rows = await q<KolomKustom>(
+      `SELECT kolom, jenis, field_api FROM mentah_kolom
+        WHERE NOT bawaan AND aktif
+          AND field_api IS NOT NULL AND btrim(field_api) <> ''
+        ORDER BY urutan`);
+    // Penyaringan ulang di sini bukan berlebihan: nama kolom ditempel ke
+    // teks SQL, jadi ia diperiksa di setiap tempat yang memakainya.
+    return rows.filter((r) => POLA_KOLOM.test(r.kolom));
+  } catch {
+    // Katalog belum dimigrasi (kolom bawaan/aktif belum ada) — penarikan
+    // tetap berjalan dengan kolom inti saja.
+    return [];
+  }
+}
+
+function nilaiKustom(r: Baris, k: KolomKustom) {
+  const v = (r as Record<string, any>)[k.field_api];
+  return k.jenis === "angka" ? angka(v)
+       : k.jenis === "tanggal" ? tanggal(v)
+       : teks(v);
+}
+
 /** Nama kolom, urutannya harus sama persis dengan keNilai() di atas. */
 const KOLOM = [
   "branch_id","rym","agreement_no","application_id","customers_id","full_name",
@@ -378,12 +416,14 @@ const BARIS_PER_INSERT = 100;
  * sehingga satu perintah membawa banyak baris. Nilainya tetap lewat
  * parameter, tidak pernah ditempel ke teks SQL.
  */
-async function sisipkan(baris: Baris[], branchId: string) {
+async function sisipkan(baris: Baris[], branchId: string, kustom: KolomKustom[] = []) {
   if (!baris.length) return 0;
+
+  const semuaKolom = [...KOLOM, ...kustom.map((k) => k.kolom)];
 
   // Ambil yang terkecil antara batas parameter Postgres (65535) dan batas
   // ukuran badan permintaan Neon. Yang kedua hampir selalu yang mengikat.
-  const perParam = Math.floor(60000 / KOLOM.length);
+  const perParam = Math.floor(60000 / semuaKolom.length);
   const perGrup = Math.max(1, Math.min(BARIS_PER_INSERT, perParam));
   let total = 0;
 
@@ -393,14 +433,14 @@ async function sisipkan(baris: Baris[], branchId: string) {
     const tuple: string[] = [];
 
     for (const r of grup) {
-      const nilai = keNilai(r, branchId);
+      const nilai = [...keNilai(r, branchId), ...kustom.map((k) => nilaiKustom(r, k))];
       const dasar = params.length;
       tuple.push("(" + nilai.map((_, k) => `$${dasar + k + 1}`).join(",") + ")");
       params.push(...nilai);
     }
 
     await q(
-      `INSERT INTO data_mentah_staging (${KOLOM.join(",")}) VALUES ${tuple.join(",")}`,
+      `INSERT INTO data_mentah_staging (${semuaKolom.join(",")}) VALUES ${tuple.join(",")}`,
       params,
     );
     total += grup.length;
@@ -430,6 +470,10 @@ export async function tarikSemua(
 
   const cabang = await q<{ branch_id: string }>(
     `SELECT branch_id FROM cabang_api WHERE aktif ORDER BY branch_id`);
+
+  // Dibaca sekali di awal, bukan per cabang: daftarnya sama untuk seluruh
+  // putaran, dan membacanya 57 kali hanya menambah perjalanan ke database.
+  const kustom = await muatKolomKustom();
 
   const [riwayat] = await q<{ id: number }>(
     `INSERT INTO tarik_status (tanggal_loc, cabang_diminta, dipicu_oleh)
@@ -492,7 +536,7 @@ export async function tarikSemua(
       const hasil = await Promise.all(
         grup.map(async (bid) => {
           const baris = await ambilCabang(bid, tanggalLoc);
-          return sisipkan(baris, bid);
+          return sisipkan(baris, bid, kustom);
         }),
       );
       jumlahBaris += hasil.reduce((a, b) => a + b, 0);
@@ -514,7 +558,7 @@ export async function tarikSemua(
     // `sql` itu sendiri — baik templat sql`...` maupun bentuk fungsi biasa
     // sql(teks, params). Metode lain seperti sql.query() menghasilkan
     // promise yang bentuknya berbeda dan ditolak oleh transaction().
-    const kolomPindah = [...KOLOM, "ditarik_pada"].join(",");
+    const kolomPindah = [...KOLOM, ...kustom.map((k) => k.kolom), "ditarik_pada"].join(",");
     await sql.transaction([
       sql`TRUNCATE data_mentah`,
       sql(`INSERT INTO data_mentah (${kolomPindah}) SELECT ${kolomPindah} FROM data_mentah_staging`),

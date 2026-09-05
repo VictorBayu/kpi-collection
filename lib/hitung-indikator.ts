@@ -1,5 +1,6 @@
 import { q } from "./db";
 import { susunRumus, bacaRumus, RumusSalah, type Komponen, type Syarat } from "./rumus";
+import { hitungSemuaTurunan } from "./turunan";
 
 /**
  * Mesin hitung indikator.
@@ -53,11 +54,22 @@ export function periodeBerjalan(): string {
  * kolom di luar katalog ditolak sebelum menyentuh SQL.
  */
 async function muatKatalog() {
-  const rows = await q<{ kolom: string; label: string; jenis: string }>(
-    `SELECT kolom, label, jenis FROM mentah_kolom`);
+  const rows = await q<{ kolom: string; label: string; jenis: string; sumber: string }>(
+    `SELECT kolom, label, jenis, COALESCE(sumber,'api') AS sumber FROM mentah_kolom`);
 
   const sah = new Set(rows.map((r) => r.kolom));
   const label = new Map(rows.map((r) => [r.kolom, r.label]));
+  const sumberKolom = new Map(rows.map((r) => [r.kolom, r.sumber]));
+
+  /**
+   * Sumber yang tersentuh selama satu rumus dirakit.
+   *
+   * Dicatat sambil jalan, bukan ditebak di muka: hanya rumus yang benar-
+   * benar memakai kolom pendukung yang perlu digabung ke tabel itu, dan
+   * penggabungan yang tidak perlu membuat setiap perhitungan membayar
+   * ongkos join tanpa alasan.
+   */
+  const dipakai = new Set<string>();
 
   return {
     /** Mengembalikan nama kolom yang aman ditempel ke SQL, atau melempar. */
@@ -65,11 +77,27 @@ async function muatKatalog() {
       if (!sah.has(kode)) {
         throw new RumusSalah(`Kolom "${kode}" tidak ada di katalog data mentah.`);
       }
-      return `dm.${kode}`;
+      const s = sumberKolom.get(kode) ?? "api";
+      dipakai.add(s);
+      return s === "pendukung" ? `dp.${kode}` : `dm.${kode}`;
     },
     labelKolom: (k: string) => label.get(k) ?? k,
+    /** True bila rumus yang baru dirakit menyentuh data pendukung. */
+    pakaiPendukung: () => dipakai.has("pendukung"),
+    /** Dikosongkan sebelum merakit rumus berikutnya. */
+    resetPakai: () => dipakai.clear(),
   };
 }
+
+/**
+ * Klausa penggabungan ke data pendukung.
+ *
+ * LEFT JOIN, bukan INNER: kontrak yang belum punya baris pendukung harus
+ * tetap ikut dihitung dengan nilai kosong, bukan hilang dari perhitungan.
+ * Hilangnya baris jauh lebih sulit disadari daripada angka yang kosong.
+ */
+const JOIN_PENDUKUNG =
+  ` LEFT JOIN data_pendukung dp ON dp.agreement_no = dm.agreement_no`;
 
 /** Seluruh definisi indikator aktif beserta komponen dan syaratnya. */
 async function muatIndikator(): Promise<DefIndikator[]> {
@@ -149,10 +177,13 @@ async function hitungSatu(
   kat: Awaited<ReturnType<typeof muatKatalog>>,
 ): Promise<number> {
   const params: any[] = [];
+  kat.resetPakai();
   const ekspresi = susunRumus(
     { komponen: d.komponen, kali_seratus: d.kali_seratus },
     kat.kolomSah, params,
   );
+  // Tabel pendukung digabung hanya bila rumusnya benar-benar memakainya.
+  const joinPendukung = kat.pakaiPendukung() ? JOIN_PENDUKUNG : "";
 
   const kolomNik = KOLOM_PIC[d.peran_pic] ?? "nik_staff";
   const catatan = bacaRumus(
@@ -214,7 +245,7 @@ async function hitungSatu(
     ),
     hitung AS (
       SELECT dm.${kolomNik} AS nik, (${ekspresi}) AS nilai
-        FROM data_mentah dm
+        FROM data_mentah dm${joinPendukung}
        WHERE dm.${kolomNik} IS NOT NULL
          AND upper(btrim(COALESCE(dm.product, ''))) = upper(${pProduk})
        GROUP BY dm.${kolomNik}
@@ -523,6 +554,14 @@ async function hitungInsentif(periode: string): Promise<number> {
  */
 export async function hitungSemuaIndikator(periode?: string): Promise<HasilHitung> {
   const p = periode ?? periodeBerjalan();
+
+  // Kolom turunan dihitung LEBIH DULU: indikator boleh memakainya seperti
+  // kolom biasa, jadi isinya harus sudah mutakhir sebelum rumus dijalankan.
+  // Kegagalannya tidak menghentikan proses — kolom itu saja yang tertinggal,
+  // dan sebabnya tercatat untuk dilihat admin.
+  const turunan = await hitungSemuaTurunan().catch(
+    () => ({ berhasil: 0, gagal: [] as { kolom: string; pesan: string }[] }));
+
   const kat = await muatKatalog();
   const daftar = await muatIndikator();
   const gagal: { indikator: string; pesan: string }[] = [];
@@ -586,6 +625,10 @@ export async function hitungSemuaIndikator(periode?: string): Promise<HasilHitun
     });
   }
 
+  for (const t of turunan.gagal) {
+    gagal.push({ indikator: `Kolom turunan ${t.kolom}`, pesan: t.pesan });
+  }
+
   return { indikator: terhitung, baris, insentif, periode: p, gagal };
 }
 
@@ -606,7 +649,9 @@ export async function ujiRumus(
 ) {
   const kat = await muatKatalog();
   const params: any[] = [];
+  kat.resetPakai();
   const ekspresi = susunRumus({ komponen, kali_seratus }, kat.kolomSah, params);
+  const joinPendukung = kat.pakaiPendukung() ? JOIN_PENDUKUNG : "";
   const kolomNik = KOLOM_PIC[peran_pic] ?? "nik_staff";
 
   const syaratProduk = produk
@@ -620,7 +665,7 @@ export async function ujiRumus(
             MAX(u.cabang) AS cabang,
             COUNT(*)      AS baris,
             (${ekspresi})  AS nilai
-       FROM data_mentah dm
+       FROM data_mentah dm${joinPendukung}
        LEFT JOIN app_user u ON u.nik = dm.${kolomNik}
       WHERE dm.${kolomNik} IS NOT NULL${syaratProduk}
       GROUP BY dm.${kolomNik}

@@ -29,6 +29,9 @@ export const MENU: Menu[] = [
   // — untuk semua orang —
   { kode: "dashboard",   label: "Dasbor saya",     href: "/dashboard" },
   { kode: "harian_saya", label: "Progres harian",  href: "/harian" },
+  // Dasbor tim diletakkan sebelum "Tim saya": ringkasan dulu, baru rincian
+  // per orang — urutan yang sama dengan cara atasan biasanya menelusuri.
+  { kode: "tim_dashboard", label: "Dashboard Tim", href: "/tim/dashboard" },
   { kode: "tim",         label: "Tim saya",        href: "/tim" },
   { kode: "request",     label: "Request",         href: "/request", lencana: true },
 
@@ -41,6 +44,9 @@ export const MENU: Menu[] = [
   // — grup: Data & indikator —
   { kode: "admin_indikator", label: "Create Indicator",     href: "/admin/indikator",   grup: "Data & indikator" },
   { kode: "admin_data_api",  label: "Data API",             href: "/admin/data-api",    grup: "Data & indikator" },
+  { kode: "admin_kolom_api", label: "Kolom Data API",       href: "/admin/kolom-api",   grup: "Data & indikator" },
+  { kode: "admin_turunan",   label: "Kolom Turunan",        href: "/admin/turunan",     grup: "Data & indikator" },
+  { kode: "admin_pendukung", label: "Data Pendukung",       href: "/admin/pendukung",   grup: "Data & indikator" },
   { kode: "admin_sampel",    label: "Sample Data API",      href: "/admin/sampel-data", grup: "Data & indikator" },
   { kode: "admin_riwayat",   label: "Riwayat impor Excel",  href: "/admin/riwayat",     grup: "Data & indikator" },
 
@@ -70,10 +76,10 @@ export const PETA_MENU = new Map(MENU.map((m) => [m.kode, m]));
  */
 export const MENU_BAWAAN: Record<string, string[]> = {
   karyawan: ["dashboard", "harian_saya", "request"],
-  atasan: ["dashboard", "harian_saya", "tim", "request"],
-  manager: ["dashboard", "harian_saya", "tim", "request",
+  atasan: ["dashboard", "harian_saya", "tim_dashboard", "tim", "request"],
+  manager: ["dashboard", "harian_saya", "tim_dashboard", "tim", "request",
             "admin_analitik", "admin_kpi", "admin_harian"],
-  manajemen_ho: ["dashboard", "harian_saya", "tim", "request",
+  manajemen_ho: ["dashboard", "harian_saya", "tim_dashboard", "tim", "request",
                  "admin_analitik", "admin_kpi", "admin_harian", "admin_riwayat"],
   // Admin sengaja tidak diberi menu sisi karyawan (Dasbor saya, Progres
   // harian, Tim saya, Request): akun admin data tidak punya KPI sendiri,

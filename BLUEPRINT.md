@@ -210,6 +210,14 @@ Mengelola **peran** dan **menu apa saja yang terlihat** untuk tiap peran. Lima p
 
 Katalog menu itu sendiri ada di `lib/menu.ts` — bukan di database, karena baris database tidak bisa memunculkan halaman yang belum ditulis. Menambah menu baru: tambahkan satu entri di katalog, lalu centangkan untuk peran yang berhak lewat layar ini.
 
+### Grup "Data & indikator" — tiga menu pendukung indikator
+
+**Kolom Data API** (`/admin/kolom-api`) — katalog kolom data mentah. Tambah kolom baru dari field API, atur label/kelompok/jenis, nonaktifkan yang tak terpakai. Kolom **inti** tidak bisa dihapus dan jenisnya dikunci; kolom **kustom** bebas selama belum dipakai indikator. Kolom kustom bersifat aditif pada penarikan — kegagalannya tidak bisa menggagalkan kolom inti. Di sini pula kolom **data pendukung** didaftarkan (pilih Sumber = "Data pendukung").
+
+**Kolom Turunan** (`/admin/turunan`) — kolom yang nilainya diolah dari kolom lain, mis. `od_movement_new` yang menggabungkan OD Movement dengan prepaid dari data pendukung. Dua cara menyusunnya: **perakit visual** ("kalau begini maka begitu", disusun lewat dropdown) dan **ekspresi SQL** untuk kasus rumit. Mode SQL disaring dengan daftar-putih token: hanya kolom terdaftar, angka, teks berkutip, dan sedikit kata kunci (`CASE WHEN THEN ELSE END`, `AND/OR/NOT`, `COALESCE`, `ROUND`) yang lolos — `SELECT`, `FROM`, titik koma, dan komentar ditolak. Nilainya **dimaterialisasi** ke kolom fisik dan dihitung ulang otomatis tiap tarikan API, sehingga isinya bisa diperiksa seperti kolom biasa.
+
+**Data Pendukung** (`/admin/pendukung`) — unggah Excel berisi `agreement_no` plus kolom nilai yang sudah didaftarkan. Nomor kontrak yang sudah ada diperbarui, bukan digandakan; baris tanpa nomor kontrak diabaikan. Penggabungan ke data utama memakai `LEFT JOIN` agar kontrak yang belum ada di data pendukung tetap ikut terhitung.
+
 ### Unggah data (`/admin/import`)
 Wizard 4 langkah untuk menaikkan **data KPI final periode lampau** dari Excel (upload → parse → validate → publish), dengan kemampuan rollback ke batch sebelumnya lewat menu Riwayat impor. Ditaruh di Master karena hanya dipakai sesekali — saat data belum masuk lewat API, atau saat menutup periode.
 

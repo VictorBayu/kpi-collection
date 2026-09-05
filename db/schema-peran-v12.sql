@@ -108,7 +108,7 @@ SELECT 'admin', m FROM unnest(ARRAY[
   -- Sengaja tanpa menu sisi karyawan: akun admin data tidak punya KPI
   -- sendiri, jadi Dasbor saya / Progres harian / Tim saya selalu kosong.
   'admin_analitik','admin_kpi','admin_harian','admin_request',
-  'admin_indikator','admin_data_api','admin_sampel','admin_riwayat',
+  'admin_indikator','admin_data_api','admin_kolom_api','admin_sampel','admin_riwayat',
   'admin_import','admin_hierarki','admin_produk','admin_pagu','admin_tier',
   'admin_kelas_cabang','admin_cabang','admin_pengguna','admin_peran'
 ]) m
