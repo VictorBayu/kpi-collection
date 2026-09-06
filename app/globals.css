@@ -39,7 +39,10 @@ body{margin:0;background:var(--page);color:var(--ink);
 h1,h2,h3{font-family:var(--font-archivo),Archivo,sans-serif;margin:0;letter-spacing:-.02em}
 code,.num{font-family:var(--font-plex-mono),"IBM Plex Mono",monospace;font-variant-numeric:tabular-nums}
 :focus-visible{outline:2px solid var(--accent);outline-offset:2px;border-radius:4px}
-@media (prefers-reduced-motion:reduce){*{transition:none!important}}
+@media (prefers-reduced-motion:reduce){
+  *{transition:none!important;animation-duration:.01ms!important;
+    animation-iteration-count:1!important;scroll-behavior:auto!important}
+}
 
 .shell{max-width:1180px;margin:0 auto;padding:0 20px 64px}
 .sectionhead{margin:26px 0 14px}
@@ -1740,3 +1743,149 @@ tr.kurang > td{background:var(--bad-soft)}
   .rincian-tanda{display:none}
   .rincian-pos{min-width:44%}
 }
+
+/* ============================================================
+   PEREMAJAAN VISUAL — tombol, navbar, paging, kotak cari,
+   dropdown, dan isian formulir
+   ------------------------------------------------------------
+   Ditulis sebagai lapisan tambahan di akhir berkas, bukan
+   menyunting definisi lama satu-satu, supaya perubahan visual
+   ini mudah ditelusuri dan mudah dibalik kalau ada yang keliru.
+
+   Yang SENGAJA TIDAK disentuh: setiap pasangan warna teks dari
+   token di :root (--ink, --accent, --good, --warn, --bad, dst).
+   Semua pasangan itu sudah diperiksa lolos WCAG AA di komentar
+   paling atas berkas ini, dan tampilan yang lebih modern tidak
+   boleh mengorbankan itu. Yang berubah di sini hanya kedalaman
+   (bayangan berlapis), kelengkungan sudut, gradasi tipis pada
+   elemen aksen, dan gerak halus saat disentuh — murni dimensi,
+   bukan kontras.
+   ============================================================ */
+:root{
+  /* Ungu kedua untuk gradasi bersama --accent. Dipilih dari rona yang
+     berdekatan dengan indigo yang sudah ada, bukan warna baru yang
+     bersaing dengannya — gradasinya harus terasa satu keluarga, bukan
+     dua warna yang ditabrakkan. */
+  --accent-2:#6A3DE8;
+  --grad-accent:linear-gradient(135deg,var(--accent) 0%,var(--accent-2) 100%);
+  --grad-ink:linear-gradient(180deg,#0E1626 0%,var(--ink) 100%);
+  --shadow-btn:0 1px 2px rgba(17,26,43,.08),0 8px 20px -8px rgba(53,80,200,.45);
+  --shadow-btn-hover:0 2px 4px rgba(17,26,43,.1),0 12px 26px -8px rgba(53,80,200,.55);
+  --shadow-card:0 1px 2px rgba(17,26,43,.04),0 14px 32px -18px rgba(17,26,43,.16);
+  --shadow-pop:0 20px 48px -16px rgba(12,17,30,.38);
+  --ease:cubic-bezier(.22,.75,.32,1);
+}
+
+/* ---- tombol: gradasi tipis + kedalaman + sedikit terangkat saat hover ---- */
+.btn{
+  background:var(--grad-accent);
+  box-shadow:var(--shadow-btn);
+  transition:transform .16s var(--ease),box-shadow .16s var(--ease),filter .16s var(--ease);
+}
+.btn:hover{filter:brightness(1.06);transform:translateY(-1px);box-shadow:var(--shadow-btn-hover)}
+.btn:active{transform:translateY(0);filter:brightness(.96);box-shadow:var(--shadow-btn)}
+.btn.good{background:linear-gradient(135deg,var(--good) 0%,#12946E 100%)}
+.btn.ghost{box-shadow:0 1px 2px rgba(17,26,43,.04);transition:transform .16s var(--ease),
+  box-shadow .16s var(--ease),border-color .16s var(--ease)}
+.btn.ghost:hover{border-color:#B7C4EE;box-shadow:0 6px 16px -8px rgba(53,80,200,.22);
+  transform:translateY(-1px)}
+.btn.ghost:active{transform:translateY(0)}
+.btn:disabled,.btn:disabled:hover{transform:none;filter:none;box-shadow:none}
+.btn.wide:hover{transform:none}
+
+/* ---- navbar: sedikit gradasi, logo bersinar tipis, penanda aktif
+   berupa garis bercahaya alih-alih blok datar ---- */
+.topbar{background:var(--grad-ink)}
+.mark{background:var(--grad-accent);box-shadow:0 4px 14px -5px rgba(53,80,200,.65)}
+.mainnav a,.navgrup-tombol{position:relative;transition:background .15s var(--ease),color .15s var(--ease)}
+.mainnav a.on,.navgrup-tombol.on{
+  background:linear-gradient(135deg,rgba(53,80,200,.38),rgba(106,61,232,.30));
+  box-shadow:inset 0 0 0 1px rgba(140,120,240,.35);
+}
+.mainnav a.on::after,.navgrup-tombol.on::after{
+  content:"";position:absolute;left:11px;right:11px;bottom:-8px;height:2px;border-radius:2px;
+  background:linear-gradient(90deg,var(--accent),var(--accent-2));
+  box-shadow:0 0 8px rgba(106,61,232,.85);
+}
+.navgrup-isi{
+  background:rgba(16,22,38,.94);backdrop-filter:blur(14px) saturate(150%);
+  box-shadow:var(--shadow-pop);animation:muncul-turun .14s var(--ease);
+}
+.icobtn{transition:background .15s var(--ease),transform .15s var(--ease)}
+.icobtn:hover{transform:translateY(-1px)}
+
+/* ---- paging: pil bulat penuh dengan aksen aktif bergradasi ---- */
+.paging{background:linear-gradient(180deg,#fff,#FBFCFF)}
+.pager-nomor{gap:4px}
+.pager-hal{border-radius:999px;transition:transform .14s var(--ease),box-shadow .14s var(--ease),
+  border-color .14s var(--ease),color .14s var(--ease)}
+.pager-hal:hover{transform:translateY(-1px);border-color:var(--accent)}
+.pager-hal.on{background:var(--grad-accent);border-color:transparent;
+  box-shadow:0 4px 14px -5px rgba(53,80,200,.6)}
+
+/* ---- kotak cari: pil penuh dengan cincin cahaya saat fokus ---- */
+.kcari input{border-radius:999px;background:var(--line-soft);border-color:transparent;
+  box-shadow:inset 0 1px 2px rgba(17,26,43,.05);transition:background .15s var(--ease),
+  border-color .15s var(--ease),box-shadow .15s var(--ease)}
+.kcari input:hover{background:#fff;border-color:#C3CDE9}
+.kcari input:focus{background:#fff;border-color:var(--accent);
+  box-shadow:0 0 0 4px var(--accent-soft),0 8px 20px -10px rgba(53,80,200,.4)}
+.kcari-ikon{color:var(--accent)}
+.filterbar .cari{border-radius:999px}
+.filterbar button{transition:background .14s var(--ease),color .14s var(--ease),
+  border-color .14s var(--ease),transform .14s var(--ease)}
+.filterbar button:hover{transform:translateY(-1px)}
+.filterbar button[aria-pressed="true"]{background:var(--grad-ink);border-color:transparent;
+  box-shadow:0 4px 14px -6px rgba(17,26,43,.5)}
+
+/* ---- dropdown kustom (Pilih.tsx): panel melayang dengan bayangan
+   berlapis dan animasi muncul yang halus ---- */
+.pilih-tombol{transition:border-color .15s var(--ease),box-shadow .15s var(--ease)}
+.pilih-panel{border-radius:14px;box-shadow:var(--shadow-pop);
+  animation:muncul-turun .14s var(--ease);overflow:hidden}
+.pilih-opsi{transition:background .1s var(--ease)}
+.pilih-opsi.aktif{background:linear-gradient(135deg,var(--accent-soft) 0%,#EFEAFC 100%)}
+@keyframes muncul-turun{from{opacity:0;transform:translateY(-4px) scale(.98)}to{opacity:1;transform:none}}
+
+/* Panah kustom untuk <select> bawaan browser, menggantikan panah sistem
+   yang tampilannya berbeda-beda tiap browser dan terasa asing di antara
+   kontrol lain yang sudah dirancang khusus. Digambar dari gradasi CSS,
+   bukan gambar, supaya tidak menambah permintaan berkas dan warnanya
+   otomatis ikut token --ink-faint. */
+:where(select){
+  appearance:none;-webkit-appearance:none;-moz-appearance:none;
+  background-image:
+    linear-gradient(45deg,transparent 50%,var(--ink-faint) 50%),
+    linear-gradient(135deg,var(--ink-faint) 50%,transparent 50%);
+  background-position:calc(100% - 18px) calc(50% - 2px),calc(100% - 13px) calc(50% - 2px);
+  background-size:5px 5px,5px 5px;background-repeat:no-repeat;
+  padding-right:32px;
+}
+:where(select):disabled{
+  background-image:
+    linear-gradient(45deg,transparent 50%,var(--line) 50%),
+    linear-gradient(135deg,var(--line) 50%,transparent 50%);
+}
+/* Beberapa tempat sudah mengatur padding select-nya sendiri dengan
+   selektor yang lebih spesifik (.field, .maprow, sel tabel) — nilai kanan
+   itu ditambal di sini juga supaya panah baru tidak menindih teks nilai. */
+.field select,.maprow select{padding-right:32px}
+td select{padding-right:28px}
+.select{padding-right:30px}
+
+/* ---- isian formulir: kedalaman tipis + cincin cahaya yang lebih lebar
+   saat fokus, supaya kontrol yang sedang aktif jelas tanpa menambah warna ---- */
+:where(input:not([type=checkbox]):not([type=radio]):not([type=file]),textarea,select){
+  border-radius:12px;box-shadow:0 1px 2px rgba(17,26,43,.03) inset;
+  transition:border-color .15s var(--ease),box-shadow .15s var(--ease),background .15s var(--ease);
+}
+:where(input,textarea,select):focus{
+  box-shadow:0 1px 2px rgba(17,26,43,.03) inset,0 0 0 4px var(--accent-soft),
+    0 8px 20px -12px rgba(53,80,200,.4);
+}
+
+/* ---- kartu: bayangan lembut agar punya kedalaman di atas latar --page,
+   bukan hanya garis tepi datar ---- */
+.card{box-shadow:var(--shadow-card)}
+.dropzone{transition:border-color .15s var(--ease),background .15s var(--ease),transform .15s var(--ease)}
+.dropzone:hover{transform:translateY(-1px)}
