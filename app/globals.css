@@ -2074,6 +2074,110 @@ select:disabled{background-image:var(--panah-select-mati);
 /* Select bawaan di kotak tutup-periode juga mengatur padding sendiri,
    jadi ruang untuk panah kustomnya ikut ditambal di sini. */
 .closebox select{padding-right:32px}
+
+/* ============================================================
+   PEREMAJAAN DASBOR — Dasbor saya, Dashboard Tim, Analitik
+   ------------------------------------------------------------
+   Ketiganya memakai bahan yang sama (kartu angka, kartu grafik,
+   batang tren, tangga target), jadi diperbarui sekaligus di satu
+   tempat alih-alih tiga kali dengan hasil yang lambat laun berbeda.
+
+   Arahnya: angka jadi lebih besar dan lebih tegas hierarkinya,
+   kartu punya kedalaman dan penanda warna di tepi kiri (bukan hanya
+   angka berwarna — penanda posisi tetap terbaca oleh mata yang sulit
+   membedakan merah-hijau), dan elemen yang bergerak diberi gradasi
+   supaya terlihat hidup tanpa menambah warna baru.
+   ============================================================ */
+
+/* --- Perbaikan: .dua-kolom dipakai di Dashboard Tim tapi tidak pernah
+   didefinisikan, sehingga grafik "sebaran" dan "tren" yang seharusnya
+   berdampingan justru menumpuk selebar halaman. --- */
+.dua-kolom{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+@media (max-width:1000px){ .dua-kolom{grid-template-columns:1fr} }
+
+/* --- Kartu angka: lebar mengikuti ruang yang ada (empat kartu di
+   Dashboard Tim dan lima di Analitik sama-sama rapi), garis aksen di
+   tepi kiri digambar sebagai latar supaya tidak perlu memangkas isi. --- */
+.kartu-angka{grid-template-columns:repeat(auto-fit,minmax(190px,1fr))}
+.angka-kotak{padding:15px 16px 15px 19px;
+  background-color:var(--surface);
+  background-image:var(--grad-accent),linear-gradient(160deg,#FFF 0%,#F8FAFF 100%);
+  background-size:3px 100%,100% 100%;
+  background-position:left,center;
+  background-repeat:no-repeat,no-repeat;
+  box-shadow:var(--shadow-card);
+  transition:box-shadow .15s var(--ease),transform .15s var(--ease)}
+.angka-kotak:has(b.baik){background-image:linear-gradient(180deg,var(--good),#17A97D),
+  linear-gradient(160deg,#FFF 0%,#F7FCFA 100%)}
+.angka-kotak:has(b.buruk){background-image:linear-gradient(180deg,var(--warn),var(--bad)),
+  linear-gradient(160deg,#FFF 0%,#FFFAF7 100%)}
+.angka-kotak:hover{transform:translateY(-1px);
+  box-shadow:0 1px 2px rgba(17,26,43,.05),0 16px 32px -18px rgba(17,26,43,.24)}
+.angka-kotak b{font-size:26px}
+
+/* --- Kartu utama Dasbor saya: cahaya lembut di sudut kiri atas supaya
+   angka skor terasa jadi pusat halaman, dan pemisah tipis antara skor
+   dan insentif di layar lebar agar keduanya tidak terbaca menyatu. --- */
+.dash-ring{background-color:var(--surface);
+  background-image:radial-gradient(900px 220px at 6% -30%,rgba(53,80,200,.10),transparent 62%)}
+.dash-metrik{gap:24px}
+@media (min-width:760px){
+  .dash-metrik{grid-template-columns:1.15fr 1fr}
+  .dash-metrik .metrik + .metrik{border-left:1px solid var(--line-soft);padding-left:24px}
+}
+.score{letter-spacing:-.045em}
+.chip-lv{box-shadow:0 1px 2px rgba(17,26,43,.06)}
+.delta{border:1px solid transparent}
+.delta.up{border-color:#C9E8DC}
+.delta.down{border-color:#F0CDCB}
+
+/* --- Batang tren: periode berjalan diberi gradasi dan pendar tipis,
+   periode lampau tetap tenang — bedanya harus terbaca sekilas. --- */
+.trend .bar{background:linear-gradient(180deg,#E4E9F4,#EFF2F7);border-radius:5px 5px 3px 3px;
+  transition:background .15s var(--ease)}
+.trend .bar:hover{background:linear-gradient(180deg,#C9D3EE,#DFE5EE)}
+.trend .bar.now,.trend .bar.now:hover{background:var(--grad-accent);
+  box-shadow:0 4px 12px -4px rgba(53,80,200,.55)}
+
+/* --- Tangga target: isian bergradasi dengan cekungan tipis di larasnya,
+   penanda posisi diberi bayangan supaya terangkat dari laras. --- */
+.ladder-track{box-shadow:inset 0 1px 2px rgba(17,26,43,.07)}
+.ladder-track .fill{background:var(--grad-accent);
+  box-shadow:0 2px 8px -2px rgba(53,80,200,.5)}
+.ladder-track .fill.good{background:linear-gradient(90deg,var(--good),#17A97D);
+  box-shadow:0 2px 8px -2px rgba(15,122,90,.45)}
+.ladder-track .fill.warn{background:linear-gradient(90deg,var(--warn),#D08A2A);
+  box-shadow:0 2px 8px -2px rgba(164,91,18,.45)}
+.marker i{box-shadow:0 2px 6px rgba(17,26,43,.25)}
+
+/* --- Kartu grafik: keadaan kosong/memuat dibuat jelas sementara
+   (garis putus-putus), bukan blok abu yang mudah disangka grafik rusak. --- */
+.grafik-memuat,.grafik-kosong{background:linear-gradient(160deg,#FBFCFF,var(--line-soft));
+  border:1px dashed var(--line)}
+.grafik-catatan{background:linear-gradient(180deg,#FCFDFF,#F7F9FD)}
+
+/* --- Persamaan rincian insentif di Analitik: tiap suku jadi kartu kecil,
+   dan hasil akhirnya diberi gradasi aksen supaya terbaca sebagai jumlah,
+   bukan sekadar suku keempat. --- */
+.rincian-pos{background:linear-gradient(160deg,#FBFCFF,var(--line-soft));
+  border:1px solid var(--line);border-radius:12px;
+  transition:transform .15s var(--ease),box-shadow .15s var(--ease)}
+.rincian-pos:hover{transform:translateY(-1px);box-shadow:0 8px 20px -14px rgba(17,26,43,.25)}
+.rincian-pos.total{background:linear-gradient(135deg,var(--accent-soft),#F1EEFC);
+  border-color:#DCE1F7}
+
+/* --- Tombol ganti tampilan grafik --- */
+.vbtn{transition:transform .14s var(--ease),border-color .14s var(--ease),
+  background .14s var(--ease),color .14s var(--ease)}
+.vbtn:hover{transform:translateY(-1px)}
+.vbtn.on{background:var(--grad-accent);border-color:transparent;
+  box-shadow:0 4px 12px -4px rgba(53,80,200,.55)}
+
+/* --- Kerangka pemuatan: sapuan cahaya yang bergerak, bukan kedipan.
+   Sapuan memberi kesan "sedang datang", sementara kedipan mudah
+   disangka elemen rusak. --- */
+@keyframes sk-sapu{from{background-position:200% 0}to{background-position:-200% 0}}
+.sk{animation:sk-sapu 1.4s linear infinite}
 @media (max-width:760px){
   .trow-atas{align-items:stretch}
   .trow-jabatan,.trow-produk,.trow-peran,.trow-ringkas{flex:1 1 100%}
