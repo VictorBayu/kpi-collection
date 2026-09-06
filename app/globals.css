@@ -1889,3 +1889,88 @@ td select{padding-right:28px}
 .card{box-shadow:var(--shadow-card)}
 .dropzone{transition:border-color .15s var(--ease),background .15s var(--ease),transform .15s var(--ease)}
 .dropzone:hover{transform:translateY(-1px)}
+
+/* ============================================================
+   PEREMAJAAN — Perakit Indikator (Create Indicator)
+   ------------------------------------------------------------
+   Halaman ini yang paling padat kontrolnya di seluruh admin: daftar
+   di kiri, kartu komponen yang bisa diseret, panel pengakuan bersarang,
+   dan tabel pendaftaran dengan baris yang mekar jadi panel sendiri.
+   Sebelumnya semua lapisan itu — kartu komponen, kotak pengaturan,
+   ringkasan rumus, panel pengakuan, panel detail pendaftaran — memakai
+   border tipis yang sama datarnya, sehingga mata tidak punya petunjuk
+   mana bagian utama dan mana bagian bersarang di dalamnya.
+   Perubahan di sini menambah TINGKATAN kedalaman (bayangan makin
+   lembut makin jauh ia bersarang) dan penanda warna sekali pakai
+   (lencana huruf komponen, aksen satuan, garis gradasi tipis) — supaya
+   susunan kartunya terbaca sebagai hierarki, bukan tumpukan kotak yang
+   seragam. Tidak ada pasangan warna teks yang diubah.
+   ============================================================ */
+
+/* ---- daftar indikator di kiri: lencana satuan + penanda aktif
+   berupa garis kiri bercahaya, bukan blok datar ---- */
+.ind-item{border-radius:12px;position:relative;padding-left:16px;
+  transition:background .15s var(--ease),transform .12s var(--ease)}
+.ind-item::before{content:"";position:absolute;left:4px;top:8px;bottom:8px;width:3px;
+  border-radius:3px;background:transparent;transition:background .15s var(--ease)}
+.ind-item:hover{transform:translateX(1px)}
+.ind-item.on{background:linear-gradient(135deg,var(--accent-soft) 0%,#F2EFFC 100%)}
+.ind-item.on::before{background:var(--grad-accent)}
+.ind-item-atas{display:flex;align-items:center;gap:8px}
+.ind-item-atas b{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.ind-item-satuan{flex:none;font-size:9.5px;font-weight:800;letter-spacing:.02em;
+  padding:1px 6px;border-radius:999px;background:var(--line-soft);color:var(--ink-faint)}
+.ind-item-satuan.s-persen{background:var(--accent-soft);color:var(--accent)}
+.ind-item-satuan.s-rupiah{background:var(--good-soft);color:var(--good)}
+.ind-item-satuan.s-unit{background:var(--warn-soft);color:var(--warn)}
+
+/* ---- kotak pengaturan dasar: strip dengan aksen gradasi di tepi atas,
+   menandainya sebagai satu kesatuan pengaturan, bukan sekadar isian lepas ---- */
+.ind-atur{border-radius:14px;box-shadow:var(--shadow-card);position:relative;overflow:hidden}
+.ind-atur::before{content:"";position:absolute;left:0;right:0;top:0;height:3px;
+  background:var(--grad-accent)}
+
+/* ---- kartu komponen: lencana huruf bergradasi menggantikan label polos,
+   kedalaman bertingkat, dan sedikit terangkat saat disentuh ---- */
+.ikartu{border-radius:16px;box-shadow:var(--shadow-card);
+  transition:transform .15s var(--ease),box-shadow .15s var(--ease),border-color .15s var(--ease)}
+.ikartu:hover{transform:translateY(-1px);
+  box-shadow:0 1px 2px rgba(17,26,43,.05),0 18px 36px -18px rgba(17,26,43,.24)}
+.ikartu.sasaran{box-shadow:0 0 0 3px var(--accent-soft),var(--shadow-card)}
+.ikartu-no{display:inline-flex;align-items:center}
+.ikartu-huruf{display:inline-flex;align-items:center;justify-content:center;
+  width:19px;height:19px;border-radius:999px;background:var(--grad-accent);color:#fff;
+  font-size:10px;font-weight:800;margin-right:7px;flex:none;
+  box-shadow:0 2px 6px -2px rgba(53,80,200,.6)}
+
+/* ---- konektor operator antar kartu: pil dengan aksen aktif bergradasi
+   dan garis penghubung yang memudar di kedua ujung ---- */
+.ind-op-garis{background:linear-gradient(90deg,transparent,var(--line) 30%,var(--line) 70%,transparent)}
+.ind-op-pilih{border-radius:999px;box-shadow:0 1px 2px rgba(17,26,43,.05)}
+.ind-op-btn{border-radius:999px;transition:background .15s var(--ease),color .15s var(--ease),
+  transform .12s var(--ease)}
+.ind-op-btn.on{background:var(--grad-accent);box-shadow:0 3px 10px -3px rgba(53,80,200,.6)}
+.ind-op-btn:hover:not(.on){transform:translateY(-1px)}
+
+/* ---- pratinjau rumus: diberi identitas sendiri (gradasi lembut + lencana
+   "ƒ") supaya terbaca sebagai HASIL, bukan kotak keterangan biasa ---- */
+.ind-ringkas{border-radius:14px;background:linear-gradient(135deg,var(--accent-soft) 0%,#F5F3FE 100%);
+  border-color:#DCE1F7;box-shadow:var(--shadow-card)}
+.ind-ringkas-label{display:inline-flex;align-items:center;gap:7px}
+.ind-ringkas-label::before{content:"ƒ";font-family:var(--font-archivo),Archivo,sans-serif;
+  font-weight:800;font-size:12.5px;color:var(--accent);
+  display:inline-flex;align-items:center;justify-content:center;width:18px;height:18px;
+  border-radius:6px;background:#fff;box-shadow:0 1px 3px rgba(17,26,43,.1)}
+.ind-ringkas code{color:#2B3B8C;font-weight:600}
+
+/* ---- panel pengakuan sebagian: kartu bersarang dengan aksen ungu tipis
+   di tepi atas, membedakannya dari syarat biasa di atasnya ---- */
+.akui{border-radius:12px;background:linear-gradient(180deg,#FBFCFF 0%,var(--line-soft) 100%);
+  border:1px solid var(--line);border-top:2px solid var(--accent-2)}
+
+/* ---- baris pendaftaran yang mekar: panel melayang di atas latar tabel,
+   bukan tempelan datar — pola "baris → kartu" yang umum di builder modern ---- */
+.target-detail{border-radius:14px;margin:0 14px 14px;
+  box-shadow:0 1px 2px rgba(17,26,43,.04),0 16px 34px -22px rgba(17,26,43,.2)}
+.detail-sub{box-shadow:0 1px 2px rgba(17,26,43,.03),0 10px 22px -16px rgba(17,26,43,.14)}
+.tbl-pita{box-shadow:0 1px 2px rgba(17,26,43,.03)}

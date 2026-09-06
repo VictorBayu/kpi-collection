@@ -127,7 +127,10 @@ export default function Kartu({
 
       <div className="ikartu-isi">
         <div className="ikartu-atas">
-          <span className="ikartu-no">Komponen {String.fromCharCode(65 + indeks)}</span>
+          <span className="ikartu-no">
+            <span className="ikartu-huruf" aria-hidden>{String.fromCharCode(65 + indeks)}</span>
+            Komponen {String.fromCharCode(65 + indeks)}
+          </span>
           <button className="ikartu-x" title="Hapus komponen" onClick={onHapus}>×</button>
         </div>
 

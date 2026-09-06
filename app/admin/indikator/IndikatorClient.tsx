@@ -629,7 +629,12 @@ export default function IndikatorClient() {
             <button key={d.id}
                     className={"ind-item" + (d.id === pilihId ? " on" : "")}
                     onClick={() => buka(d.id)}>
-              <b>{d.nama}</b>
+              <span className="ind-item-atas">
+                <b>{d.nama}</b>
+                <span className={"ind-item-satuan s-" + d.satuan}>
+                  {d.satuan === "persen" ? "%" : d.satuan === "rupiah" ? "Rp" : "#"}
+                </span>
+              </span>
               <span className="faint">
                 {d.komponen} komponen · {d.terdaftar} pendaftaran
                 {!d.aktif && " · nonaktif"}
