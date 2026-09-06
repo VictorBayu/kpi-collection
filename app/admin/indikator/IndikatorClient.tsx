@@ -1,6 +1,6 @@
 "use client";
 
-import { Fragment, useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Pilih from "@/components/Pilih";
 import InputAngka from "@/components/InputAngka";
 import Kartu, { type Komponen, type Kolom } from "./Kartu";
@@ -47,6 +47,14 @@ const PERAN_OPSI = [
   { nilai: "pendukung", label: "Pendukung",
     ket: "hanya dihitung sebagai bahan syarat, tidak dinilai dan tidak dibayar" },
 ];
+
+/** Warna penanda tiap peran — dipakai sebagai titik warna di ringkasan
+ *  baris pendaftaran, supaya jenis baris terbaca sekilas tanpa harus
+ *  membaca teksnya dulu. */
+const PERAN_WARNA: Record<string, string> = {
+  kpi: "accent", reward: "good", penalty: "bad", tier: "warn",
+  nominal: "ungu", pendukung: "netral",
+};
 
 const OP_GERBANG = [
   { nilai: "kurang", label: "kurang dari  <" },
@@ -819,104 +827,92 @@ export default function IndikatorClient() {
             </button>
           </div>
 
-          {/* Lebar kolom dipatok lewat <colgroup> dengan table-layout tetap.
-              Tanpa itu browser menawar sendiri lebar tiap kolom mengikuti
-              isinya, dan kotak isian angka yang tidak punya lebar bawaan
-              yang wajar mendorong kolom jabatan jadi sempit sampai
-              tulisannya terpotong dua baris. */}
-          <table className="rapat tbl-target">
-            <colgroup>
-              <col style={{ width: "22%" }} /><col style={{ width: 92 }} />
-              <col style={{ width: "26%" }} /><col />
-              <col style={{ width: 76 }} /><col style={{ width: 40 }} />
-            </colgroup>
-            <thead>
-              <tr>
-                <th>Jabatan</th>
-                <th>Produk</th>
-                <th>Peran</th>
-                <th>Ringkasan</th>
-                <th></th>
-                <th></th>
-              </tr>
-            </thead>
-            <tbody>
-              {target.map((t, i) => {
-                const ubah = (patch: Partial<Target>) =>
-                  setTarget(target.map((x, y) => (y === i ? { ...x, ...patch } : x)));
-                const adaPita = t.pita.length > 0;
-                const ringkasan =
-                  t.peran === "reward" || t.peran === "penalty"
-                    ? (t.nilai_efek
-                        ? `${t.jenis_nilai === "persen" ? t.nilai_efek + "%" : "Rp" + Number(t.nilai_efek).toLocaleString("id-ID")} per satuan hasil hitung`
-                        : "Belum diisi nilai efeknya")
-                    : t.peran === "tier"
-                    ? (adaPita ? `${t.pita.length} pita tier` : "Belum ada pita")
-                    : t.peran === "pendukung"
-                    ? "Bahan syarat, tidak dinilai"
-                    : t.peran === "nominal"
-                    ? [
-                        t.gerbang.length
-                          ? `${t.gerbang.length} syarat`
-                          : "Tanpa syarat",
-                        t.nominal.length
-                          ? `${t.nominal.length} pita nominal`
-                          : "belum ada pita nominal",
-                      ].join(" · ")
-                    : [
-                        t.bobot_kpi && `KPI ${t.bobot_kpi}%`,
-                        t.bobot_insentif && `Insentif ${t.bobot_insentif}%`,
-                        adaPita && `${t.pita.length} pita`,
-                      ].filter(Boolean).join(" · ") || "Belum diisi";
-                return (
-                  <Fragment key={i}>
-                    <tr className={detailBuka === i ? "baris-buka" : undefined}>
-                      <td>
-                        <Pilih nilai={t.alias} bebas placeholder="Pilih jabatan"
-                               onPilih={(v) => ubah({ alias: v.toUpperCase() })}
-                               opsi={jabatan.map((a) => ({ nilai: a, label: a }))} />
-                      </td>
-                      <td>
-                        <Pilih nilai={t.produk} cari={false} onPilih={(v) => ubah({ produk: v })}
-                               opsi={produk.map((p) => ({ nilai: p.kode, label: p.kode, ket: p.nama }))} />
-                      </td>
-                      <td>
-                        <Pilih nilai={t.peran} cari={false} onPilih={(v) => ubah({ peran: v })}
-                               opsi={PERAN_OPSI} />
-                      </td>
-                      <td className="faint small sel-ringkas">{ringkasan}</td>
-                      <td className="r">
-                        <button className="btn ghost sm"
-                                onClick={() => setDetailBuka(detailBuka === i ? null : i)}>
-                          {detailBuka === i ? "Tutup" : "Atur"}
-                        </button>
-                      </td>
-                      <td className="r">
-                        <button className="isyarat-x" title={`Lepaskan ${t.alias || "baris ini"}`}
-                                onClick={() => {
-                                  setTarget(target.filter((_, y) => y !== i));
-                                  if (detailBuka === i) setDetailBuka(null);
-                                }}>×</button>
-                      </td>
-                    </tr>
-                    {detailBuka === i && (
-                      <tr className="baris-detail">
-                        <td colSpan={6}>
-                          <DetailTarget t={t} ubah={ubah} lain={lain}
-                                        namaSendiri={nama} />
-                        </td>
-                      </tr>
-                    )}
-                  </Fragment>
-                );
-              })}
-              {!target.length && (
-                <tr><td colSpan={6} className="empty">
-                  Belum didaftarkan ke jabatan mana pun, jadi belum akan dihitung.
-                </td></tr>
-              )}
-            </tbody>
-          </table>
+          {/* Tiap pendaftaran adalah kartu baris sendiri, bukan baris tabel.
+              Empat kotak pilih berdampingan dulu terasa seperti formulir
+              yang dipaksa masuk ke tabel — lebar kolom kaku, dan baris yang
+              mekar jadi panel tidak terasa menyambung ke baris pemicunya.
+              Sebagai kartu, panel detail bisa menempel langsung di bawah
+              kepala kartu yang sama alih-alih jadi tempelan terpisah. */}
+          <div className="daftar-target">
+            {target.map((t, i) => {
+              const ubah = (patch: Partial<Target>) =>
+                setTarget(target.map((x, y) => (y === i ? { ...x, ...patch } : x)));
+              const adaPita = t.pita.length > 0;
+              const ringkasan =
+                t.peran === "reward" || t.peran === "penalty"
+                  ? (t.nilai_efek
+                      ? `${t.jenis_nilai === "persen" ? t.nilai_efek + "%" : "Rp" + Number(t.nilai_efek).toLocaleString("id-ID")} per satuan hasil hitung`
+                      : "Belum diisi nilai efeknya")
+                  : t.peran === "tier"
+                  ? (adaPita ? `${t.pita.length} pita tier` : "Belum ada pita")
+                  : t.peran === "pendukung"
+                  ? "Bahan syarat, tidak dinilai"
+                  : t.peran === "nominal"
+                  ? [
+                      t.gerbang.length
+                        ? `${t.gerbang.length} syarat`
+                        : "Tanpa syarat",
+                      t.nominal.length
+                        ? `${t.nominal.length} pita nominal`
+                        : "belum ada pita nominal",
+                    ].join(" · ")
+                  : [
+                      t.bobot_kpi && `KPI ${t.bobot_kpi}%`,
+                      t.bobot_insentif && `Insentif ${t.bobot_insentif}%`,
+                      adaPita && `${t.pita.length} pita`,
+                    ].filter(Boolean).join(" · ") || "Belum diisi";
+              const buka = detailBuka === i;
+              return (
+                <div className={"trow" + (buka ? " buka" : "")} key={i}>
+                  <div className="trow-atas">
+                    <div className="trow-field trow-jabatan">
+                      <span className="trow-label">Jabatan</span>
+                      <Pilih nilai={t.alias} bebas placeholder="Pilih jabatan"
+                             onPilih={(v) => ubah({ alias: v.toUpperCase() })}
+                             opsi={jabatan.map((a) => ({ nilai: a, label: a }))} />
+                    </div>
+                    <div className="trow-field trow-produk">
+                      <span className="trow-label">Produk</span>
+                      <Pilih nilai={t.produk} cari={false} onPilih={(v) => ubah({ produk: v })}
+                             opsi={produk.map((p) => ({ nilai: p.kode, label: p.kode, ket: p.nama }))} />
+                    </div>
+                    <div className="trow-field trow-peran">
+                      <span className="trow-label">Peran</span>
+                      <Pilih nilai={t.peran} cari={false} onPilih={(v) => ubah({ peran: v })}
+                             opsi={PERAN_OPSI} />
+                    </div>
+                    <div className={"trow-ringkas warna-" + (PERAN_WARNA[t.peran] ?? "netral")}>
+                      <span className="trow-label">Ringkasan</span>
+                      <span className="trow-ringkas-teks">
+                        <i className="trow-dot" aria-hidden />
+                        {ringkasan}
+                      </span>
+                    </div>
+                    <div className="trow-aksi">
+                      <button className="btn ghost sm" onClick={() => setDetailBuka(buka ? null : i)}>
+                        {buka ? "Tutup" : "Atur"}
+                      </button>
+                      <button className="isyarat-x" title={`Lepaskan ${t.alias || "baris ini"}`}
+                              onClick={() => {
+                                setTarget(target.filter((_, y) => y !== i));
+                                if (buka) setDetailBuka(null);
+                              }}>×</button>
+                    </div>
+                  </div>
+                  {buka && (
+                    <div className="trow-detail">
+                      <DetailTarget t={t} ubah={ubah} lain={lain} namaSendiri={nama} />
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+            {!target.length && (
+              <div className="trow-kosong">
+                Belum didaftarkan ke jabatan mana pun, jadi belum akan dihitung.
+              </div>
+            )}
+          </div>
 
           {target.some((t) => t.alias && !jabatan.includes(t.alias)) && (
             <p className="alert warn">

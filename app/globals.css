@@ -1974,3 +1974,49 @@ td select{padding-right:28px}
   box-shadow:0 1px 2px rgba(17,26,43,.04),0 16px 34px -22px rgba(17,26,43,.2)}
 .detail-sub{box-shadow:0 1px 2px rgba(17,26,43,.03),0 10px 22px -16px rgba(17,26,43,.14)}
 .tbl-pita{box-shadow:0 1px 2px rgba(17,26,43,.03)}
+
+/* ============================================================
+   BARIS PENDAFTARAN — "Didaftarkan ke jabatan · produk"
+   ------------------------------------------------------------
+   Sebelumnya empat kotak pilih berdampingan di dalam <table>: lebar
+   kolom kaku lewat <colgroup>, dan baris yang dibuka "Atur" mekar
+   jadi tempelan abu-abu rata tepi yang terasa lepas dari baris
+   pemicunya. Sekarang tiap pendaftaran adalah kartunya sendiri —
+   field-nya diberi label kecil di atasnya (jelas tanpa perlu kepala
+   tabel terpisah), ringkasannya diberi titik warna sesuai peran
+   supaya jenis baris terbaca sekilas, dan panel "Atur" menempel
+   langsung di bawah kepala kartu yang sama alih-alih jadi kotak
+   terpisah yang mengambang tanpa hubungan visual.
+   ============================================================ */
+.daftar-target{display:flex;flex-direction:column;gap:10px}
+.trow{border:1px solid var(--line);border-radius:14px;background:var(--surface);
+  box-shadow:0 1px 2px rgba(17,26,43,.03);
+  transition:box-shadow .15s var(--ease),border-color .15s var(--ease)}
+.trow:hover{border-color:#C9D2EE}
+.trow.buka{border-color:#C9D2EE;box-shadow:var(--shadow-card)}
+.trow.buka .trow-atas{background:var(--line-soft);border-radius:13px 13px 0 0}
+.trow-atas{display:flex;align-items:flex-end;gap:14px;padding:12px 14px;flex-wrap:wrap}
+.trow-field{display:flex;flex-direction:column;gap:5px}
+.trow-jabatan{flex:1 1 190px;min-width:150px}
+.trow-produk{flex:0 0 120px}
+.trow-peran{flex:0 0 190px}
+.trow-label{font-size:10px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;
+  color:var(--ink-faint)}
+.trow-ringkas{flex:1 1 200px;min-width:160px;display:flex;flex-direction:column;gap:5px}
+.trow-ringkas-teks{display:flex;align-items:center;gap:7px;font-size:12.5px;
+  color:var(--ink-soft);padding:9px 0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.trow-dot{width:7px;height:7px;border-radius:999px;flex:none;background:var(--ink-faint)}
+.warna-accent .trow-dot{background:var(--accent)}
+.warna-good .trow-dot{background:var(--good)}
+.warna-bad .trow-dot{background:var(--bad)}
+.warna-warn .trow-dot{background:var(--warn)}
+.warna-ungu .trow-dot{background:var(--accent-2)}
+.warna-netral .trow-dot{background:var(--ink-faint)}
+.trow-aksi{display:flex;align-items:center;gap:4px;flex:none;padding-bottom:2px}
+.trow-kosong{padding:26px;text-align:center;color:var(--ink-faint);
+  border:1.5px dashed var(--line);border-radius:14px}
+@media (max-width:760px){
+  .trow-atas{align-items:stretch}
+  .trow-jabatan,.trow-produk,.trow-peran,.trow-ringkas{flex:1 1 100%}
+  .trow-aksi{justify-content:flex-end}
+}
