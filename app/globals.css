@@ -1851,27 +1851,47 @@ tr.kurang > td{background:var(--bad-soft)}
    yang tampilannya berbeda-beda tiap browser dan terasa asing di antara
    kontrol lain yang sudah dirancang khusus. Digambar dari gradasi CSS,
    bukan gambar, supaya tidak menambah permintaan berkas dan warnanya
-   otomatis ikut token --ink-faint. */
-:where(select){
-  appearance:none;-webkit-appearance:none;-moz-appearance:none;
-  background-image:
+   otomatis ikut token --ink-faint.
+
+   PENTING — kenapa semua konteks disebut satu per satu, bukan cukup
+   :where(select): beberapa aturan lama (.field select, .maprow select,
+   .select, .closebox select) memakai properti singkat `background:`,
+   dan properti singkat itu MENGOSONGKAN background-image. Kalau panah
+   hanya dipasang lewat :where() yang berspesifisitas nol, aturan-aturan
+   itu menang dan panahnya hilang — sementara appearance:none sudah
+   terlanjur membuang panah bawaan browser, sehingga select-nya tampak
+   seperti kotak biasa yang tidak terlihat bisa dibuka. */
+:root{
+  --panah-select:
     linear-gradient(45deg,transparent 50%,var(--ink-faint) 50%),
     linear-gradient(135deg,var(--ink-faint) 50%,transparent 50%);
-  background-position:calc(100% - 18px) calc(50% - 2px),calc(100% - 13px) calc(50% - 2px);
-  background-size:5px 5px,5px 5px;background-repeat:no-repeat;
-  padding-right:32px;
-}
-:where(select):disabled{
-  background-image:
+  --panah-select-mati:
     linear-gradient(45deg,transparent 50%,var(--line) 50%),
     linear-gradient(135deg,var(--line) 50%,transparent 50%);
 }
-/* Beberapa tempat sudah mengatur padding select-nya sendiri dengan
-   selektor yang lebih spesifik (.field, .maprow, sel tabel) — nilai kanan
-   itu ditambal di sini juga supaya panah baru tidak menindih teks nilai. */
-.field select,.maprow select{padding-right:32px}
-td select{padding-right:28px}
-.select{padding-right:30px}
+select,
+.field select,
+.maprow select,
+.maprow select.kosong,
+.select,
+.closebox select,
+td select{
+  appearance:none;-webkit-appearance:none;-moz-appearance:none;
+  background-image:var(--panah-select);
+  background-position:calc(100% - 18px) calc(50% - 2px),calc(100% - 13px) calc(50% - 2px);
+  background-size:5px 5px,5px 5px;
+  background-repeat:no-repeat;
+  padding-right:32px;
+}
+/* Warna latar yang ikut terhapus oleh properti singkat di atas,
+   dikembalikan sebagai longhand supaya tidak lagi menabrak panah. */
+.field select,.maprow select,.select,.closebox select{background-color:#fff}
+.maprow select.kosong{background-color:var(--warn-soft)}
+/* Keadaan mati ikut disebut ulang: aturan latar abu untuk kontrol
+   nonaktif ditulis dengan :where() yang berspesifisitas nol, jadi ia
+   kalah dari .field select di atas kalau tidak ditegaskan lagi. */
+select:disabled{background-image:var(--panah-select-mati);
+  background-color:var(--line-soft)}
 
 /* ---- isian formulir: kedalaman tipis + cincin cahaya yang lebih lebar
    saat fokus, supaya kontrol yang sedang aktif jelas tanpa menambah warna ---- */
@@ -1925,17 +1945,27 @@ td select{padding-right:28px}
 .ind-item-satuan.s-unit{background:var(--warn-soft);color:var(--warn)}
 
 /* ---- kotak pengaturan dasar: strip dengan aksen gradasi di tepi atas,
-   menandainya sebagai satu kesatuan pengaturan, bukan sekadar isian lepas ---- */
-.ind-atur{border-radius:14px;box-shadow:var(--shadow-card);position:relative;overflow:hidden}
-.ind-atur::before{content:"";position:absolute;left:0;right:0;top:0;height:3px;
-  background:var(--grad-accent)}
+   menandainya sebagai satu kesatuan pengaturan, bukan sekadar isian lepas.
+
+   Garis aksennya digambar sebagai LATAR kotak itu sendiri, bukan lapisan
+   ::before yang butuh overflow:hidden. Versi pertama memakai overflow:hidden
+   dan itu memotong panel dropdown "Dihitung untuk" dan "Satuan" yang harus
+   keluar dari kotaknya — kotak yang memangkas isinya tidak boleh memuat
+   menu yang mengambang. ---- */
+.ind-atur{border-radius:14px;box-shadow:var(--shadow-card);
+  background-color:var(--surface);background-image:var(--grad-accent);
+  background-repeat:no-repeat;background-size:100% 3px;background-position:top}
 
 /* ---- kartu komponen: lencana huruf bergradasi menggantikan label polos,
    kedalaman bertingkat, dan sedikit terangkat saat disentuh ---- */
 .ikartu{border-radius:16px;box-shadow:var(--shadow-card);
-  transition:transform .15s var(--ease),box-shadow .15s var(--ease),border-color .15s var(--ease)}
-.ikartu:hover{transform:translateY(-1px);
-  box-shadow:0 1px 2px rgba(17,26,43,.05),0 18px 36px -18px rgba(17,26,43,.24)}
+  transition:box-shadow .15s var(--ease),border-color .15s var(--ease)}
+/* Hover HANYA menaikkan bayangan, tanpa transform.
+   transform membuat elemen jadi stacking context baru, dan itu mengurung
+   panel dropdown di dalam kartunya sendiri: begitu kursor ada di atas
+   kartu (yang selalu terjadi saat membuka dropdown di dalamnya), kartu
+   berikutnya menimpa panel yang sedang terbuka. */
+.ikartu:hover{box-shadow:0 1px 2px rgba(17,26,43,.05),0 18px 36px -18px rgba(17,26,43,.24)}
 .ikartu.sasaran{box-shadow:0 0 0 3px var(--accent-soft),var(--shadow-card)}
 .ikartu-no{display:inline-flex;align-items:center}
 .ikartu-huruf{display:inline-flex;align-items:center;justify-content:center;
@@ -2015,6 +2045,35 @@ td select{padding-right:28px}
 .trow-aksi{display:flex;align-items:center;gap:4px;flex:none;padding-bottom:2px}
 .trow-kosong{padding:26px;text-align:center;color:var(--ink-faint);
   border:1.5px dashed var(--line);border-radius:14px}
+
+/* ============================================================
+   PANEL DROPDOWN YANG SEDANG TERBUKA — jangan sampai tertimpa
+   ------------------------------------------------------------
+   Panel Pilih sudah punya z-index 40, tapi itu hanya berlaku di dalam
+   konteks penumpukan tempat ia berada. Begitu kartu induknya berdiri
+   sejajar dengan kartu lain, kartu yang datang belakangan tetap
+   menimpa panel yang mengambang di atas kartu sebelumnya.
+   Karena itu kartu yang SEDANG memuat dropdown terbuka diangkat
+   sebentar ke lapisan atas — hanya selama dropdown-nya terbuka,
+   jadi tidak mengganggu urutan tumpukan di keadaan biasa.
+
+   .panel-isi memangkas isinya (overflow:hidden) supaya sudut kepala
+   berwarnanya ikut membulat. Pemangkasan itu juga memotong dropdown
+   di dalamnya — terlihat di menu Tier, Pagu, dan Kelas Cabang. Kepala
+   panelnya kini membulat sendiri, sehingga pemangkasan bisa dilepas
+   saat ada dropdown terbuka tanpa merusak sudutnya.
+   ============================================================ */
+.ikartu:has(.pilih.buka),
+.trow:has(.pilih.buka),
+.ind-atur:has(.pilih.buka),
+.akui:has(.pilih.buka),
+.panel-isi:has(.pilih.buka){position:relative;z-index:30}
+.panel-kepala{border-radius:13px 13px 0 0}
+.panel-isi:has(.pilih.buka){overflow:visible}
+
+/* Select bawaan di kotak tutup-periode juga mengatur padding sendiri,
+   jadi ruang untuk panah kustomnya ikut ditambal di sini. */
+.closebox select{padding-right:32px}
 @media (max-width:760px){
   .trow-atas{align-items:stretch}
   .trow-jabatan,.trow-produk,.trow-peran,.trow-ringkas{flex:1 1 100%}
