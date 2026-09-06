@@ -12,6 +12,7 @@ type Baris = {
 type Riwayat = {
   id: number; nama_file: string | null; kolom_diisi: string[] | null;
   baris_masuk: number; baris_tolak: number; dibuat_pada: string;
+  baris_aktif: number;
 };
 
 /**
@@ -40,6 +41,7 @@ export default function Client() {
   const [berkas, setBerkas] = useState<File | null>(null);
   const [seret, setSeret] = useState(false);
   const [sunting, setSunting] = useState<Baris | null>(null);
+  const [hapusNomor, setHapusNomor] = useState("");
   const input = useRef<HTMLInputElement>(null);
 
   const segarkan = useCallback(async () => {
@@ -90,6 +92,29 @@ export default function Client() {
       setHal(0);
       await segarkan();
     } finally { setSibuk(false); }
+  }
+
+  async function hapusPerNomor() {
+    const nomor = hapusNomor.trim();
+    if (!nomor) return;
+    if (!confirm(`Hapus kontrak "${nomor}" dari data pendukung?`)) return;
+    const ok = await kirim("DELETE", undefined,
+      `/api/admin/pendukung?agreement_no=${encodeURIComponent(nomor)}`);
+    if (ok) { setHapusNomor(""); setPesan(`Kontrak "${nomor}" dihapus.`); }
+  }
+
+  async function hapusBatch(r: Riwayat) {
+    const label = r.nama_file ?? `unggahan #${r.id}`;
+    if (!r.baris_aktif) {
+      setPesan(`Tidak ada baris yang masih berasal dari "${label}" — sudah ditimpa unggahan lain atau sudah dihapus.`);
+      return;
+    }
+    if (!confirm(
+      `Hapus ${r.baris_aktif} baris dari "${label}"?\n\n` +
+      `Hanya kontrak yang isinya masih berasal dari unggahan ini yang terhapus — ` +
+      `kontrak yang sudah ditimpa unggahan berikutnya tidak ikut terhapus.`)) return;
+    const ok = await kirim("DELETE", undefined, `/api/admin/pendukung?unggah_id=${r.id}`);
+    if (ok) setPesan(`${r.baris_aktif} baris dari "${label}" dihapus.`);
   }
 
   const fmtNilai = (v: any, jenis: string) => {
@@ -265,6 +290,13 @@ export default function Client() {
           </div>
           <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
             <KotakCari nilai={cari} onUbah={setCari} placeholder="Cari nomor kontrak…" />
+            <span className="faint">·</span>
+            <input value={hapusNomor} placeholder="Hapus nomor kontrak…"
+                   style={{ width: 180 }}
+                   onChange={(e) => setHapusNomor(e.target.value)}
+                   onKeyDown={(e) => { if (e.key === "Enter") hapusPerNomor(); }} />
+            <button className="btn ghost sm bahaya" disabled={sibuk || !hapusNomor.trim()}
+                    onClick={hapusPerNomor}>Hapus</button>
           </div>
         </div>
 
@@ -339,7 +371,8 @@ export default function Client() {
         <table>
           <thead>
             <tr><th>Berkas</th><th>Kolom terisi</th>
-                <th className="r">Masuk</th><th className="r">Diabaikan</th><th>Waktu</th></tr>
+                <th className="r">Masuk</th><th className="r">Diabaikan</th>
+                <th className="r">Masih aktif</th><th>Waktu</th><th></th></tr>
           </thead>
           <tbody>
             {riwayat.map((r) => (
@@ -348,11 +381,19 @@ export default function Client() {
                 <td className="faint">{(r.kolom_diisi ?? []).join(", ") || "—"}</td>
                 <td className="r num">{r.baris_masuk.toLocaleString("id-ID")}</td>
                 <td className={"r num " + (r.baris_tolak ? "" : "faint")}>{r.baris_tolak}</td>
+                <td className={"r num " + (r.baris_aktif ? "" : "faint")}
+                    title="Baris yang isinya masih berasal dari unggahan ini, belum ditimpa unggahan berikutnya">
+                  {r.baris_aktif.toLocaleString("id-ID")}
+                </td>
                 <td className="faint">{new Date(r.dibuat_pada).toLocaleString("id-ID")}</td>
+                <td className="r" style={{ whiteSpace: "nowrap" }}>
+                  <button className="btn ghost sm bahaya" disabled={sibuk || !r.baris_aktif}
+                          onClick={() => hapusBatch(r)}>Hapus batch ini</button>
+                </td>
               </tr>
             ))}
             {!riwayat.length && (
-              <tr><td colSpan={5} className="empty">Belum ada unggahan.</td></tr>
+              <tr><td colSpan={7} className="empty">Belum ada unggahan.</td></tr>
             )}
           </tbody>
         </table>

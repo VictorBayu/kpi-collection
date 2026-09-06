@@ -89,8 +89,12 @@ export const GET = handler(async (req) => {
         ORDER BY ditarik_pada DESC, id DESC
         LIMIT ${PER_HAL} OFFSET ${hal * PER_HAL}`, params),
     q<any>(`SELECT COUNT(*)::int AS n FROM data_pendukung ${where}`, params),
-    q<any>(`SELECT id, nama_file, kolom_diisi, baris_masuk, baris_tolak, dibuat_pada
-              FROM pendukung_unggah ORDER BY dibuat_pada DESC LIMIT 5`),
+    q<any>(
+      `SELECT u.id, u.nama_file, u.kolom_diisi, u.baris_masuk, u.baris_tolak, u.dibuat_pada,
+              COUNT(d.id)::int AS baris_aktif
+         FROM pendukung_unggah u
+         LEFT JOIN data_pendukung d ON d.unggah_id = u.id
+        GROUP BY u.id ORDER BY u.dibuat_pada DESC LIMIT 10`),
     q<any>(`SELECT COUNT(*)::int AS baris,
                    COUNT(*) FILTER (WHERE COALESCE(aktif,true))::int AS aktif,
                    MAX(ditarik_pada) AS terakhir
@@ -140,6 +144,35 @@ export const DELETE = handler(async (req) => {
   if (url.searchParams.get("semua") === "1") {
     const hasil = await q<{ id: number }>(`DELETE FROM data_pendukung RETURNING id`);
     await auditLog(admin.sub, "pendukung.kosongkan", undefined, { dihapus: hasil.length });
+    return Response.json({ ok: true, dihapus: hasil.length });
+  }
+
+  // Hapus satu kontrak langsung lewat nomornya, tanpa perlu mencarinya
+  // dulu di tabel — dipakai saat admin sudah tahu persis nomor kontrak
+  // mana yang salah masuk.
+  const agreementNo = url.searchParams.get("agreement_no");
+  if (agreementNo) {
+    const hasil = await q<{ id: number }>(
+      `DELETE FROM data_pendukung WHERE UPPER(agreement_no) = UPPER($1) RETURNING id`,
+      [agreementNo.trim()]);
+    if (!hasil.length) throw new HttpError(404, `Nomor kontrak "${agreementNo}" tidak ditemukan.`);
+    await auditLog(admin.sub, "pendukung.hapus", agreementNo.trim());
+    return Response.json({ ok: true, dihapus: hasil.length });
+  }
+
+  // Hapus seluruh baris yang isinya masih berasal dari satu batch unggahan.
+  //
+  // "Masih berasal dari" itu kuncinya: karena unggahan memakai UPSERT,
+  // unggah_id sebuah baris selalu menunjuk ke unggahan PALING BARU yang
+  // menyentuhnya. Kalau batch lama dihapus tapi sebagian kontraknya sudah
+  // ditimpa unggahan berikutnya, kontrak itu TIDAK ikut terhapus — isinya
+  // sekarang memang bukan lagi milik batch lama itu.
+  const unggahId = Number(url.searchParams.get("unggah_id"));
+  if (Number.isFinite(unggahId) && unggahId > 0) {
+    const hasil = await q<{ id: number }>(
+      `DELETE FROM data_pendukung WHERE unggah_id = $1 RETURNING id`, [unggahId]);
+    await auditLog(admin.sub, "pendukung.hapus_batch", String(unggahId),
+      { dihapus: hasil.length });
     return Response.json({ ok: true, dihapus: hasil.length });
   }
 
@@ -216,27 +249,30 @@ export const POST = handler(async (req) => {
   const setKolom = terpakai.map((k) => `"${k.kolom}" = EXCLUDED."${k.kolom}"`).join(",");
   const baris = [...perKontrak.entries()];
 
+  // Riwayat dibuat DULU, sebelum baris-barisnya, supaya tiap baris yang
+  // masuk bisa langsung menyimpan id unggahannya. Itu yang dipakai fitur
+  // "hapus berdasarkan batch" untuk tahu baris mana milik unggahan mana.
+  const [ung] = await q<{ id: number }>(
+    `INSERT INTO pendukung_unggah (nama_file, kolom_diisi, baris_masuk, baris_tolak, oleh)
+     VALUES ($1,$2,$3,$4,$5) RETURNING id`,
+    [file.name, terpakai.map((k) => k.kolom), baris.length, ditolak, admin.sub]);
+
   for (let i = 0; i < baris.length; i += PER_INSERT) {
     const grup = baris.slice(i, i + PER_INSERT);
-    const params: any[] = [];
+    const params: any[] = [ung.id];
     const tuple = grup.map(([kunci, nilai]) => {
       const dasar = params.length;
       params.push(kunci, ...nilai);
-      return "(" + Array.from({ length: nilai.length + 1 },
+      return "($1," + Array.from({ length: nilai.length + 1 },
         (_, x) => `$${dasar + x + 1}`).join(",") + ")";
     });
 
     await q(
-      `INSERT INTO data_pendukung (agreement_no,${namaKolom}) VALUES ${tuple.join(",")}
+      `INSERT INTO data_pendukung (unggah_id, agreement_no,${namaKolom}) VALUES ${tuple.join(",")}
        ON CONFLICT (agreement_no) DO UPDATE
-         SET ${setKolom}, ditarik_pada = now()`,
+         SET ${setKolom}, unggah_id = EXCLUDED.unggah_id, ditarik_pada = now()`,
       params);
   }
-
-  await q(
-    `INSERT INTO pendukung_unggah (nama_file, kolom_diisi, baris_masuk, baris_tolak, oleh)
-     VALUES ($1,$2,$3,$4,$5)`,
-    [file.name, terpakai.map((k) => k.kolom), baris.length, ditolak, admin.sub]);
 
   await auditLog(admin.sub, "pendukung.unggah", file.name,
     { baris: baris.length, ditolak });
