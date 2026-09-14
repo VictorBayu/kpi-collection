@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useCallback, useRef } from "react";
 import KotakCari from "@/components/KotakCari";
+import UnggahGambar, { type Lampiran } from "@/components/UnggahGambar";
 
 type Tiket = {
   id: string; nomor: string; kategori: string; periode: string | null;
@@ -10,7 +11,10 @@ type Tiket = {
   pemohon: string; pemohon_nik: string; petugas: string | null; pesan: number;
   belum_dibaca?: boolean;
 };
-type Pesan = { peran: "karyawan" | "admin"; pesan: string; created_at: string; nama: string };
+type Pesan = {
+  peran: "karyawan" | "admin"; pesan: string; created_at: string; nama: string;
+  lampiran_url?: string | null; lampiran_nama?: string | null;
+};
 
 const LABEL: Record<string, string> = {
   baru: "Menunggu", diproses: "Diproses", butuh_info: "Butuh info",
@@ -100,7 +104,7 @@ export default function RequestClient({
 
 
   /** Kirim balasan dengan tampilan seketika (optimistik), lalu sinkron ke server. */
-  async function kirimPesan(id: string, teks: string) {
+  async function kirimPesan(id: string, teks: string, lampiran?: Lampiran) {
     const bersih = teks.trim();
     if (!bersih) return;
     setDetail((d: any) => d ? {
@@ -108,16 +112,22 @@ export default function RequestClient({
       pesan: [...d.pesan, {
         peran: admin ? "admin" : "karyawan", pesan: bersih,
         created_at: new Date().toISOString(), nama: "Anda",
+        lampiran_url: lampiran?.url ?? null,
+        lampiran_nama: lampiran?.nama ?? null,
       }],
     } : d);
-    await kirim(`/api/request/${id}`, { pesan: bersih });
+    await kirim(`/api/request/${id}`, {
+      pesan: bersih,
+      lampiran: lampiran?.url ?? null,
+      lampiran_nama: lampiran?.nama ?? null,
+    });
   }
 
   return (
     <>
       <div className="sectionhead">
         <div>
-          <h2>{admin ? "Kelola request" : "Request saya"}</h2>
+          <h2>{admin ? "Supporting" : "Request saya"}</h2>
           <p>
             {admin
               ? `${stat.baru} tiket menunggu jawaban. Tiket yang belum disentuh muncul paling atas.`
@@ -209,6 +219,7 @@ function Detail({ d, admin, sibuk, kirim, kirimPesan }: any) {
   }, [d.pesan.length]);
   const tertutup = ["selesai", "ditolak"].includes(t.status);
   const [balasan, setBalasan] = useState("");
+  const [lampiran, setLampiran] = useState<Lampiran>(null);
   const [hasil, setHasil] = useState(t.hasil ?? "");
   const [status, setStatus] = useState(t.status);
 
@@ -247,7 +258,16 @@ function Detail({ d, admin, sibuk, kirim, kirimPesan }: any) {
           const saya = admin ? m.peran === "admin" : m.peran === "karyawan";
           return (
             <div key={i} className={saya ? "msgwrap me" : "msgwrap"}>
-              <div className={saya ? "msg me" : "msg them"}>{m.pesan}</div>
+              <div className={saya ? "msg me" : "msg them"}>
+                {m.pesan}
+                {m.lampiran_url && (
+                  <a className="msg-lampiran" href={m.lampiran_url}
+                     target="_blank" rel="noopener noreferrer">
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img src={m.lampiran_url} alt={m.lampiran_nama ?? "Lampiran"} />
+                  </a>
+                )}
+              </div>
               <span className="msgmeta">
                 {m.nama} · {new Date(m.created_at).toLocaleString("id-ID",
                   { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}
@@ -268,14 +288,19 @@ function Detail({ d, admin, sibuk, kirim, kirimPesan }: any) {
                    onChange={(e) => setBalasan(e.target.value)}
                    onKeyDown={(e) => {
                      if (e.key === "Enter" && balasan.trim()) {
-                       kirimPesan(t.id, balasan); setBalasan("");
+                       kirimPesan(t.id, balasan, lampiran);
+                       setBalasan(""); setLampiran(null);
                      }
                    }} />
             <button className="btn" disabled={sibuk || !balasan.trim()}
-                    onClick={() => { kirimPesan(t.id, balasan); setBalasan(""); }}>
+                    onClick={() => {
+                      kirimPesan(t.id, balasan, lampiran);
+                      setBalasan(""); setLampiran(null);
+                    }}>
               Kirim
             </button>
           </div>
+          <UnggahGambar nilai={lampiran} onUbah={setLampiran} sibuk={sibuk} />
 
           {admin ? (
             <div className="closebox">
@@ -316,6 +341,7 @@ function FormBaru({ kategori, periodeTersedia, sibuk, onKirim }: any) {
     kategori: kategori[0] ?? "", periode: periodeTersedia[0] ?? "",
     judul: "", deskripsi: "", prioritas: "normal", lampiran: "",
   });
+  const [gambar, setGambar] = useState<Lampiran>(null);
   const set = (k: string, v: string) => setF({ ...f, [k]: v });
 
   return (
@@ -359,7 +385,20 @@ function FormBaru({ kategori, periodeTersedia, sibuk, onKirim }: any) {
                placeholder="https://drive.google.com/..." />
       </label>
 
-      <button className="btn" disabled={sibuk} onClick={() => onKirim(f)}>
+      <div className="field mb">
+        <span>Gambar (opsional)</span>
+        <UnggahGambar nilai={gambar} onUbah={setGambar} sibuk={sibuk} />
+      </div>
+
+      <button className="btn" disabled={sibuk}
+              onClick={() => onKirim({
+                ...f,
+                // Gambar menang atas kolom tautan bila keduanya diisi:
+                // berkas yang benar-benar diunggah lebih pasti bisa dibuka
+                // tim data daripada tautan yang mungkin butuh izin akses.
+                lampiran: gambar?.url ?? f.lampiran,
+                lampiran_nama: gambar?.nama ?? null,
+              })}>
         {sibuk ? "Mengirim..." : "Kirim koreksi"}
       </button>
     </div>

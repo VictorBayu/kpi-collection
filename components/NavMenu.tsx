@@ -31,7 +31,28 @@ export default function NavMenu({ entri }: { entri: Entri[] }) {
     return () => document.removeEventListener("mousedown", tutup);
   }, []);
 
-  const aktifDi = (list: Item[]) => list.some((it) => path?.startsWith(it.href));
+  /**
+   * Menu yang sedang aktif = tautan dengan awalan TERPANJANG yang cocok.
+   *
+   * Pencocokan awalan sederhana membuat dua menu menyala sekaligus saat
+   * salah satu alamatnya bersarang di dalam yang lain: membuka
+   * /tim/dashboard juga menyalakan /tim. Karena itu semua tautan diadu
+   * dulu, lalu hanya yang paling khusus yang dianggap aktif.
+   *
+   * Batas ruas ("/") ikut diperiksa supaya /tim tidak pernah dianggap
+   * cocok dengan alamat lain yang kebetulan berawalan sama, mis. /timur.
+   */
+  const semuaHref = entri.flatMap((e) =>
+    "grup" in e ? e.grup.map((it) => it.href) : [e.href]);
+
+  const cocok = (href: string) => path === href || path?.startsWith(href + "/");
+
+  const terpilih = semuaHref
+    .filter(cocok)
+    .sort((a, b) => b.length - a.length)[0] ?? null;
+
+  const aktif = (href: string) => href === terpilih;
+  const aktifDi = (list: Item[]) => list.some((it) => aktif(it.href));
 
   return (
     <nav className="mainnav" ref={ref}>
@@ -48,7 +69,7 @@ export default function NavMenu({ entri }: { entri: Entri[] }) {
               <div className="navgrup-isi">
                 {e.grup.map((it) => (
                   <Link key={it.href} href={it.href} prefetch
-                        className={path?.startsWith(it.href) ? "on" : ""}
+                        className={aktif(it.href) ? "on" : ""}
                         onClick={() => setBuka(null)}>
                     {it.label}
                     {it.lencana && <NavBadge />}
@@ -59,7 +80,7 @@ export default function NavMenu({ entri }: { entri: Entri[] }) {
           </div>
         ) : (
           <Link key={e.href} href={e.href} prefetch
-                className={path?.startsWith(e.href) ? "on" : ""}>
+                className={aktif(e.href) ? "on" : ""}>
             {e.label}
             {e.lencana && <NavBadge />}
           </Link>

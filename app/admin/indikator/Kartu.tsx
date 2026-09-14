@@ -3,15 +3,21 @@
 import Pilih from "@/components/Pilih";
 
 export type Syarat = { kolom: string; operator: string; nilai: string[] };
+export type Pengakuan = { nilai: string; persen: number | string };
 export type Komponen = {
   agregat: string;
   kolom: string | null;
   operator_sebelum: string | null;
   gabung_syarat: "dan" | "atau";
   syarat: Syarat[];
+  /** Kolom penentu bobot pengakuan. Kosong = seluruh baris diakui penuh. */
+  pengakuan_kolom?: string | null;
+  pengakuan?: Pengakuan[];
 };
 export type Kolom = {
   kolom: string; label: string; jenis: string; agregat: boolean; kelompok: string | null;
+  /** 'api' (data utama) atau 'pendukung'. */
+  sumber?: string;
 };
 
 /** Operator yang menampung banyak nilai sekaligus. */
@@ -70,11 +76,33 @@ export default function Kartu({
   sasaran: boolean;
 }) {
   const bisaAgregat = kolom.filter((c) => c.agregat);
+  /**
+   * Kolom dari data pendukung diberi awalan kelompok tersendiri, bukan
+   * dicampur ke kelompok yang sama dengan data utama. Keduanya digabung
+   * lewat nomor kontrak, jadi admin perlu tahu mana yang berasal dari mana
+   * — kolom pendukung kosong untuk kontrak yang belum ada di sana.
+   */
   const opsiKolom = (daftar: Kolom[]) =>
-    daftar.map((c) => ({ nilai: c.kolom, label: c.label, grup: c.kelompok ?? undefined }));
+    daftar.map((c) => ({
+      nilai: c.kolom, label: c.label,
+      grup: c.sumber === "pendukung"
+        ? `Pendukung — ${c.kelompok ?? "Lain"}`
+        : (c.kelompok ?? undefined),
+    }));
 
   const jenisDari = (kode: string) =>
     kolom.find((c) => c.kolom === kode)?.jenis ?? "teks";
+
+  // Pengakuan dianggap aktif begitu barisnya ada, bukan begitu kolom
+  // penentunya terisi — supaya admin bisa menambah baris dulu lalu memilih
+  // kolomnya, tanpa panelnya berkedip hilang.
+  const akuiAktif = (k.pengakuan?.length ?? 0) > 0;
+
+  function ubahAkui(i: number, patch: Partial<Pengakuan>) {
+    onUbah({
+      pengakuan: (k.pengakuan ?? []).map((b, x) => (x === i ? { ...b, ...patch } : b)),
+    });
+  }
 
   function ubahSyarat(i: number, patch: Partial<Syarat>) {
     const baru = k.syarat.map((s, x) => (x === i ? { ...s, ...patch } : s));
@@ -99,7 +127,10 @@ export default function Kartu({
 
       <div className="ikartu-isi">
         <div className="ikartu-atas">
-          <span className="ikartu-no">Komponen {String.fromCharCode(65 + indeks)}</span>
+          <span className="ikartu-no">
+            <span className="ikartu-huruf" aria-hidden>{String.fromCharCode(65 + indeks)}</span>
+            Komponen {String.fromCharCode(65 + indeks)}
+          </span>
           <button className="ikartu-x" title="Hapus komponen" onClick={onHapus}>×</button>
         </div>
 
@@ -116,9 +147,16 @@ export default function Kartu({
           </div>
           <span className="faint small">dari</span>
           <div className="i-kolom">
+            {/* COUNT menghitung baris tanpa kolom. COUNT unik butuh kolom,
+                tapi boleh kolom apa pun — termasuk teks seperti nomor
+                kontrak; membatasinya ke kolom angka membuat "jumlah kontrak
+                unik" mustahil dipilih. Hanya SUM/AVG/MIN/MAX yang benar
+                menuntut kolom angka. */}
             <Pilih nilai={k.kolom ?? ""} onPilih={(v) => onUbah({ kolom: v })}
                    placeholder={k.agregat === "COUNT" ? "semua baris" : "pilih kolom"}
-                   opsi={opsiKolom(k.agregat === "COUNT" ? kolom : bisaAgregat)} />
+                   opsi={opsiKolom(
+                     k.agregat === "COUNT" || k.agregat === "COUNT_DISTINCT"
+                       ? kolom : bisaAgregat)} />
           </div>
         </div>
 
@@ -210,6 +248,79 @@ export default function Kartu({
             <span className="faint small" style={{ marginLeft: 8 }}>
               tanpa syarat = seluruh baris milik orang itu
             </span>
+          )}
+
+          {/* Bobot pengakuan — hanya masuk akal untuk agregat yang
+              menjumlahkan nilai kolom, bukan yang menghitung baris. */}
+          {["SUM", "AVG"].includes(k.agregat) && k.kolom && (
+            <div className="akui">
+              <div className="akui-kepala">
+                <span className="eyebrow">Pengakuan sebagian</span>
+                {!akuiAktif ? (
+                  <button className="btn ghost sm" disabled={sibuk}
+                          onClick={() => onUbah({
+                            pengakuan_kolom: k.pengakuan_kolom ?? "",
+                            pengakuan: [{ nilai: "", persen: 100 }],
+                          })}>
+                    + Atur pengakuan
+                  </button>
+                ) : (
+                  <button className="btn ghost sm" disabled={sibuk}
+                          onClick={() => onUbah({ pengakuan_kolom: null, pengakuan: [] })}>
+                    Hapus pengakuan
+                  </button>
+                )}
+              </div>
+
+              {!akuiAktif ? (
+                <p className="faint small" style={{ margin: 0 }}>
+                  Tanpa pengaturan ini, seluruh baris yang lolos syarat diakui 100%.
+                  Pakai bila tiap nilai diakui berbeda — mis. BTC 50%, Lunas 80%.
+                </p>
+              ) : (
+                <>
+                  <div className="akui-penentu">
+                    <span className="faint small">Persen ditentukan oleh kolom</span>
+                    <Pilih nilai={k.pengakuan_kolom ?? ""}
+                           onPilih={(v) => onUbah({ pengakuan_kolom: v })}
+                           placeholder="pilih kolom penentu"
+                           opsi={opsiKolom(kolom)} />
+                  </div>
+
+                  {(k.pengakuan ?? []).map((b, i) => (
+                    <div className="akui-baris" key={i}>
+                      <Pilih nilai={String(b.nilai)}
+                             onPilih={(v) => ubahAkui(i, { nilai: v })}
+                             placeholder="nilai"
+                             bebas
+                             opsi={(nilaiUnik[k.pengakuan_kolom ?? ""] ?? [])
+                               .map((v) => ({ nilai: v, label: v }))} />
+                      <div className="akui-persen">
+                        <input type="number" value={String(b.persen)} min={0} max={1000}
+                               onChange={(e) => ubahAkui(i, { persen: e.target.value })} />
+                        <span className="faint">%</span>
+                      </div>
+                      <button className="ibtn" disabled={sibuk}
+                              onClick={() => onUbah({
+                                pengakuan: (k.pengakuan ?? []).filter((_, x) => x !== i),
+                              })}>×</button>
+                    </div>
+                  ))}
+
+                  <div className="akui-kaki">
+                    <button className="btn ghost sm" disabled={sibuk}
+                            onClick={() => onUbah({
+                              pengakuan: [...(k.pengakuan ?? []), { nilai: "", persen: 100 }],
+                            })}>
+                      + Nilai
+                    </button>
+                    <span className="faint small">
+                      Nilai yang tidak didaftarkan di sini diakui 0%.
+                    </span>
+                  </div>
+                </>
+              )}
+            </div>
           )}
         </div>
       </div>

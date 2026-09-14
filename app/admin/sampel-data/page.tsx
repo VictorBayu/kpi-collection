@@ -3,7 +3,7 @@ import AppShell from "@/components/AppShell";
 import { readSession } from "@/lib/auth";
 import SampelClient from "./SampelClient";
 
-export const metadata = { title: "Sampel Data Mentah" };
+export const metadata = { title: "Sample Data API" };
 
 export default async function Page() {
   const s = await readSession();

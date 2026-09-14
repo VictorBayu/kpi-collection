@@ -30,10 +30,11 @@ export default function RincianIndikator({ data }: { data: Ind[] }) {
   const olah = useMemo(() => data.map((d, i) => {
     const satuanTampil = tebakSatuan(d.indikator, d.pencapaian);
     const band = nilaiBanding(d.pencapaian, d.rasio, d.target_kpi3);
-    const lv = band.v !== null && d.target_kpi3 !== null
-      ? tingkat(band.v, d.target_kpi3,
-                d.target_kpi4 ?? d.target_kpi3, d.target_kpi5 ?? d.target_kpi3)
-      : null;
+    // Tingkat dibaca dari skor yang sudah dihitung mesin. Menghitung ulang
+    // dari tiga ambang memberi jawaban lain begitu targetnya berupa pita
+    // nilai — kartu bisa merah padahal skornya 5,00.
+    const lv = d.skor_kpi === null ? null
+      : d.skor_kpi >= 5 ? 5 : d.skor_kpi >= 4 ? 4 : d.skor_kpi >= 3 ? 3 : 0;
     return { d, i, satuanTampil, band, lv };
   }), [data]);
 

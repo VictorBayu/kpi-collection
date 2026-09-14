@@ -34,7 +34,8 @@ export default function ProdukClient() {
     setMuat(true);
     try {
       const r = await fetch("/api/admin/produk", { cache: "no-store" });
-      const j = await r.json();
+      const j = await r.json().catch(() => ({}));
+      if (!r.ok) { setPesan(j.error ?? "Gagal memuat data produk."); return; }
       setProduk(j.produk ?? []);
       setJabatan(j.jabatan ?? []);
       setPeta(j.pemetaan ?? []);

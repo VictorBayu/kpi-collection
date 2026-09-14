@@ -170,12 +170,10 @@ async function IsiTim({
         <section className="timdetail mt">
           {anggota.map((a) => {
             const ind = petaInd.get(a.nik) ?? [];
-            const lemah = ind.filter((d: any) => {
-              const b = nilaiBanding(d.pencapaian, d.rasio, d.target_kpi3);
-              return b.v !== null && d.target_kpi3 !== null &&
-                tingkat(b.v, d.target_kpi3, d.target_kpi4 ?? d.target_kpi3,
-                        d.target_kpi5 ?? d.target_kpi3) === 0;
-            }).length;
+            // Dihitung dari skor tersimpan, bukan dari tiga ambang: sejak
+            // target boleh berupa pita nilai, keduanya tidak lagi sama.
+            const lemah = ind.filter(
+              (d: any) => d.skor_kpi !== null && d.skor_kpi < 3).length;
             return (
               <details className="orang" key={a.nik} open={a.skor < 3}>
                 <summary className="orang-head">
@@ -197,10 +195,9 @@ async function IsiTim({
                   {ind.map((d: any, i: number) => {
                     const satuanTampil = tebakSatuan(d.indikator, d.pencapaian);
                     const band = nilaiBanding(d.pencapaian, d.rasio, d.target_kpi3);
-                    const lv = band.v !== null && d.target_kpi3 !== null
-                      ? tingkat(band.v, d.target_kpi3,
-                                d.target_kpi4 ?? d.target_kpi3, d.target_kpi5 ?? d.target_kpi3)
-                      : null;
+                    const lv = d.skor_kpi === null ? null
+                      : d.skor_kpi >= 5 ? 5 : d.skor_kpi >= 4 ? 4
+                      : d.skor_kpi >= 3 ? 3 : 0;
                     return (
                       <div className={"indcell" + (lv === 0 ? " kurang" : "")} key={i}>
                         <div className="indcell-head">

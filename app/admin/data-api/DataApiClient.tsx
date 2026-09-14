@@ -60,7 +60,8 @@ export default function DataApiClient() {
 
   async function segarkan() {
     const r = await fetch("/api/admin/data-api", { cache: "no-store" });
-    const j = await r.json();
+    const j = await r.json().catch(() => ({}));
+    if (!r.ok) { setPesan(j.error ?? "Gagal memuat status data API."); return; }
     setRiwayat(j.riwayat ?? []); setRingkas(j.ringkas ?? null);
     const cabang = j.cabang ?? [];
     setCabangTotal(cabang.length);
@@ -88,6 +89,29 @@ export default function DataApiClient() {
     } finally { setSibuk(false); }
   }
 
+  async function hitungUlang() {
+    setSibuk(true);
+    setPesan("Menghitung ulang indikator dari data yang sudah ada…");
+    try {
+      const r = await fetch("/api/admin/data-api", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ hanyaHitung: true }),
+      });
+      const j = await r.json();
+      if (!r.ok) { setPesan(j.error ?? "Gagal menghitung ulang."); return; }
+      setPesan(
+        `Selesai: ${j.hitung.baris} baris KPI dan ${j.hitung.insentif ?? 0} baris ` +
+        `insentif dihitung ulang untuk ${j.hitung.indikator} indikator.` +
+        (j.hitung.gagal?.length
+          ? ` ${j.hitung.gagal.length} indikator gagal: ` +
+            j.hitung.gagal.map((g: any) => `${g.indikator} (${g.pesan})`).join("; ")
+          : ""),
+      );
+      await segarkan();
+    } finally { setSibuk(false); }
+  }
+
   const usia = selisih(ringkas?.terakhir ?? null);
   const terakhirGagal = riwayat[0] && !riwayat[0].berhasil;
 
@@ -101,9 +125,17 @@ export default function DataApiClient() {
             angka KPI periode berjalan. Penimpaan bersifat semua-atau-tidak.
           </p>
         </div>
-        <button className="btn" disabled={sibuk} onClick={tarikSekarang}>
-          {sibuk ? "Menarik…" : "Tarik sekarang"}
-        </button>
+        <div className="rowact">
+          {/* Hitung ulang tanpa menarik: untuk memunculkan indikator yang
+              baru dibuat/diubah tanpa memaksa tarik ulang 87 ribu baris. */}
+          <button className="btn ghost" disabled={sibuk} onClick={hitungUlang}
+                  title="Menghitung ulang indikator dari data mentah yang sudah ada, tanpa menarik lagi">
+            {sibuk ? "Memproses…" : "Hitung ulang"}
+          </button>
+          <button className="btn" disabled={sibuk} onClick={tarikSekarang}>
+            {sibuk ? "Menarik…" : "Tarik sekarang"}
+          </button>
+        </div>
       </div>
 
       {pesan && (

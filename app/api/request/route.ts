@@ -52,7 +52,8 @@ export const POST = handler(async (req) => {
   const s = await readSession();
   if (!s) throw new HttpError(401, "Sesi berakhir. Masuk kembali untuk melanjutkan.");
 
-  const { kategori, periode, judul, deskripsi, prioritas, lampiran } = await req.json();
+  const { kategori, periode, judul, deskripsi, prioritas, lampiran, lampiran_nama }
+    = await req.json();
 
   if (!KATEGORI.includes(kategori)) throw new HttpError(400, "Pilih kategori terlebih dahulu.");
   if (!judul || judul.trim().length < 8) {
@@ -66,18 +67,24 @@ export const POST = handler(async (req) => {
   for (let coba = 0; coba < 3; coba++) {
     try {
       const [r] = await q<{ id: string; nomor: string }>(
-        `INSERT INTO request (nomor, user_id, kategori, periode, judul, deskripsi, prioritas, lampiran_url)
+        `INSERT INTO request (nomor, user_id, kategori, periode, judul, deskripsi,
+                              prioritas, lampiran_url, lampiran_nama)
          SELECT 'REQ-' || to_char(now() AT TIME ZONE 'Asia/Jakarta','YYYYMM') || '-' ||
                 lpad((COALESCE(MAX(substring(nomor from 13)::int),0)+1)::text, 4, '0'),
-                $1,$2,$3,$4,$5,$6,$7
+                $1,$2,$3,$4,$5,$6,$7,$8
            FROM request
           WHERE nomor LIKE 'REQ-' || to_char(now() AT TIME ZONE 'Asia/Jakarta','YYYYMM') || '-%'
          RETURNING id, nomor`,
         [s.sub, kategori, periode || null, judul.trim(), deskripsi.trim(),
-         prioritas ?? "normal", lampiran || null]);
+         prioritas ?? "normal", lampiran || null, lampiran_nama || null]);
 
-      await q(`INSERT INTO request_message (request_id, user_id, peran, pesan)
-               VALUES ($1,$2,'karyawan',$3)`, [r.id, s.sub, deskripsi.trim()]);
+      // Lampiran ikut dibawa ke pesan pertama supaya tampil di dalam
+      // percakapan, bukan hanya di kepala tiket — pembaca menelusuri
+      // percakapan, dan gambar yang hanya ada di atas mudah terlewat.
+      await q(`INSERT INTO request_message
+                 (request_id, user_id, peran, pesan, lampiran_url, lampiran_nama)
+               VALUES ($1,$2,'karyawan',$3,$4,$5)`,
+        [r.id, s.sub, deskripsi.trim(), lampiran || null, lampiran_nama || null]);
       await auditLog(s.sub, "buat_request", r.id, { kategori });
 
       return Response.json({ ok: true, id: r.id, nomor: r.nomor });

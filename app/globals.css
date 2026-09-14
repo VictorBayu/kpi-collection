@@ -21,7 +21,11 @@
 :root{
   --ink:#111A2B;       /* 17.4 : 1 di putih */
   --ink-soft:#4A5768;  /*  7.4 : 1 */
-  --ink-faint:#677587; /*  4.7 : 1 — tetap terbaca walau ukurannya kecil */
+  /* Digelapkan dari #677587. Yang lama lolos 4,5:1 hanya di atas putih
+     murni; di atas --page, --line-soft, atau --accent-soft rasionya
+     jatuh ke 4,0–4,3 dan gagal WCAG AA. Nilai ini lolos di keempat
+     latar sekaligus (4,79 : 1 pada yang paling terang). */
+  --ink-faint:#5C6979;
   --page:#F1F4F9; --surface:#fff; --line:#DFE5EE; --line-soft:#EFF2F7;
   --accent:#3550C8; --accent-soft:#E9EDFB;   /* 6.7 : 1 */
   --good:#0F7A5A;   --good-soft:#E4F4EE;     /* 5.3 : 1 */
@@ -35,7 +39,10 @@ body{margin:0;background:var(--page);color:var(--ink);
 h1,h2,h3{font-family:var(--font-archivo),Archivo,sans-serif;margin:0;letter-spacing:-.02em}
 code,.num{font-family:var(--font-plex-mono),"IBM Plex Mono",monospace;font-variant-numeric:tabular-nums}
 :focus-visible{outline:2px solid var(--accent);outline-offset:2px;border-radius:4px}
-@media (prefers-reduced-motion:reduce){*{transition:none!important}}
+@media (prefers-reduced-motion:reduce){
+  *{transition:none!important;animation-duration:.01ms!important;
+    animation-iteration-count:1!important;scroll-behavior:auto!important}
+}
 
 .shell{max-width:1180px;margin:0 auto;padding:0 20px 64px}
 .sectionhead{margin:26px 0 14px}
@@ -590,12 +597,26 @@ tfoot td{font-weight:700;border-top:1px solid var(--line);background:#F9FBFD}
 .pilih.buka .pilih-tombol{border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-soft)}
 .pilih-nilai{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .pilih-kosong{flex:1;color:var(--ink-faint)}
-.pilih-ket{font-size:11px;color:var(--ink-faint);white-space:nowrap}
+/* Keterangan di dalam tombol harus bisa menyusut. Tanpa min-width:0 dan
+   shrink, teks nowrap ini memaksa tombol melebar melewati selnya dan
+   menimpa kolom sebelahnya — terlihat sebagai tulisan bertumpuk. */
+.pilih-ket{font-size:11px;color:var(--ink-faint);white-space:nowrap;
+  min-width:0;flex-shrink:1;overflow:hidden;text-overflow:ellipsis}
+/* Di dalam sel tabel ruangnya terlalu sempit untuk label sekaligus
+   keterangan; keterangannya tetap terbaca di panel saat dropdown dibuka. */
+td .pilih-ket{display:none}
 .pilih-panah{color:var(--ink-faint);font-size:11px;flex:none;transition:transform .15s}
 .pilih.buka .pilih-panah{transform:rotate(180deg)}
 .pilih-bayangan{position:absolute;opacity:0;width:1px;height:1px;pointer-events:none;border:0;padding:0}
 
-.pilih-panel{position:absolute;z-index:40;top:calc(100% + 5px);left:0;right:0;
+/* Lebar panel mengikuti isi terpanjangnya (sampai batas 360px), bukan
+   dipatok persis selebar tombol pemicu. Kolom tempat Pilih dipasang sering
+   sempit (grid form, sel tabel) — dipatok selebar tombol berarti label dan
+   keterangan opsi terpotong "..." begitu panel terbuka, padahal ruang di
+   sampingnya kosong. min-width menjaga panel tidak lebih sempit dari
+   tombolnya sendiri. */
+.pilih-panel{position:absolute;z-index:40;top:calc(100% + 5px);left:0;
+  min-width:100%;width:max-content;max-width:360px;
   background:#fff;border:1px solid var(--line);border-radius:12px;
   box-shadow:0 12px 32px rgba(12,22,38,.14);overflow:hidden}
 .pilih-cari{padding:9px;border-bottom:1px solid var(--line-soft);background:#FBFCFE}
@@ -605,15 +626,23 @@ tfoot td{font-weight:700;border-top:1px solid var(--line);background:#F9FBFD}
 .pilih-daftar{max-height:270px;overflow-y:auto;padding:5px}
 .pilih-grup{padding:8px 10px 4px;font-size:10px;font-weight:700;letter-spacing:.08em;
   text-transform:uppercase;color:var(--ink-faint)}
-.pilih-opsi{width:100%;display:flex;align-items:center;gap:9px;text-align:left;
+/* Opsi disusun membungkus: label dan centang di baris atas, keterangan
+   turun ke baris bawah selebar penuh. Sebelumnya keterangan dipaksa satu
+   baris (nowrap), jadi opsi berketerangan panjang — seperti "Nominal
+   bersyarat" — mendorong labelnya keluar sampai hilang dan panelnya
+   melebar menyamping. */
+.pilih-opsi{width:100%;display:flex;flex-wrap:wrap;align-items:baseline;
+  column-gap:9px;row-gap:1px;text-align:left;
   border:0;background:transparent;border-radius:8px;padding:8px 10px;cursor:pointer;
   font-family:inherit;font-size:13px;color:var(--ink)}
 .pilih-opsi.sorot{background:var(--line-soft)}
 .pilih-opsi.aktif{background:var(--accent-soft);color:var(--accent);font-weight:600}
-.pilih-opsi-label{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.pilih-opsi-ket{font-size:11px;color:var(--ink-faint);white-space:nowrap}
+.pilih-opsi-label{order:1;flex:1 1 auto;min-width:0;overflow:hidden;
+  text-overflow:ellipsis;white-space:nowrap}
+.pilih-centang{order:2;flex:none;color:var(--accent);font-size:12px}
+.pilih-opsi-ket{order:3;flex:1 1 100%;font-size:11px;color:var(--ink-faint);
+  line-height:1.35;white-space:normal}
 .pilih-opsi.aktif .pilih-opsi-ket{color:var(--accent)}
-.pilih-centang{color:var(--accent);font-size:12px}
 .pilih-nihil{padding:14px 12px;font-size:12.5px;color:var(--ink-faint);text-align:center}
 .pilih-baru{color:var(--accent)}
 .field .pilih-tombol{font-size:13.5px}
@@ -1073,9 +1102,165 @@ tfoot td{font-weight:700;border-top:1px solid var(--line);background:#F9FBFD}
 .dk-nama{font-weight:600;font-size:12.5px;line-height:1.3}
 .dk-produk{font-size:10.5px;color:var(--ink-faint)}
 .dk-nilai{font-size:12.5px;font-weight:600}
+/* Sebab nominal bersyarat cair atau tidak, menempel di bawah nama
+   indikatornya — bukan di kolom terpisah, karena panjangnya tidak
+   menentu dan akan merusak lebar kolom angka di sebelahnya. */
+.dk-gerbang{font-size:10.5px;line-height:1.35;margin-top:2px;max-width:46ch}
+.dk-gerbang.gagal{color:#992D08}
+.dk-gerbang.lolos{color:#136344}
 .dk-skor{font-family:var(--font-plex-mono),"IBM Plex Mono";font-size:13.5px}
 .dk-skor.bahaya{color:var(--bad)}
 .dk-skor.baik{color:var(--good)}
+
+/* ------------------------------------------------------------
+   Cadangan ruang untuk panel yang terisi setelah data datang.
+
+   Sebagian besar CLS di aplikasi ini bukan berasal dari gambar, melainkan
+   dari daftar yang awalnya kosong lalu tiba-tiba tinggi begitu fetch
+   selesai — seluruh isi di bawahnya ikut melompat. Mencadangkan tinggi
+   minimum membuat pergeseran itu tidak pernah terjadi; ongkosnya hanya
+   sedikit ruang kosong pada daftar yang memang pendek.
+   ------------------------------------------------------------ */
+.ind-daftar{min-height:320px}
+.ind-utama{min-height:420px}
+.cabang-scroll{min-height:360px}
+.thread{min-height:220px}
+.peran-menu{min-height:280px}
+.dropzone-wrap,.tickets{min-height:240px}
+/* Tabel di dalam kartu: menahan tinggi kepala + beberapa baris pertama
+   supaya kartu tidak tumbuh dari nol saat baris pertama muncul. */
+.card > table{min-height:120px}
+
+/* Area seret-lepas berkas. */
+.dropzone{display:flex;flex-direction:column;align-items:center;justify-content:center;
+  gap:5px;padding:26px 18px;border:1.5px dashed var(--line);border-radius:12px;
+  background:var(--line-soft);cursor:pointer;text-align:center;
+  transition:border-color .12s,background .12s}
+.dropzone:hover{border-color:var(--accent)}
+.dropzone.aktif{border-color:var(--accent);background:var(--accent-soft)}
+.dropzone.terisi{border-style:solid;border-color:var(--accent);background:var(--accent-soft)}
+
+/* Bilah paging di kaki tabel. */
+.paging{display:flex;align-items:center;justify-content:space-between;gap:12px;
+  padding:11px 14px;border-top:1px solid var(--line);flex-wrap:wrap}
+
+.tag-ok{display:inline-block;margin-left:6px;padding:1px 8px;border-radius:20px;
+  font-size:10.5px;font-weight:600;background:var(--good-soft);color:var(--good)}
+
+/* Lampiran gambar pada tiket Supporting. Pratinjau dibatasi tingginya
+   supaya satu tangkapan layar panjang tidak mendorong percakapan sampai
+   harus digulir jauh — klik untuk melihat ukuran penuh. */
+.lampiran{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-top:8px}
+.lampiran-ada{display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+.lampiran-pratinjau{max-height:72px;max-width:150px;border-radius:8px;
+  border:1px solid var(--line);display:block}
+.lampiran-info{display:flex;flex-direction:column;gap:5px;align-items:flex-start;
+  font-size:12.5px}
+.lampiran-galat{width:100%;margin:4px 0 0;font-size:12.5px;color:var(--bad)}
+.msg-lampiran{display:block;margin-top:8px}
+.msg-lampiran img{max-width:100%;max-height:240px;border-radius:8px;display:block}
+
+/* Kolom turunan: tiap cabang aturan sebagai kotak sendiri, supaya
+   "kalau begini maka begitu" terbaca sebagai satu kesatuan. */
+.turunan-cabang{border:1px solid var(--line);border-radius:10px;padding:10px 12px;
+  margin-bottom:10px;background:var(--surface)}
+.turunan-kepala{display:flex;align-items:center;justify-content:space-between;
+  margin-bottom:8px;font-size:12.5px}
+.turunan-syarat{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:6px}
+.turunan-syarat > div{min-width:170px}
+.turunan-syarat input{min-width:150px}
+.turunan-kaki{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.pill-op{border:1px solid var(--line);background:var(--line-soft);border-radius:20px;
+  padding:2px 10px;font-size:11.5px;cursor:pointer;color:var(--ink-soft)}
+.pendukung-kolom{display:flex;flex-wrap:wrap;gap:7px;margin-top:9px}
+.kolom-form{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:12px}
+.kolom-cek{display:flex;gap:18px;flex-wrap:wrap;margin-top:12px}
+
+/* ------------------------------------------------------------
+   Bobot pengakuan pada kartu komponen. Dipisah garis atas dan diberi
+   latar lembut supaya terbaca sebagai penyetel atas agregat di atasnya,
+   bukan sebagai syarat penyaring tambahan — dua hal yang kalau tampak
+   sederajat membuat admin salah mengira pengakuan ikut menyaring baris.
+   ------------------------------------------------------------ */
+.akui{margin-top:12px;padding:11px 12px;border-top:1px solid var(--line);
+  background:var(--line-soft);border-radius:0 0 10px 10px}
+.akui-kepala{display:flex;align-items:center;justify-content:space-between;
+  gap:10px;margin-bottom:8px}
+.akui-penentu{display:flex;align-items:center;gap:9px;flex-wrap:wrap;margin-bottom:9px}
+.akui-penentu > div{min-width:210px}
+.akui-baris{display:flex;align-items:center;gap:8px;margin-bottom:6px}
+.akui-baris > div:first-child{flex:1;min-width:150px}
+.akui-persen{display:flex;align-items:center;gap:5px}
+.akui-persen input{width:82px;text-align:right}
+.akui-kaki{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-top:8px}
+
+/* ------------------------------------------------------------
+   Peran & hak akses: daftar menu berkelompok dengan kotak centang.
+   Dua kolom di layar lebar supaya seluruh menu terlihat tanpa
+   menggulir — melihat hak akses secara utuh adalah inti layar ini.
+   ------------------------------------------------------------ */
+.peran-menu{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));
+  gap:14px;padding:14px}
+.peran-grup{border:1px solid var(--line);border-radius:10px;overflow:hidden}
+.peran-grup-kepala{display:flex;align-items:center;justify-content:space-between;
+  gap:10px;padding:9px 12px;background:var(--line-soft);border-bottom:1px solid var(--line);
+  font-size:12.5px}
+.peran-baris{display:flex;align-items:flex-start;gap:9px;padding:8px 12px;
+  border-bottom:1px solid var(--line-soft);cursor:pointer}
+.peran-baris:last-child{border-bottom:0}
+.peran-baris:hover{background:var(--line-soft)}
+.peran-baris input{margin-top:2px}
+.peran-baris span{display:flex;flex-direction:column;line-height:1.35}
+.peran-baris b{font-size:13px;font-weight:600}
+.peran-baris i{font-style:normal;font-size:11px}
+
+/* ------------------------------------------------------------
+   Rincian harian: aksen warna pembeda per peran + kolom target
+   berikutnya + panel pita yang bisa dibuka per baris.
+   Warna kiri tiap kelompok memberi isyarat cepat "jenis" indikator
+   tanpa perlu membaca judul — nominal (biru), KPI (indigo lembut),
+   reward (hijau), penalty (merah), tier (ungu), pendukung (netral).
+   ------------------------------------------------------------ */
+.rh-grup{border-left:3px solid var(--line);overflow:hidden}
+.rh-grup.rh-nominal{border-left-color:var(--accent)}
+.rh-grup.rh-kpi{border-left-color:#5A6BD6}
+.rh-grup.rh-reward{border-left-color:var(--good)}
+.rh-grup.rh-penalty{border-left-color:var(--bad)}
+.rh-grup.rh-tier{border-left-color:#7A5BC0}
+.rh-grup.rh-pendukung{border-left-color:var(--ink-faint)}
+
+.rh-col-target{width:132px}
+
+/* Angka Nilai KPI yang bisa diklik untuk buka seluruh ambang. */
+.rh-kpi{display:inline-flex;align-items:center;gap:5px;border:1px solid var(--line);
+  background:var(--surface);border-radius:8px;padding:3px 8px;cursor:pointer;
+  font-family:var(--font-plex-mono),"IBM Plex Mono";font-size:13px;color:var(--ink);
+  font-variant-numeric:tabular-nums;transition:background .12s,border-color .12s}
+.rh-kpi:hover{background:var(--line-soft);border-color:var(--line)}
+.rh-kpi.on{background:var(--accent-soft);border-color:var(--accent)}
+.rh-kpi.bahaya{color:var(--bad)}
+.rh-kpi.baik{color:var(--good)}
+.rh-caret{font-size:10px;color:var(--ink-faint)}
+.rh-kpi.on .rh-caret{color:var(--accent)}
+
+.rh-chase{font-family:var(--font-plex-mono),"IBM Plex Mono";font-size:13px;color:var(--warn)}
+.rh-max{font-size:11.5px;color:var(--good)}
+
+/* Panel pita: tampil di bawah baris, latar lembut agar terbaca sebagai
+   detail dari baris di atasnya, bukan baris data baru. */
+.rh-banded > td{padding:0!important;background:var(--line-soft)}
+.rh-pita{padding:10px 12px 12px}
+.rh-pita-head,.rh-pita-baris{display:grid;grid-template-columns:1fr 90px 78px;
+  gap:2px 14px;align-items:center}
+.rh-pita-head{font-size:10.5px;letter-spacing:.05em;text-transform:uppercase;
+  color:var(--ink-faint);padding-bottom:6px;border-bottom:1px solid var(--line)}
+.rh-pita-baris{font-size:12px;padding:5px 0;color:var(--ink-soft);
+  border-bottom:1px solid var(--line)}
+.rh-pita-baris:last-child{border-bottom:0}
+.rh-pita-baris .r,.rh-pita-head .r{text-align:right}
+.rh-pita-baris.kini{background:var(--accent-soft);margin:0 -12px;padding:5px 12px;
+  border-radius:6px;border-bottom-color:transparent;color:var(--ink);font-weight:600}
+.rh-here{color:var(--accent);font-weight:600}
 
 /* Bilah mini pengganti komponen Ladder — cukup untuk melihat posisi
    relatif terhadap target tanpa memakan tinggi baris. */
@@ -1086,9 +1271,14 @@ tfoot td{font-weight:700;border-top:1px solid var(--line);background:#F9FBFD}
 .dk-meter i.k3{background:var(--warn)}
 .dk-meter i.k4{background:var(--accent)}
 .dk-meter i.k5{background:var(--good)}
-.dk-meter em{position:absolute;top:0;width:1px;height:100%;background:rgba(17,26,43,.18)}
-.dk-meter-x{display:flex;justify-content:space-between;font-size:9px;color:var(--ink-faint);
-  margin-top:2px;padding:0 1px}
+.dk-meter em{position:absolute;top:0;width:1px;height:100%;background:rgba(17,26,43,.28)}
+/* Sumbu bukan lagi bagi-rata: angkanya ditempatkan persis di atas ambangnya
+   (KPI 3 di 50%, KPI 4 di 75%), supaya panjang bilah bisa dibaca langsung
+   sebagai skor. */
+.dk-meter-x{position:relative;height:12px;font-size:9px;color:var(--ink-soft);
+  margin-top:2px}
+.dk-meter-x span{position:absolute;top:0;transform:translateX(-50%);
+  font-variant-numeric:tabular-nums}
 
 .dk-ins{list-style:none;margin:0;padding:0}
 .dk-ins li{display:flex;justify-content:space-between;align-items:baseline;gap:10px;
@@ -1172,11 +1362,6 @@ tfoot td{font-weight:700;border-top:1px solid var(--line);background:#F9FBFD}
   padding:12px 14px;background:var(--surface);border:1px solid var(--line);
   border-radius:12px;margin-bottom:12px}
 .ind-atur label{display:flex;flex-direction:column;gap:4px;min-width:170px}
-
-/* Operator antar kartu, sengaja di tengah supaya rumusnya terbaca
-   menurun seperti tulisan biasa. */
-.ind-operator{display:flex;justify-content:center;padding:5px 0}
-.ind-operator > div{width:74px}
 
 .ikartu{display:flex;gap:9px;background:var(--surface);border:1px solid var(--line);
   border-radius:12px;padding:11px 13px;transition:.13s}
@@ -1370,12 +1555,72 @@ tr.kurang > td{background:var(--bad-soft)}
 .tbl-target td{padding-top:8px;padding-bottom:8px}
 .tbl-target input{text-align:right}
 .tbl-target .pilih-tombol{white-space:nowrap}
+/* Ringkasan boleh terpotong rapi daripada mendorong kolom lain melebar. */
+.sel-ringkas{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
+  padding-right:10px}
 
 /* Kotak bobot dengan sufiks persen menempel di dalamnya. */
 .bobot-isi{display:flex;align-items:center;gap:4px}
 .bobot-isi input{flex:1;min-width:0}
 .bobot-isi span{font-size:11.5px;color:var(--ink-soft);flex:none}
 .bobot-isi span.kosong{color:var(--line)}
+
+/* Baris pendaftaran yang detailnya sedang terbuka, dan panel detailnya. */
+.baris-buka td{background:var(--line-soft)}
+.baris-detail td{padding:0;border-top:none}
+.target-detail{padding:16px 18px 18px;background:var(--line-soft);
+  border-radius:0 0 10px 10px;display:flex;flex-direction:column;gap:12px;
+  border-top:1px solid var(--line)}
+.target-detail > p{margin:0;line-height:1.5;max-width:72ch}
+.target-detail-baris{display:flex;gap:18px;flex-wrap:wrap}
+.target-detail-baris label{display:flex;flex-direction:column;gap:5px;min-width:150px}
+.target-detail-baris input,.target-detail-baris .bobot-isi{width:150px}
+.target-detail .mt{margin-top:2px}
+
+/* Editor pita: baris nilai_min–nilai_max → poin_min–poin_max. */
+.pita-editor{display:flex;flex-direction:column;gap:9px;align-items:flex-start;
+  width:100%;max-width:560px}
+.tbl-pita{width:100%;table-layout:fixed;background:var(--surface);
+  border:1px solid var(--line);border-radius:10px;overflow:hidden}
+.tbl-pita th{font-size:10px;letter-spacing:.05em;padding:7px 8px}
+.tbl-pita td{padding:5px 6px}
+.tbl-pita tr:last-child td{border-bottom:none}
+.tbl-pita input{text-align:right}
+.tbl-pita input::placeholder{font-size:11px;color:var(--ink-faint);opacity:.7}
+
+/* Bagian di dalam panel detail: "Syarat kelayakan" dan "Besar nominal".
+   Diberi kotak sendiri karena keduanya adalah dua keputusan terpisah yang
+   kebetulan tinggal berdampingan — tanpa pemisah, admin membacanya sebagai
+   satu daftar panjang dan kehilangan mana yang menentukan berhak dan mana
+   yang menentukan besarnya. */
+.detail-sub{background:var(--surface);border:1px solid var(--line);
+  border-radius:10px;padding:13px 14px;display:flex;flex-direction:column;gap:9px}
+.detail-sub h5{margin:0;font-size:12px;letter-spacing:.05em;text-transform:uppercase;
+  color:var(--ink-soft);font-weight:700}
+.detail-sub > p{margin:0;line-height:1.5;max-width:72ch}
+.detail-sub label.blok{display:flex;flex-direction:column;gap:5px;max-width:320px}
+
+/* Satu baris syarat: sumber · operator · nilai · hapus. Lebar operator dan
+   nilai dipatok supaya beberapa baris syarat tetap sejajar terbaca. */
+.gerbang-editor{display:flex;flex-direction:column;gap:8px;align-items:flex-start;
+  width:100%;max-width:620px}
+.gerbang-baris{display:flex;align-items:center;gap:8px;width:100%}
+.gerbang-no{flex:none;width:18px;font-size:11px;color:var(--ink-faint);
+  font-variant-numeric:tabular-nums;text-align:right}
+.gerbang-isi{flex:1;min-width:0}
+.gerbang-op{flex:none;width:150px}
+.gerbang-nilai{flex:none;width:110px}
+@media (max-width:760px){
+  .gerbang-baris{flex-wrap:wrap}
+  .gerbang-isi{flex:1 1 100%}
+  .gerbang-op{width:140px}
+}
+
+/* Empat medan sejajar untuk panel tambah-baris (cabang/produk/tanggal/tier). */
+.medan-4{display:grid;grid-template-columns:1.6fr .8fr 1fr .9fr;gap:14px;
+  align-items:start;margin-bottom:12px}
+.medan-4 label{display:flex;flex-direction:column;gap:5px;min-width:0}
+@media (max-width:820px){ .medan-4{grid-template-columns:1fr 1fr} }
 
 /* Master pagu insentif */
 .tbl-pagu{table-layout:fixed}
@@ -1386,4 +1631,555 @@ tr.kurang > td{background:var(--bad-soft)}
 
 @media (max-width: 860px){
   .pagu-medan{grid-template-columns:1fr 1fr}
+}
+
+/* ---------------------------------------------------------------------
+   Pemilih periode cutoff
+   Menggantikan pasangan <select> + tombol "Lihat"; memilih langsung
+   memuat, jadi tidak ada tombol yang perlu diberi tempat.
+   --------------------------------------------------------------------- */
+.periode-pilih{display:flex;align-items:center;gap:10px}
+.periode-label{font-size:11px;font-weight:700;letter-spacing:.06em;
+  text-transform:uppercase;color:var(--ink-soft);flex:none}
+.periode-kotak{width:190px}
+.periode-pilih.menunggu{opacity:.6;pointer-events:none}
+.periode-memuat{font-size:11.5px;color:var(--ink-soft)}
+
+/* ---------------------------------------------------------------------
+   Dasbor analitik
+   --------------------------------------------------------------------- */
+.kartu-angka{display:grid;grid-template-columns:repeat(5,1fr);gap:12px}
+.angka-kotak{background:var(--surface);border:1px solid var(--line);
+  border-radius:var(--r);padding:14px 16px;display:flex;flex-direction:column;gap:3px}
+.angka-kotak span{font-size:11px;letter-spacing:.04em;color:var(--ink-faint);
+  text-transform:uppercase;font-weight:600}
+.angka-kotak b{font-size:23px;font-weight:700;letter-spacing:-.02em;
+  font-variant-numeric:tabular-nums;line-height:1.15}
+.angka-kotak b.baik{color:#1F8A5B}
+.angka-kotak b.buruk{color:#C2410C}
+.angka-kotak i{font-size:11.5px;color:var(--ink-faint);font-style:normal}
+@media (max-width:1100px){ .kartu-angka{grid-template-columns:repeat(3,1fr)} }
+@media (max-width:680px){ .kartu-angka{grid-template-columns:repeat(2,1fr)} }
+
+.grafik-dua{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-top:16px}
+@media (max-width:1000px){ .grafik-dua{grid-template-columns:1fr} }
+
+.grafik-bungkus{position:relative;width:100%}
+.grafik-memuat,.grafik-kosong{display:flex;align-items:center;justify-content:center;
+  flex-direction:column;gap:4px;text-align:center;padding:20px;
+  font-size:13px;color:var(--ink-soft);background:var(--line-soft);
+  border-radius:10px}
+.grafik-catatan{padding:10px 16px 14px;font-size:12.5px;color:var(--ink-soft);
+  border-top:1px solid var(--line-soft)}
+
+/* ---------------------------------------------------------------------
+   KPI & insentif harian
+   ---------------------------------------------------------------------
+   Bilah status dibuat menonjol tapi tidak berteriak. Angka di halaman ini
+   masih bergerak, dan satu-satunya hal yang mencegah orang menganggapnya
+   final adalah cap waktu yang tidak bisa dilewatkan begitu saja. */
+.harian-status{display:grid;
+  grid-template-columns:minmax(0,1fr) auto;gap:6px 20px;align-items:center;
+  background:var(--surface);border:1px solid var(--line);
+  border-left:3px solid var(--accent);
+  border-radius:var(--r);padding:13px 16px}
+.harian-status.basi{border-left-color:var(--warn)}
+.harian-status-utama{display:flex;align-items:center;gap:10px;min-width:0}
+.harian-status-utama > div{display:flex;flex-direction:column;gap:1px;min-width:0}
+.harian-status-utama b{font-size:13.5px}
+.harian-titik{flex:none;width:8px;height:8px;border-radius:50%;
+  background:var(--good);box-shadow:0 0 0 3px var(--good-soft)}
+.harian-status.basi .harian-titik{background:var(--warn);box-shadow:0 0 0 3px var(--warn-soft)}
+.harian-status-angka{display:flex;gap:18px;font-size:12px;color:var(--ink-soft);
+  white-space:nowrap}
+.harian-status-angka b{font-variant-numeric:tabular-nums;color:var(--ink)}
+.harian-status-catatan{grid-column:1/-1;margin:0;font-size:11.5px;
+  color:var(--ink-soft);line-height:1.4}
+@media (max-width:760px){
+  .harian-status{grid-template-columns:1fr}
+  .harian-status-angka{flex-wrap:wrap;gap:10px 16px}
+}
+
+/* Sebab insentif tertahan, di kolom nominal daftar karyawan. */
+.harian-sebab{font-size:10.5px;line-height:1.35;color:#992D08;margin-top:2px;
+  max-width:30ch;margin-left:auto;text-align:right}
+
+/* Kepala kartu yang membawa pengendali di sisi kanan. Judul rata atas
+   supaya deskripsi dua baris tidak mendorong tombolnya ke tengah. */
+.cardhead.rowbetween{display:flex;align-items:flex-start;gap:14px;flex-wrap:wrap}
+.cardhead.rowbetween .vbtn{padding:5px 11px;font-size:11.5px}
+
+/* Peringkat cabang. Kolom nomor dan pergerakan sengaja sempit dan tenang;
+   yang harus menonjol adalah nama cabang dan skornya, bukan hiasannya. */
+.tabel-cabang th{font-size:9.5px;letter-spacing:.05em;white-space:nowrap}
+.tabel-cabang td{padding-top:6px;padding-bottom:6px}
+.tabel-cabang tbody tr:hover{background:var(--line-soft)}
+.gerak{display:inline-flex;align-items:center;gap:2px;font-size:11px;
+  font-weight:700;font-variant-numeric:tabular-nums;padding:2px 6px;
+  border-radius:20px;white-space:nowrap;letter-spacing:0}
+.gerak.naik{color:#136344;background:var(--good-soft)}
+.gerak.turun{color:#992D08;background:var(--bad-soft)}
+.gerak.tetap{color:var(--ink-soft);background:var(--line-soft)}
+.gerak.baru{color:var(--ink-soft);background:var(--line-soft);font-weight:600;
+  text-transform:uppercase;font-size:9.5px;letter-spacing:.04em}
+
+/* Rincian insentif: reguler + reward − penalty = dibayarkan.
+   Ditulis sebagai persamaan berjajar, bukan empat kartu terpisah, supaya
+   hubungan antar angkanya terbaca tanpa perlu dijelaskan. */
+.rincian-baris{display:flex;align-items:stretch;gap:10px;flex-wrap:wrap}
+.rincian-pos{flex:1;min-width:150px;display:flex;flex-direction:column;gap:3px;
+  padding:12px 14px;background:var(--line-soft);border-radius:10px}
+.rincian-pos span{font-size:11px;letter-spacing:.04em;text-transform:uppercase;
+  font-weight:600;color:var(--ink-soft)}
+.rincian-pos b{font-size:17px;font-weight:700;font-variant-numeric:tabular-nums;
+  letter-spacing:-.01em}
+.rincian-pos.naik b{color:#187048}
+.rincian-pos.turun b{color:#A8380A}
+.rincian-pos.total{background:var(--accent-soft)}
+.rincian-pos.total b{color:var(--accent)}
+.rincian-tanda{display:flex;align-items:center;font-size:18px;font-weight:600;
+  color:var(--ink-faint);flex:none}
+@media (max-width:860px){
+  .rincian-tanda{display:none}
+  .rincian-pos{min-width:44%}
+}
+
+/* ============================================================
+   PEREMAJAAN VISUAL — tombol, navbar, paging, kotak cari,
+   dropdown, dan isian formulir
+   ------------------------------------------------------------
+   Ditulis sebagai lapisan tambahan di akhir berkas, bukan
+   menyunting definisi lama satu-satu, supaya perubahan visual
+   ini mudah ditelusuri dan mudah dibalik kalau ada yang keliru.
+
+   Yang SENGAJA TIDAK disentuh: setiap pasangan warna teks dari
+   token di :root (--ink, --accent, --good, --warn, --bad, dst).
+   Semua pasangan itu sudah diperiksa lolos WCAG AA di komentar
+   paling atas berkas ini, dan tampilan yang lebih modern tidak
+   boleh mengorbankan itu. Yang berubah di sini hanya kedalaman
+   (bayangan berlapis), kelengkungan sudut, gradasi tipis pada
+   elemen aksen, dan gerak halus saat disentuh — murni dimensi,
+   bukan kontras.
+   ============================================================ */
+:root{
+  /* Ungu kedua untuk gradasi bersama --accent. Dipilih dari rona yang
+     berdekatan dengan indigo yang sudah ada, bukan warna baru yang
+     bersaing dengannya — gradasinya harus terasa satu keluarga, bukan
+     dua warna yang ditabrakkan. */
+  --accent-2:#6A3DE8;
+  --grad-accent:linear-gradient(135deg,var(--accent) 0%,var(--accent-2) 100%);
+  --grad-ink:linear-gradient(180deg,#0E1626 0%,var(--ink) 100%);
+  --shadow-btn:0 1px 2px rgba(17,26,43,.08),0 8px 20px -8px rgba(53,80,200,.45);
+  --shadow-btn-hover:0 2px 4px rgba(17,26,43,.1),0 12px 26px -8px rgba(53,80,200,.55);
+  --shadow-card:0 1px 2px rgba(17,26,43,.04),0 14px 32px -18px rgba(17,26,43,.16);
+  --shadow-pop:0 20px 48px -16px rgba(12,17,30,.38);
+  --ease:cubic-bezier(.22,.75,.32,1);
+}
+
+/* ---- tombol: gradasi tipis + kedalaman + sedikit terangkat saat hover ---- */
+.btn{
+  background:var(--grad-accent);
+  box-shadow:var(--shadow-btn);
+  transition:transform .16s var(--ease),box-shadow .16s var(--ease),filter .16s var(--ease);
+}
+.btn:hover{filter:brightness(1.06);transform:translateY(-1px);box-shadow:var(--shadow-btn-hover)}
+.btn:active{transform:translateY(0);filter:brightness(.96);box-shadow:var(--shadow-btn)}
+.btn.good{background:linear-gradient(135deg,var(--good) 0%,#12946E 100%)}
+.btn.ghost{box-shadow:0 1px 2px rgba(17,26,43,.04);transition:transform .16s var(--ease),
+  box-shadow .16s var(--ease),border-color .16s var(--ease)}
+.btn.ghost:hover{border-color:#B7C4EE;box-shadow:0 6px 16px -8px rgba(53,80,200,.22);
+  transform:translateY(-1px)}
+.btn.ghost:active{transform:translateY(0)}
+.btn:disabled,.btn:disabled:hover{transform:none;filter:none;box-shadow:none}
+.btn.wide:hover{transform:none}
+
+/* ---- navbar: sedikit gradasi, logo bersinar tipis, penanda aktif
+   berupa garis bercahaya alih-alih blok datar ---- */
+.topbar{background:var(--grad-ink)}
+.mark{background:var(--grad-accent);box-shadow:0 4px 14px -5px rgba(53,80,200,.65)}
+.mainnav a,.navgrup-tombol{position:relative;transition:background .15s var(--ease),color .15s var(--ease)}
+.mainnav a.on,.navgrup-tombol.on{
+  background:linear-gradient(135deg,rgba(53,80,200,.38),rgba(106,61,232,.30));
+  box-shadow:inset 0 0 0 1px rgba(140,120,240,.35);
+}
+.mainnav a.on::after,.navgrup-tombol.on::after{
+  content:"";position:absolute;left:11px;right:11px;bottom:-8px;height:2px;border-radius:2px;
+  background:linear-gradient(90deg,var(--accent),var(--accent-2));
+  box-shadow:0 0 8px rgba(106,61,232,.85);
+}
+.navgrup-isi{
+  background:rgba(16,22,38,.94);backdrop-filter:blur(14px) saturate(150%);
+  box-shadow:var(--shadow-pop);animation:muncul-turun .14s var(--ease);
+}
+.icobtn{transition:background .15s var(--ease),transform .15s var(--ease)}
+.icobtn:hover{transform:translateY(-1px)}
+
+/* ---- paging: pil bulat penuh dengan aksen aktif bergradasi ---- */
+.paging{background:linear-gradient(180deg,#fff,#FBFCFF)}
+.pager-nomor{gap:4px}
+.pager-hal{border-radius:999px;transition:transform .14s var(--ease),box-shadow .14s var(--ease),
+  border-color .14s var(--ease),color .14s var(--ease)}
+.pager-hal:hover{transform:translateY(-1px);border-color:var(--accent)}
+.pager-hal.on{background:var(--grad-accent);border-color:transparent;
+  box-shadow:0 4px 14px -5px rgba(53,80,200,.6)}
+
+/* ---- kotak cari: pil penuh dengan cincin cahaya saat fokus ---- */
+.kcari input{border-radius:999px;background:var(--line-soft);border-color:transparent;
+  box-shadow:inset 0 1px 2px rgba(17,26,43,.05);transition:background .15s var(--ease),
+  border-color .15s var(--ease),box-shadow .15s var(--ease)}
+.kcari input:hover{background:#fff;border-color:#C3CDE9}
+.kcari input:focus{background:#fff;border-color:var(--accent);
+  box-shadow:0 0 0 4px var(--accent-soft),0 8px 20px -10px rgba(53,80,200,.4)}
+.kcari-ikon{color:var(--accent)}
+.filterbar .cari{border-radius:999px}
+.filterbar button{transition:background .14s var(--ease),color .14s var(--ease),
+  border-color .14s var(--ease),transform .14s var(--ease)}
+.filterbar button:hover{transform:translateY(-1px)}
+.filterbar button[aria-pressed="true"]{background:var(--grad-ink);border-color:transparent;
+  box-shadow:0 4px 14px -6px rgba(17,26,43,.5)}
+
+/* ---- dropdown kustom (Pilih.tsx): panel melayang dengan bayangan
+   berlapis dan animasi muncul yang halus ---- */
+.pilih-tombol{transition:border-color .15s var(--ease),box-shadow .15s var(--ease)}
+.pilih-panel{border-radius:14px;box-shadow:var(--shadow-pop);
+  animation:muncul-turun .14s var(--ease);overflow:hidden}
+.pilih-opsi{transition:background .1s var(--ease)}
+.pilih-opsi.aktif{background:linear-gradient(135deg,var(--accent-soft) 0%,#EFEAFC 100%)}
+@keyframes muncul-turun{from{opacity:0;transform:translateY(-4px) scale(.98)}to{opacity:1;transform:none}}
+
+/* Panah kustom untuk <select> bawaan browser, menggantikan panah sistem
+   yang tampilannya berbeda-beda tiap browser dan terasa asing di antara
+   kontrol lain yang sudah dirancang khusus. Digambar dari gradasi CSS,
+   bukan gambar, supaya tidak menambah permintaan berkas dan warnanya
+   otomatis ikut token --ink-faint.
+
+   PENTING — kenapa semua konteks disebut satu per satu, bukan cukup
+   :where(select): beberapa aturan lama (.field select, .maprow select,
+   .select, .closebox select) memakai properti singkat `background:`,
+   dan properti singkat itu MENGOSONGKAN background-image. Kalau panah
+   hanya dipasang lewat :where() yang berspesifisitas nol, aturan-aturan
+   itu menang dan panahnya hilang — sementara appearance:none sudah
+   terlanjur membuang panah bawaan browser, sehingga select-nya tampak
+   seperti kotak biasa yang tidak terlihat bisa dibuka. */
+:root{
+  --panah-select:
+    linear-gradient(45deg,transparent 50%,var(--ink-faint) 50%),
+    linear-gradient(135deg,var(--ink-faint) 50%,transparent 50%);
+  --panah-select-mati:
+    linear-gradient(45deg,transparent 50%,var(--line) 50%),
+    linear-gradient(135deg,var(--line) 50%,transparent 50%);
+}
+select,
+.field select,
+.maprow select,
+.maprow select.kosong,
+.select,
+.closebox select,
+td select{
+  appearance:none;-webkit-appearance:none;-moz-appearance:none;
+  background-image:var(--panah-select);
+  background-position:calc(100% - 18px) calc(50% - 2px),calc(100% - 13px) calc(50% - 2px);
+  background-size:5px 5px,5px 5px;
+  background-repeat:no-repeat;
+  padding-right:32px;
+}
+/* Warna latar yang ikut terhapus oleh properti singkat di atas,
+   dikembalikan sebagai longhand supaya tidak lagi menabrak panah. */
+.field select,.maprow select,.select,.closebox select{background-color:#fff}
+.maprow select.kosong{background-color:var(--warn-soft)}
+/* Keadaan mati ikut disebut ulang: aturan latar abu untuk kontrol
+   nonaktif ditulis dengan :where() yang berspesifisitas nol, jadi ia
+   kalah dari .field select di atas kalau tidak ditegaskan lagi. */
+select:disabled{background-image:var(--panah-select-mati);
+  background-color:var(--line-soft)}
+
+/* ---- isian formulir: kedalaman tipis + cincin cahaya yang lebih lebar
+   saat fokus, supaya kontrol yang sedang aktif jelas tanpa menambah warna ---- */
+:where(input:not([type=checkbox]):not([type=radio]):not([type=file]),textarea,select){
+  border-radius:12px;box-shadow:0 1px 2px rgba(17,26,43,.03) inset;
+  transition:border-color .15s var(--ease),box-shadow .15s var(--ease),background .15s var(--ease);
+}
+:where(input,textarea,select):focus{
+  box-shadow:0 1px 2px rgba(17,26,43,.03) inset,0 0 0 4px var(--accent-soft),
+    0 8px 20px -12px rgba(53,80,200,.4);
+}
+
+/* ---- kartu: bayangan lembut agar punya kedalaman di atas latar --page,
+   bukan hanya garis tepi datar ---- */
+.card{box-shadow:var(--shadow-card)}
+.dropzone{transition:border-color .15s var(--ease),background .15s var(--ease),transform .15s var(--ease)}
+.dropzone:hover{transform:translateY(-1px)}
+
+/* ============================================================
+   PEREMAJAAN — Perakit Indikator (Create Indicator)
+   ------------------------------------------------------------
+   Halaman ini yang paling padat kontrolnya di seluruh admin: daftar
+   di kiri, kartu komponen yang bisa diseret, panel pengakuan bersarang,
+   dan tabel pendaftaran dengan baris yang mekar jadi panel sendiri.
+   Sebelumnya semua lapisan itu — kartu komponen, kotak pengaturan,
+   ringkasan rumus, panel pengakuan, panel detail pendaftaran — memakai
+   border tipis yang sama datarnya, sehingga mata tidak punya petunjuk
+   mana bagian utama dan mana bagian bersarang di dalamnya.
+   Perubahan di sini menambah TINGKATAN kedalaman (bayangan makin
+   lembut makin jauh ia bersarang) dan penanda warna sekali pakai
+   (lencana huruf komponen, aksen satuan, garis gradasi tipis) — supaya
+   susunan kartunya terbaca sebagai hierarki, bukan tumpukan kotak yang
+   seragam. Tidak ada pasangan warna teks yang diubah.
+   ============================================================ */
+
+/* ---- daftar indikator di kiri: lencana satuan + penanda aktif
+   berupa garis kiri bercahaya, bukan blok datar ---- */
+.ind-item{border-radius:12px;position:relative;padding-left:16px;
+  transition:background .15s var(--ease),transform .12s var(--ease)}
+.ind-item::before{content:"";position:absolute;left:4px;top:8px;bottom:8px;width:3px;
+  border-radius:3px;background:transparent;transition:background .15s var(--ease)}
+.ind-item:hover{transform:translateX(1px)}
+.ind-item.on{background:linear-gradient(135deg,var(--accent-soft) 0%,#F2EFFC 100%)}
+.ind-item.on::before{background:var(--grad-accent)}
+.ind-item-atas{display:flex;align-items:center;gap:8px}
+.ind-item-atas b{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.ind-item-satuan{flex:none;font-size:9.5px;font-weight:800;letter-spacing:.02em;
+  padding:1px 6px;border-radius:999px;background:var(--line-soft);color:var(--ink-faint)}
+.ind-item-satuan.s-persen{background:var(--accent-soft);color:var(--accent)}
+.ind-item-satuan.s-rupiah{background:var(--good-soft);color:var(--good)}
+.ind-item-satuan.s-unit{background:var(--warn-soft);color:var(--warn)}
+
+/* ---- kotak pengaturan dasar: strip dengan aksen gradasi di tepi atas,
+   menandainya sebagai satu kesatuan pengaturan, bukan sekadar isian lepas.
+
+   Garis aksennya digambar sebagai LATAR kotak itu sendiri, bukan lapisan
+   ::before yang butuh overflow:hidden. Versi pertama memakai overflow:hidden
+   dan itu memotong panel dropdown "Dihitung untuk" dan "Satuan" yang harus
+   keluar dari kotaknya — kotak yang memangkas isinya tidak boleh memuat
+   menu yang mengambang. ---- */
+.ind-atur{border-radius:14px;box-shadow:var(--shadow-card);
+  background-color:var(--surface);background-image:var(--grad-accent);
+  background-repeat:no-repeat;background-size:100% 3px;background-position:top}
+
+/* ---- kartu komponen: lencana huruf bergradasi menggantikan label polos,
+   kedalaman bertingkat, dan sedikit terangkat saat disentuh ---- */
+.ikartu{border-radius:16px;box-shadow:var(--shadow-card);
+  transition:box-shadow .15s var(--ease),border-color .15s var(--ease)}
+/* Hover HANYA menaikkan bayangan, tanpa transform.
+   transform membuat elemen jadi stacking context baru, dan itu mengurung
+   panel dropdown di dalam kartunya sendiri: begitu kursor ada di atas
+   kartu (yang selalu terjadi saat membuka dropdown di dalamnya), kartu
+   berikutnya menimpa panel yang sedang terbuka. */
+.ikartu:hover{box-shadow:0 1px 2px rgba(17,26,43,.05),0 18px 36px -18px rgba(17,26,43,.24)}
+.ikartu.sasaran{box-shadow:0 0 0 3px var(--accent-soft),var(--shadow-card)}
+.ikartu-no{display:inline-flex;align-items:center}
+.ikartu-huruf{display:inline-flex;align-items:center;justify-content:center;
+  width:19px;height:19px;border-radius:999px;background:var(--grad-accent);color:#fff;
+  font-size:10px;font-weight:800;margin-right:7px;flex:none;
+  box-shadow:0 2px 6px -2px rgba(53,80,200,.6)}
+
+/* ---- konektor operator antar kartu: pil dengan aksen aktif bergradasi
+   dan garis penghubung yang memudar di kedua ujung ---- */
+.ind-op-garis{background:linear-gradient(90deg,transparent,var(--line) 30%,var(--line) 70%,transparent)}
+.ind-op-pilih{border-radius:999px;box-shadow:0 1px 2px rgba(17,26,43,.05)}
+.ind-op-btn{border-radius:999px;transition:background .15s var(--ease),color .15s var(--ease),
+  transform .12s var(--ease)}
+.ind-op-btn.on{background:var(--grad-accent);box-shadow:0 3px 10px -3px rgba(53,80,200,.6)}
+.ind-op-btn:hover:not(.on){transform:translateY(-1px)}
+
+/* ---- pratinjau rumus: diberi identitas sendiri (gradasi lembut + lencana
+   "ƒ") supaya terbaca sebagai HASIL, bukan kotak keterangan biasa ---- */
+.ind-ringkas{border-radius:14px;background:linear-gradient(135deg,var(--accent-soft) 0%,#F5F3FE 100%);
+  border-color:#DCE1F7;box-shadow:var(--shadow-card)}
+.ind-ringkas-label{display:inline-flex;align-items:center;gap:7px}
+.ind-ringkas-label::before{content:"ƒ";font-family:var(--font-archivo),Archivo,sans-serif;
+  font-weight:800;font-size:12.5px;color:var(--accent);
+  display:inline-flex;align-items:center;justify-content:center;width:18px;height:18px;
+  border-radius:6px;background:#fff;box-shadow:0 1px 3px rgba(17,26,43,.1)}
+.ind-ringkas code{color:#2B3B8C;font-weight:600}
+
+/* ---- panel pengakuan sebagian: kartu bersarang dengan aksen ungu tipis
+   di tepi atas, membedakannya dari syarat biasa di atasnya ---- */
+.akui{border-radius:12px;background:linear-gradient(180deg,#FBFCFF 0%,var(--line-soft) 100%);
+  border:1px solid var(--line);border-top:2px solid var(--accent-2)}
+
+/* ---- baris pendaftaran yang mekar: panel melayang di atas latar tabel,
+   bukan tempelan datar — pola "baris → kartu" yang umum di builder modern ---- */
+.target-detail{border-radius:14px;margin:0 14px 14px;
+  box-shadow:0 1px 2px rgba(17,26,43,.04),0 16px 34px -22px rgba(17,26,43,.2)}
+.detail-sub{box-shadow:0 1px 2px rgba(17,26,43,.03),0 10px 22px -16px rgba(17,26,43,.14)}
+.tbl-pita{box-shadow:0 1px 2px rgba(17,26,43,.03)}
+
+/* ============================================================
+   BARIS PENDAFTARAN — "Didaftarkan ke jabatan · produk"
+   ------------------------------------------------------------
+   Sebelumnya empat kotak pilih berdampingan di dalam <table>: lebar
+   kolom kaku lewat <colgroup>, dan baris yang dibuka "Atur" mekar
+   jadi tempelan abu-abu rata tepi yang terasa lepas dari baris
+   pemicunya. Sekarang tiap pendaftaran adalah kartunya sendiri —
+   field-nya diberi label kecil di atasnya (jelas tanpa perlu kepala
+   tabel terpisah), ringkasannya diberi titik warna sesuai peran
+   supaya jenis baris terbaca sekilas, dan panel "Atur" menempel
+   langsung di bawah kepala kartu yang sama alih-alih jadi kotak
+   terpisah yang mengambang tanpa hubungan visual.
+   ============================================================ */
+.daftar-target{display:flex;flex-direction:column;gap:10px}
+.trow{border:1px solid var(--line);border-radius:14px;background:var(--surface);
+  box-shadow:0 1px 2px rgba(17,26,43,.03);
+  transition:box-shadow .15s var(--ease),border-color .15s var(--ease)}
+.trow:hover{border-color:#C9D2EE}
+.trow.buka{border-color:#C9D2EE;box-shadow:var(--shadow-card)}
+.trow.buka .trow-atas{background:var(--line-soft);border-radius:13px 13px 0 0}
+.trow-atas{display:flex;align-items:flex-end;gap:14px;padding:12px 14px;flex-wrap:wrap}
+.trow-field{display:flex;flex-direction:column;gap:5px}
+.trow-jabatan{flex:1 1 190px;min-width:150px}
+.trow-produk{flex:0 0 120px}
+.trow-peran{flex:0 0 190px}
+.trow-label{font-size:10px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;
+  color:var(--ink-faint)}
+.trow-ringkas{flex:1 1 200px;min-width:160px;display:flex;flex-direction:column;gap:5px}
+.trow-ringkas-teks{display:flex;align-items:center;gap:7px;font-size:12.5px;
+  color:var(--ink-soft);padding:9px 0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.trow-dot{width:7px;height:7px;border-radius:999px;flex:none;background:var(--ink-faint)}
+.warna-accent .trow-dot{background:var(--accent)}
+.warna-good .trow-dot{background:var(--good)}
+.warna-bad .trow-dot{background:var(--bad)}
+.warna-warn .trow-dot{background:var(--warn)}
+.warna-ungu .trow-dot{background:var(--accent-2)}
+.warna-netral .trow-dot{background:var(--ink-faint)}
+.trow-aksi{display:flex;align-items:center;gap:4px;flex:none;padding-bottom:2px}
+.trow-kosong{padding:26px;text-align:center;color:var(--ink-faint);
+  border:1.5px dashed var(--line);border-radius:14px}
+
+/* ============================================================
+   PANEL DROPDOWN YANG SEDANG TERBUKA — jangan sampai tertimpa
+   ------------------------------------------------------------
+   Panel Pilih sudah punya z-index 40, tapi itu hanya berlaku di dalam
+   konteks penumpukan tempat ia berada. Begitu kartu induknya berdiri
+   sejajar dengan kartu lain, kartu yang datang belakangan tetap
+   menimpa panel yang mengambang di atas kartu sebelumnya.
+   Karena itu kartu yang SEDANG memuat dropdown terbuka diangkat
+   sebentar ke lapisan atas — hanya selama dropdown-nya terbuka,
+   jadi tidak mengganggu urutan tumpukan di keadaan biasa.
+
+   .panel-isi memangkas isinya (overflow:hidden) supaya sudut kepala
+   berwarnanya ikut membulat. Pemangkasan itu juga memotong dropdown
+   di dalamnya — terlihat di menu Tier, Pagu, dan Kelas Cabang. Kepala
+   panelnya kini membulat sendiri, sehingga pemangkasan bisa dilepas
+   saat ada dropdown terbuka tanpa merusak sudutnya.
+   ============================================================ */
+.ikartu:has(.pilih.buka),
+.trow:has(.pilih.buka),
+.ind-atur:has(.pilih.buka),
+.akui:has(.pilih.buka),
+.panel-isi:has(.pilih.buka){position:relative;z-index:30}
+.panel-kepala{border-radius:13px 13px 0 0}
+.panel-isi:has(.pilih.buka){overflow:visible}
+
+/* Select bawaan di kotak tutup-periode juga mengatur padding sendiri,
+   jadi ruang untuk panah kustomnya ikut ditambal di sini. */
+.closebox select{padding-right:32px}
+
+/* ============================================================
+   PEREMAJAAN DASBOR — Dasbor saya, Dashboard Tim, Analitik
+   ------------------------------------------------------------
+   Ketiganya memakai bahan yang sama (kartu angka, kartu grafik,
+   batang tren, tangga target), jadi diperbarui sekaligus di satu
+   tempat alih-alih tiga kali dengan hasil yang lambat laun berbeda.
+
+   Arahnya: angka jadi lebih besar dan lebih tegas hierarkinya,
+   kartu punya kedalaman dan penanda warna di tepi kiri (bukan hanya
+   angka berwarna — penanda posisi tetap terbaca oleh mata yang sulit
+   membedakan merah-hijau), dan elemen yang bergerak diberi gradasi
+   supaya terlihat hidup tanpa menambah warna baru.
+   ============================================================ */
+
+/* --- Perbaikan: .dua-kolom dipakai di Dashboard Tim tapi tidak pernah
+   didefinisikan, sehingga grafik "sebaran" dan "tren" yang seharusnya
+   berdampingan justru menumpuk selebar halaman. --- */
+.dua-kolom{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+@media (max-width:1000px){ .dua-kolom{grid-template-columns:1fr} }
+
+/* --- Kartu angka: lebar mengikuti ruang yang ada (empat kartu di
+   Dashboard Tim dan lima di Analitik sama-sama rapi), garis aksen di
+   tepi kiri digambar sebagai latar supaya tidak perlu memangkas isi. --- */
+.kartu-angka{grid-template-columns:repeat(auto-fit,minmax(190px,1fr))}
+.angka-kotak{padding:15px 16px 15px 19px;
+  background-color:var(--surface);
+  background-image:var(--grad-accent),linear-gradient(160deg,#FFF 0%,#F8FAFF 100%);
+  background-size:3px 100%,100% 100%;
+  background-position:left,center;
+  background-repeat:no-repeat,no-repeat;
+  box-shadow:var(--shadow-card);
+  transition:box-shadow .15s var(--ease),transform .15s var(--ease)}
+.angka-kotak:has(b.baik){background-image:linear-gradient(180deg,var(--good),#17A97D),
+  linear-gradient(160deg,#FFF 0%,#F7FCFA 100%)}
+.angka-kotak:has(b.buruk){background-image:linear-gradient(180deg,var(--warn),var(--bad)),
+  linear-gradient(160deg,#FFF 0%,#FFFAF7 100%)}
+.angka-kotak:hover{transform:translateY(-1px);
+  box-shadow:0 1px 2px rgba(17,26,43,.05),0 16px 32px -18px rgba(17,26,43,.24)}
+.angka-kotak b{font-size:26px}
+
+/* --- Kartu utama Dasbor saya: cahaya lembut di sudut kiri atas supaya
+   angka skor terasa jadi pusat halaman, dan pemisah tipis antara skor
+   dan insentif di layar lebar agar keduanya tidak terbaca menyatu. --- */
+.dash-ring{background-color:var(--surface);
+  background-image:radial-gradient(900px 220px at 6% -30%,rgba(53,80,200,.10),transparent 62%)}
+.dash-metrik{gap:24px}
+@media (min-width:760px){
+  .dash-metrik{grid-template-columns:1.15fr 1fr}
+  .dash-metrik .metrik + .metrik{border-left:1px solid var(--line-soft);padding-left:24px}
+}
+.score{letter-spacing:-.045em}
+.chip-lv{box-shadow:0 1px 2px rgba(17,26,43,.06)}
+.delta{border:1px solid transparent}
+.delta.up{border-color:#C9E8DC}
+.delta.down{border-color:#F0CDCB}
+
+/* --- Batang tren: periode berjalan diberi gradasi dan pendar tipis,
+   periode lampau tetap tenang — bedanya harus terbaca sekilas. --- */
+.trend .bar{background:linear-gradient(180deg,#E4E9F4,#EFF2F7);border-radius:5px 5px 3px 3px;
+  transition:background .15s var(--ease)}
+.trend .bar:hover{background:linear-gradient(180deg,#C9D3EE,#DFE5EE)}
+.trend .bar.now,.trend .bar.now:hover{background:var(--grad-accent);
+  box-shadow:0 4px 12px -4px rgba(53,80,200,.55)}
+
+/* --- Tangga target: isian bergradasi dengan cekungan tipis di larasnya,
+   penanda posisi diberi bayangan supaya terangkat dari laras. --- */
+.ladder-track{box-shadow:inset 0 1px 2px rgba(17,26,43,.07)}
+.ladder-track .fill{background:var(--grad-accent);
+  box-shadow:0 2px 8px -2px rgba(53,80,200,.5)}
+.ladder-track .fill.good{background:linear-gradient(90deg,var(--good),#17A97D);
+  box-shadow:0 2px 8px -2px rgba(15,122,90,.45)}
+.ladder-track .fill.warn{background:linear-gradient(90deg,var(--warn),#D08A2A);
+  box-shadow:0 2px 8px -2px rgba(164,91,18,.45)}
+.marker i{box-shadow:0 2px 6px rgba(17,26,43,.25)}
+
+/* --- Kartu grafik: keadaan kosong/memuat dibuat jelas sementara
+   (garis putus-putus), bukan blok abu yang mudah disangka grafik rusak. --- */
+.grafik-memuat,.grafik-kosong{background:linear-gradient(160deg,#FBFCFF,var(--line-soft));
+  border:1px dashed var(--line)}
+.grafik-catatan{background:linear-gradient(180deg,#FCFDFF,#F7F9FD)}
+
+/* --- Persamaan rincian insentif di Analitik: tiap suku jadi kartu kecil,
+   dan hasil akhirnya diberi gradasi aksen supaya terbaca sebagai jumlah,
+   bukan sekadar suku keempat. --- */
+.rincian-pos{background:linear-gradient(160deg,#FBFCFF,var(--line-soft));
+  border:1px solid var(--line);border-radius:12px;
+  transition:transform .15s var(--ease),box-shadow .15s var(--ease)}
+.rincian-pos:hover{transform:translateY(-1px);box-shadow:0 8px 20px -14px rgba(17,26,43,.25)}
+.rincian-pos.total{background:linear-gradient(135deg,var(--accent-soft),#F1EEFC);
+  border-color:#DCE1F7}
+
+/* --- Tombol ganti tampilan grafik --- */
+.vbtn{transition:transform .14s var(--ease),border-color .14s var(--ease),
+  background .14s var(--ease),color .14s var(--ease)}
+.vbtn:hover{transform:translateY(-1px)}
+.vbtn.on{background:var(--grad-accent);border-color:transparent;
+  box-shadow:0 4px 12px -4px rgba(53,80,200,.55)}
+
+/* --- Kerangka pemuatan: sapuan cahaya yang bergerak, bukan kedipan.
+   Sapuan memberi kesan "sedang datang", sementara kedipan mudah
+   disangka elemen rusak. --- */
+@keyframes sk-sapu{from{background-position:200% 0}to{background-position:-200% 0}}
+.sk{animation:sk-sapu 1.4s linear infinite}
+@media (max-width:760px){
+  .trow-atas{align-items:stretch}
+  .trow-jabatan,.trow-produk,.trow-peran,.trow-ringkas{flex:1 1 100%}
+  .trow-aksi{justify-content:flex-end}
 }

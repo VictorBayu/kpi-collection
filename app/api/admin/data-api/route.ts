@@ -97,9 +97,27 @@ export const PUT = handler(async (req) => {
   return Response.json({ masuk: masuk.length, ditolak });
 });
 
-/** Menjalankan penarikan sekarang juga, lalu menghitung ulang indikator. */
-export const PATCH = handler(async () => {
+/**
+ * PATCH menjalankan penarikan lalu menghitung ulang indikator.
+ *
+ * Dengan body { hanyaHitung: true }, penarikan dilewati dan hanya
+ * perhitungan yang dijalankan ulang atas data mentah yang sudah ada. Ini
+ * dibutuhkan karena perhitungan biasanya hanya terpicu oleh tarikan —
+ * sehingga indikator yang baru dibuat atau baru diubah pendaftarannya
+ * tidak muncul sampai tarikan berikutnya, padahal datanya sudah ada.
+ * Menarik 87 ribu baris hanya demi memicu hitung ulang itu pemborosan dan
+ * bisa gagal karena kuota API.
+ */
+export const PATCH = handler(async (req) => {
   const admin = await requireAdmin();
+  const body = await req.json().catch(() => ({}));
+
+  if (body?.hanyaHitung) {
+    const hitung = await hitungSemuaIndikator();
+    await auditLog(admin.sub, "data_api.hitung_ulang", undefined,
+      { indikator: hitung.indikator, gagal: hitung.gagal.length });
+    return Response.json({ tarik: null, hitung });
+  }
 
   const tarik = await tarikSemua("manual");
   await auditLog(admin.sub, "data_api.tarik_manual", undefined,

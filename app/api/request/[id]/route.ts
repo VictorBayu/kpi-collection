@@ -31,7 +31,7 @@ export const GET = handler(async (req) => {
 
   const tiket = await ambilTiket(id, s);
   const pesan = await q<any>(
-    `SELECT m.peran, m.pesan, m.created_at, u.nama
+    `SELECT m.peran, m.pesan, m.created_at, m.lampiran_url, m.lampiran_nama, u.nama
        FROM request_message m JOIN app_user u ON u.id = m.user_id
       WHERE m.request_id = $1 ORDER BY m.created_at`, [id]);
 
@@ -55,12 +55,15 @@ export const POST = handler(async (req) => {
     throw new HttpError(400, "Tiket ini sudah ditutup. Ajukan tiket baru kalau masih ada selisih.");
   }
 
-  const { pesan } = await req.json();
+  const { pesan, lampiran, lampiran_nama } = await req.json();
   if (!pesan?.trim()) throw new HttpError(400, "Tulis pesan terlebih dahulu.");
 
   const admin = s.peran === "admin";
-  await q(`INSERT INTO request_message (request_id, user_id, peran, pesan)
-           VALUES ($1,$2,$3,$4)`, [id, s.sub, admin ? "admin" : "karyawan", pesan.trim()]);
+  await q(`INSERT INTO request_message
+             (request_id, user_id, peran, pesan, lampiran_url, lampiran_nama)
+           VALUES ($1,$2,$3,$4,$5,$6)`,
+    [id, s.sub, admin ? "admin" : "karyawan", pesan.trim(),
+     lampiran || null, lampiran_nama || null]);
 
   // Balasan pertama admin otomatis memindahkan tiket ke Diproses.
   // Pengirim otomatis dianggap sudah membaca (agar tiketnya sendiri

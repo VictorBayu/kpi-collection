@@ -4,6 +4,7 @@ import AppShell from "@/components/AppShell";
 import { readSession } from "@/lib/auth";
 import { periodeTersedia, cabangPeriode, karyawanCabang } from "@/lib/kpi";
 import { rp, angka, namaPeriode, toISODate } from "@/lib/format";
+import PilihPeriode from "@/components/PilihPeriode";
 
 export const metadata = { title: "Data KPI — Admin" };
 
@@ -33,7 +34,23 @@ export default async function AdminKpi({
   const aktif = daftar.find((p) => toISODate(p.periode) === sp.periode) ?? daftar[0];
   const periode = toISODate(aktif.periode);
 
-  const cabang = await cabangPeriode(periode);
+  /**
+   * Daftar cabang dan daftar karyawan diminta BERSAMAAN, bukan berurutan.
+   *
+   * Keduanya hanya bergantung pada periode, jadi tidak ada alasan yang
+   * kedua menunggu yang pertama selesai. Lewat driver serverless tiap
+   * kueri menanggung satu perjalanan jaringan sendiri, sehingga menunggu
+   * berurutan menambah waktu tunggu tanpa menambah apa pun.
+   *
+   * Cabang yang dibuka ditentukan sebelum kueri dijalankan: kalau alamat
+   * tidak menyebut cabang, yang dipakai adalah cabang pertama menurut
+   * urutan yang sama dengan daftar di layar.
+   */
+  const cabangAwal = sp.cabang || null;
+  const [cabang, karyawanAwal] = await Promise.all([
+    cabangPeriode(periode),
+    cabangAwal ? karyawanCabang(periode, cabangAwal) : Promise.resolve(null),
+  ]);
 
   /**
    * Kelompokkan per area, cabang berurut abjad di dalam tiap area.
@@ -56,8 +73,9 @@ export default async function AdminKpi({
       (a.area === "(TANPA AREA)" ? 1 : 0) - (b.area === "(TANPA AREA)" ? 1 : 0) ||
       a.area.localeCompare(b.area, "id"));
 
-  const cabangDipilih = sp.cabang || (perArea[0]?.cabang[0]?.cabang ?? "");
-  const karyawan = cabangDipilih ? await karyawanCabang(periode, cabangDipilih) : [];
+  const cabangDipilih = cabangAwal || (perArea[0]?.cabang[0]?.cabang ?? "");
+  const karyawan = karyawanAwal
+    ?? (cabangDipilih ? await karyawanCabang(periode, cabangDipilih) : []);
 
   return (
     <AppShell>
@@ -67,17 +85,10 @@ export default async function AdminKpi({
             <h2>Data KPI seluruh cabang</h2>
             <p>Pilih cabang untuk melihat pencapaian tiap karyawan. Diurutkan dari skor terendah.</p>
           </div>
-          <form>
-            <label className="faint" htmlFor="periode">Periode</label>{" "}
-            <select id="periode" name="periode" defaultValue={periode} className="select">
-              {daftar.map((p) => (
-                <option key={String(p.periode)} value={toISODate(p.periode)}>
-                  {namaPeriode(p.periode)}
-                </option>
-              ))}
-            </select>{" "}
-            <button className="btn sm ghost">Lihat</button>
-          </form>
+          {/* Cabang yang sedang dibuka ikut dibawa: berpindah bulan tidak
+              melempar admin kembali ke cabang pertama. */}
+          <PilihPeriode daftar={daftar.map((p) => toISODate(p.periode))} aktif={periode}
+                        simpan={{ cabang: sp.cabang }} />
         </div>
 
         <div className="split-kpi">

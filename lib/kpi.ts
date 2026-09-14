@@ -8,6 +8,12 @@ export type Indikator = {
   skor_kpi: number | null; skor_terbobot: number | null;
   target_kpi3: number | null; target_kpi4: number | null; target_kpi5: number | null;
   catatan: string | null;
+  /** Peran indikator ini bagi pemegangnya; 'nominal' membayar datar bersyarat. */
+  peran: string | null;
+  /** Rupiah yang dibayar baris ini (peran 'nominal'), setelah gerbang dinilai. */
+  nominal_baris: number | null;
+  /** Syarat yang gagal, sudah dalam bahasa manusia. Kosong berarti lolos. */
+  gerbang_gagal: string | null;
 };
 
 const num = (v: any) => (v === null || v === undefined ? null : Number(v));
@@ -23,11 +29,20 @@ const num = (v: any) => (v === null || v === undefined ? null : Number(v));
  */
 export const periodeTersedia = unstable_cache(
   async () =>
+    // Dibaca dari v_periode_tersedia, bukan langsung dari import_batch:
+    // sejak indikator dihitung dari API, periode bisa lahir tanpa ada
+    // unggahan Excel sama sekali. Membaca import_batch saja membuat
+    // periode hasil tarikan API tidak pernah muncul di pemilih periode.
+    //
+    // Satu periode bisa punya dua sumber sekaligus (Excel lalu dihitung
+    // ulang dari API); DISTINCT ON menyisakan satu baris per periode agar
+    // pemilihnya tidak menampilkan bulan yang sama dua kali.
     q<{ periode: string; diterbitkan_pada: string; nama_file: string; total: number }>(
-      `SELECT b.periode, b.diterbitkan_pada, b.nama_file, b.baris_valid AS total
-         FROM import_batch b
-        WHERE b.tipe = 'kpi' AND b.status = 'published'
-        ORDER BY b.periode DESC LIMIT 12`),
+      `SELECT DISTINCT ON (periode)
+              periode, diperbarui AS diterbitkan_pada, nama_file, total
+         FROM v_periode_tersedia
+        ORDER BY periode DESC, diperbarui DESC NULLS LAST
+        LIMIT 12`),
   ["periode-tersedia"],
   { revalidate: 3600, tags: ["batch-kpi"] },
 );
@@ -35,7 +50,8 @@ export const periodeTersedia = unstable_cache(
 export async function indikatorKaryawan(nik: string, periode: string): Promise<Indikator[]> {
   const rows = await q<any>(
     `SELECT produk, indikator, saldo_awal, pencapaian, rasio, skor_kpi, skor_terbobot,
-            target_kpi3, target_kpi4, target_kpi5, catatan
+            target_kpi3, target_kpi4, target_kpi5, catatan,
+            peran, nominal_baris, gerbang_gagal
        FROM v_kpi_aktif
       WHERE nik = $1 AND periode = $2
       ORDER BY indikator`, [nik, periode]);
@@ -45,6 +61,7 @@ export async function indikatorKaryawan(nik: string, periode: string): Promise<I
     saldo_awal: num(r.saldo_awal), pencapaian: num(r.pencapaian), rasio: num(r.rasio),
     skor_kpi: num(r.skor_kpi), skor_terbobot: num(r.skor_terbobot),
     target_kpi3: num(r.target_kpi3), target_kpi4: num(r.target_kpi4), target_kpi5: num(r.target_kpi5),
+    nominal_baris: num(r.nominal_baris),
   }));
 }
 
@@ -323,7 +340,12 @@ export async function karyawanCabang(periode: string, cabang: string) {
         WHERE periode = $1 AND COALESCE(UPPER(TRIM(cabang)),'(TANPA CABANG)') = $2
         ORDER BY nik, skor_kpi ASC NULLS LAST)
      SELECT k.nik, COALESCE(u.nama, k.nama_file) AS nama,
-            COALESCE(u.jabatan, k.jabatan_file) AS jabatan,
+            -- Jabatan diutamakan dari snapshot periode (jabatan_file), bukan
+            -- dari jabatan terkini pengguna. Kalau seseorang pindah jabatan
+            -- bulan berikutnya, periode lama harus tetap menampilkan jabatan
+            -- yang berlaku saat itu — bukan yang sekarang. Jabatan terkini
+            -- hanya dipakai bila baris lama tak menyimpannya.
+            COALESCE(k.jabatan_file, u.jabatan) AS jabatan,
             (u.nik IS NULL) AS tanpa_akun,
             COALESCE(s.skor,0) AS skor, COALESCE(i.insentif,0) AS insentif, l.indikator AS terlemah
        FROM (SELECT DISTINCT ON (nik) nik, nama AS nama_file, jabatan AS jabatan_file

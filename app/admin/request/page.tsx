@@ -5,7 +5,7 @@ import { readSession } from "@/lib/auth";
 import { periodeTersedia } from "@/lib/kpi";
 import { toISODate } from "@/lib/format";
 
-export const metadata = { title: "Kelola request" };
+export const metadata = { title: "Supporting" };
 
 export default async function Page() {
   const s = await readSession();

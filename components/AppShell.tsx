@@ -6,6 +6,7 @@ import AccessBeacon from "./AccessBeacon";
 import NavLoading from "./NavLoading";
 import IkonTarget from "./IkonTarget";
 import NavMenu, { type Entri } from "./NavMenu";
+import { MENU, URUT_GRUP, menuSesi } from "@/lib/menu";
 
 /**
  * Bilah atas yang sama di semua halaman, menu menyesuaikan peran.
@@ -13,49 +14,36 @@ import NavMenu, { type Entri } from "./NavMenu";
  * diambil setelah halaman tampil (NavBadge), supaya perpindahan menu
  * tidak menunggu perjalanan bolak-balik ke database.
  *
- * Menu admin dikelompokkan: yang dibuka tiap hari (Data KPI, Unggah data,
- * Kelola request) tetap tautan langsung; yang sifatnya pengaturan sesekali
+ * Menu admin dikelompokkan: yang dibuka tiap hari (Dashboard, Data KPI,
+ * Supporting) tetap tautan langsung; yang sifatnya pengaturan sesekali —
+ * termasuk unggah data, yang hanya dipakai saat data belum masuk lewat API —
  * masuk dropdown supaya topbar tidak terus memanjang tiap ada menu baru.
  */
 export default async function AppShell({ children }: { children: React.ReactNode }) {
   const s = await readSession();
 
-  const entri: Entri[] =
-    s?.peran === "admin"
-      ? [
-          { href: "/admin/kpi", label: "Data KPI" },
-          { href: "/admin/import", label: "Unggah data" },
-          {
-            label: "Data & indikator",
-            grup: [
-              { href: "/admin/indikator", label: "Pembangun indikator" },
-              { href: "/admin/data-api", label: "Data API" },
-              { href: "/admin/sampel-data", label: "Sampel data mentah" },
-              { href: "/admin/riwayat", label: "Riwayat impor Excel" },
-            ],
-          },
-          {
-            label: "Master",
-            grup: [
-              { href: "/admin/hierarki", label: "Master Hierarki" },
-              { href: "/admin/produk", label: "Master Produk" },
-              { href: "/admin/pagu", label: "Pagu Insentif" },
-              { href: "/admin/cabang", label: "Master Cabang API" },
-              { href: "/admin/pengguna", label: "Pengguna & Akses" },
-            ],
-          },
-          { href: "/admin/request", label: "Kelola request", lencana: true },
-        ]
-      : s?.peran === "atasan"
-      ? [
-          { href: "/dashboard", label: "Dasbor saya" },
-          { href: "/tim", label: "Tim saya" },
-          { href: "/request", label: "Request", lencana: true },
-        ]
-      : [
-          { href: "/dashboard", label: "Dasbor saya" },
-          { href: "/request", label: "Request", lencana: true },
-        ];
+  /**
+   * Navigasi dirakit dari katalog menu (lib/menu.ts) disaring dengan hak
+   * akses peran, bukan ditulis ulang per peran. Dengan begitu menambah
+   * peran baru cukup lewat layar Peran & Hak Akses — tidak perlu menyentuh
+   * berkas ini lagi. Grup dropdown hanya muncul bila ada isinya.
+   */
+  const izin = new Set(menuSesi(s?.peran ?? "karyawan", s?.menu));
+  const boleh = MENU.filter((m) => izin.has(m.kode));
+
+  const tautan = (m: (typeof boleh)[number]) =>
+    ({ href: m.href, label: m.label, lencana: m.lencana });
+
+  const entri: Entri[] = [
+    ...boleh.filter((m) => !m.grup && !m.akhir).map(tautan),
+    ...URUT_GRUP.flatMap((judul) => {
+      const isi = boleh.filter((m) => m.grup === judul);
+      return isi.length
+        ? [{ label: judul, grup: isi.map((m) => ({ href: m.href, label: m.label })) }]
+        : [];
+    }),
+    ...boleh.filter((m) => !m.grup && m.akhir).map(tautan),
+  ];
 
   return (
     <>

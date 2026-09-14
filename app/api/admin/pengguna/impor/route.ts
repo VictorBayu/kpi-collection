@@ -7,7 +7,6 @@ export const maxDuration = 60;
 // Selalu dijalankan saat ada permintaan, tidak pernah dibekukan saat build.
 export const dynamic = "force-dynamic";
 
-const PERAN_SAH = ["karyawan", "atasan", "admin"];
 const BATAS_BARIS = 2000;
 
 const teks = (v: unknown) => String(v ?? "").trim();
@@ -45,15 +44,19 @@ async function baca(file: File): Promise<Baris[]> {
       `Pecah menjadi beberapa berkas.`);
   }
 
-  // Ambil sekaligus: NIK yang sudah ada, dan jabatan yang dikenal master.
-  const [sudahAda, jabatanDikenal] = await Promise.all([
+  // Ambil sekaligus: NIK yang sudah ada, jabatan yang dikenal master, dan
+  // peran yang sah. Peran dibaca dari database (bukan daftar tetap) supaya
+  // peran baru yang dibuat lewat layar Peran & Hak Akses langsung diterima.
+  const [sudahAda, jabatanDikenal, peranAda] = await Promise.all([
     q<{ nik: string }>(`SELECT nik FROM app_user`),
     q<{ nama: string }>(
       `SELECT jabatan AS nama FROM jabatan_level
        UNION SELECT alias FROM jabatan_alias`),
+    q<{ kode: string }>(`SELECT kode FROM peran WHERE aktif`),
   ]);
   const setNik = new Set(sudahAda.map((x) => x.nik));
   const setJab = new Set(jabatanDikenal.map((x) => x.nama.toUpperCase()));
+  const setPeran = new Set(peranAda.map((x) => x.kode));
 
   // NIK ganda di dalam berkas itu sendiri
   const hitungNik = new Map<string, number>();
@@ -80,7 +83,7 @@ async function baca(file: File): Promise<Baris[]> {
     if (!/^\d{4,16}$/.test(nik)) masalah.push("NIK harus angka 4–16 digit");
     else if ((hitungNik.get(nik) ?? 0) > 1) masalah.push("NIK ini muncul lebih dari sekali di berkas");
     if (nama.length < 2) masalah.push("Nama belum diisi");
-    if (!PERAN_SAH.includes(peran)) masalah.push(`Peran "${peranAsli}" tidak dikenal`);
+    if (!setPeran.has(peran)) masalah.push(`Peran "${peranAsli}" tidak dikenal`);
     if (password && password.length < 8) masalah.push("Password kurang dari 8 karakter");
 
     if (jabatan && !setJab.has(jabatan)) {
