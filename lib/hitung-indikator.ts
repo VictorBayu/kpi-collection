@@ -1,6 +1,7 @@
 import { q } from "./db";
 import { susunRumus, bacaRumus, RumusSalah, type Komponen, type Syarat } from "./rumus";
 import { hitungSemuaTurunan } from "./turunan";
+import { daftarSumber, sumberUtama, penunjukKolom, gabungUntuk } from "./sumber";
 
 /**
  * Mesin hitung indikator.
@@ -54,20 +55,26 @@ export function periodeBerjalan(): string {
  * kolom di luar katalog ditolak sebelum menyentuh SQL.
  */
 async function muatKatalog() {
-  const rows = await q<{ kolom: string; label: string; jenis: string; sumber: string }>(
-    `SELECT kolom, label, jenis, COALESCE(sumber,'api') AS sumber FROM mentah_kolom`);
+  const [rows, daftar] = await Promise.all([
+    q<{ kolom: string; label: string; jenis: string; sumber: string }>(
+      `SELECT kolom, label, jenis, COALESCE(sumber,'api') AS sumber FROM mentah_kolom`),
+    daftarSumber(),
+  ]);
 
   const sah = new Set(rows.map((r) => r.kolom));
   const label = new Map(rows.map((r) => [r.kolom, r.label]));
   const sumberKolom = new Map(rows.map((r) => [r.kolom, r.sumber]));
 
+  const peta = new Map(daftar.map((s) => [s.kode, s]));
+  const utama = sumberUtama(daftar);
+
   /**
    * Sumber yang tersentuh selama satu rumus dirakit.
    *
-   * Dicatat sambil jalan, bukan ditebak di muka: hanya rumus yang benar-
-   * benar memakai kolom pendukung yang perlu digabung ke tabel itu, dan
-   * penggabungan yang tidak perlu membuat setiap perhitungan membayar
-   * ongkos join tanpa alasan.
+   * Dicatat sambil jalan, bukan ditebak di muka: hanya sumber yang benar-
+   * benar dipakai rumusnya yang perlu digabung, dan penggabungan yang
+   * tidak perlu membuat setiap perhitungan membayar ongkos join tanpa
+   * alasan.
    */
   const dipakai = new Set<string>();
 
@@ -77,27 +84,20 @@ async function muatKatalog() {
       if (!sah.has(kode)) {
         throw new RumusSalah(`Kolom "${kode}" tidak ada di katalog data mentah.`);
       }
-      const s = sumberKolom.get(kode) ?? "api";
+      const s = sumberKolom.get(kode) ?? utama.kode;
       dipakai.add(s);
-      return s === "pendukung" ? `dp.${kode}` : `dm.${kode}`;
+      return penunjukKolom(kode, s, utama.kode);
     },
     labelKolom: (k: string) => label.get(k) ?? k,
-    /** True bila rumus yang baru dirakit menyentuh data pendukung. */
-    pakaiPendukung: () => dipakai.has("pendukung"),
+    /**
+     * Klausa gabung untuk seluruh sumber tambahan yang tersentuh rumus
+     * terakhir. Kosong bila rumusnya hanya memakai data utama.
+     */
+    gabungDipakai: () => gabungUntuk(dipakai, peta, utama),
     /** Dikosongkan sebelum merakit rumus berikutnya. */
     resetPakai: () => dipakai.clear(),
   };
 }
-
-/**
- * Klausa penggabungan ke data pendukung.
- *
- * LEFT JOIN, bukan INNER: kontrak yang belum punya baris pendukung harus
- * tetap ikut dihitung dengan nilai kosong, bukan hilang dari perhitungan.
- * Hilangnya baris jauh lebih sulit disadari daripada angka yang kosong.
- */
-const JOIN_PENDUKUNG =
-  ` LEFT JOIN data_pendukung dp\n       ON dp.agreement_no = dm.agreement_no AND COALESCE(dp.aktif, true)`;
 
 /** Seluruh definisi indikator aktif beserta komponen dan syaratnya. */
 async function muatIndikator(): Promise<DefIndikator[]> {
@@ -182,8 +182,8 @@ async function hitungSatu(
     { komponen: d.komponen, kali_seratus: d.kali_seratus },
     kat.kolomSah, params,
   );
-  // Tabel pendukung digabung hanya bila rumusnya benar-benar memakainya.
-  const joinPendukung = kat.pakaiPendukung() ? JOIN_PENDUKUNG : "";
+  // Sumber tambahan digabung hanya bila rumusnya benar-benar memakainya.
+  const joinPendukung = kat.gabungDipakai();
 
   const kolomNik = KOLOM_PIC[d.peran_pic] ?? "nik_staff";
   const catatan = bacaRumus(
@@ -651,7 +651,7 @@ export async function ujiRumus(
   const params: any[] = [];
   kat.resetPakai();
   const ekspresi = susunRumus({ komponen, kali_seratus }, kat.kolomSah, params);
-  const joinPendukung = kat.pakaiPendukung() ? JOIN_PENDUKUNG : "";
+  const joinPendukung = kat.gabungDipakai();
   const kolomNik = KOLOM_PIC[peran_pic] ?? "nik_staff";
 
   const syaratProduk = produk

@@ -1,5 +1,6 @@
 import { requireAdmin, handler, HttpError } from "@/lib/auth";
 import { q, auditLog } from "@/lib/db";
+import { daftarSumber, satuSumber, POLA_NAMA } from "@/lib/sumber";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -25,13 +26,21 @@ const JENIS = ["angka", "teks", "tanggal"];
 const POLA_KOLOM = /^[a-z][a-z0-9_]{0,50}$/;
 
 /**
- * Tabel fisik tiap sumber. Dipetakan dari daftar tetap, tidak pernah
- * dirangkai dari masukan pengguna — nama tabel ditempel ke DDL.
+ * Tabel fisik tiap sumber, dibaca dari registri sumber_data.
+ *
+ * Dulu dipetakan dari daftar tetap di berkas ini, dan itulah yang membuat
+ * API kedua mustahil didaftarkan tanpa menyunting kode. Sekarang namanya
+ * datang dari registri — tapi karena tetap ditempel ke DDL, polanya
+ * diperiksa lagi di sini sebelum dipakai, bukan dipercaya begitu saja.
  */
-const TABEL: Record<string, [string, string]> = {
-  api: ["data_mentah", "data_mentah_staging"],
-  pendukung: ["data_pendukung", "data_pendukung_staging"],
-};
+async function tabelSumber(kode: string): Promise<[string, string]> {
+  const s = await satuSumber(kode);
+  if (!s) throw new HttpError(400, "Sumber data tidak dikenal.");
+  if (!POLA_NAMA.test(s.tabel)) {
+    throw new HttpError(400, `Nama tabel sumber "${kode}" tidak sah.`);
+  }
+  return [s.tabel, `${s.tabel}_staging`];
+}
 
 const TIPE_SQL: Record<string, string> = {
   angka: "NUMERIC(18,2)",
@@ -54,7 +63,7 @@ async function pemakai(kolom: string) {
 export const GET = handler(async () => {
   await requireAdmin();
 
-  const [kolom, dipakai] = await Promise.all([
+  const [kolom, dipakai, sumber] = await Promise.all([
     q<any>(`SELECT kolom, label, jenis, agregat, kelompok, urutan,
                    field_api, bawaan, aktif, keterangan,
                    COALESCE(sumber,'api') AS sumber,
@@ -69,11 +78,17 @@ export const GET = handler(async () => {
          UNION ALL
          SELECT kolom FROM indikator_syarat WHERE kolom IS NOT NULL
        ) x GROUP BY kolom`),
+    daftarSumber(),
   ]);
 
   const jml = new Map(dipakai.map((d) => [d.kolom, d.jml]));
   return Response.json({
     kolom: kolom.map((k) => ({ ...k, dipakai: jml.get(k.kolom) ?? 0 })),
+    // Daftar sumber ikut dikirim supaya layar tidak lagi memakai daftar
+    // tertanam: sumber baru langsung muncul di dropdown tanpa ubah kode.
+    sumber: sumber.map((s) => ({
+      kode: s.kode, nama: s.nama, jenis: s.jenis, tabel: s.tabel,
+    })),
   });
 });
 
@@ -94,7 +109,7 @@ export const POST = handler(async (req) => {
   if (!JENIS.includes(jenis)) throw new HttpError(400, "Jenis kolom tidak dikenal.");
 
   const sumber = String(b.sumber ?? "api");
-  if (!TABEL[sumber]) throw new HttpError(400, "Sumber data tidak dikenal.");
+  const tabel = await tabelSumber(sumber);
 
   // Nama kolom wajib unik lintas sumber. Kalau tidak, rumus yang menyebut
   // "prepaid" jadi ambigu — dan yang paling merepotkan, ambiguitasnya baru
@@ -110,7 +125,7 @@ export const POST = handler(async (req) => {
   // Nama sudah lolos pola di atas; tanda kutip ganda mencegah nama yang
   // kebetulan sama dengan kata kunci SQL diperlakukan sebagai perintah.
   const tipe = TIPE_SQL[jenis];
-  for (const t of TABEL[sumber]) {
+  for (const t of tabel) {
     await q(`ALTER TABLE ${t} ADD COLUMN IF NOT EXISTS "${kolom}" ${tipe}`);
   }
 
@@ -140,7 +155,7 @@ export const PUT = handler(async (req) => {
     `SELECT kolom, bawaan, jenis, COALESCE(sumber,'api') AS sumber
        FROM mentah_kolom WHERE kolom = $1`, [kolom]);
   if (!k) throw new HttpError(404, "Kolom tidak ditemukan.");
-  if (!TABEL[k.sumber]) throw new HttpError(400, "Sumber data tidak dikenal.");
+  const tabelK = await tabelSumber(k.sumber);
 
   const label = String(b.label ?? "").trim();
   if (label.length < 2) throw new HttpError(400, "Label kolom belum diisi.");
@@ -156,7 +171,7 @@ export const PUT = handler(async (req) => {
       throw new HttpError(400,
         `Jenis kolom tidak bisa diubah karena sudah dipakai indikator: ${dipakai.join(", ")}.`);
     }
-    for (const t of TABEL[k.sumber]) {
+    for (const t of tabelK) {
       await q(`ALTER TABLE ${t} ALTER COLUMN "${kolom}" TYPE ${TIPE_SQL[jenis]} USING NULL`);
     }
   }
@@ -206,8 +221,8 @@ export const DELETE = handler(async (req) => {
   }
 
   if (!POLA_KOLOM.test(kolom)) throw new HttpError(400, "Nama kolom tidak sah.");
-  if (!TABEL[k.sumber]) throw new HttpError(400, "Sumber data tidak dikenal.");
-  for (const t of TABEL[k.sumber]) {
+  const tabelHapus = await tabelSumber(k.sumber);
+  for (const t of tabelHapus) {
     await q(`ALTER TABLE ${t} DROP COLUMN IF EXISTS "${kolom}"`);
   }
   await q(`DELETE FROM mentah_kolom WHERE kolom = $1`, [kolom]);

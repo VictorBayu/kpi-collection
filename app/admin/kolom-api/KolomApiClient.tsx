@@ -19,10 +19,7 @@ const KOSONG: Kolom = {
   keterangan: "", dipakai: 0, sumber: "api", ditarik: true, turunan: false,
 };
 
-const NAMA_SUMBER: Record<string, string> = {
-  api: "Data API utama",
-  pendukung: "Data pendukung",
-};
+type SumberRingkas = { kode: string; nama: string; jenis: string; tabel: string };
 
 /**
  * Katalog kolom data mentah.
@@ -40,6 +37,7 @@ const NAMA_SUMBER: Record<string, string> = {
  */
 export default function KolomApiClient() {
   const [daftar, setDaftar] = useState<Kolom[]>([]);
+  const [sumber, setSumber] = useState<SumberRingkas[]>([]);
   const [muat, setMuat] = useState(true);
   const [sibuk, setSibuk] = useState(false);
   const [pesan, setPesan] = useState<string | null>(null);
@@ -54,6 +52,7 @@ export default function KolomApiClient() {
       const j = await r.json().catch(() => ({}));
       if (!r.ok) { setPesan(j.error ?? "Gagal memuat katalog kolom."); return; }
       setDaftar(j.kolom ?? []);
+      setSumber(j.sumber ?? []);
     } finally { setMuat(false); }
   }
   useEffect(() => { segarkan(); }, []);
@@ -160,14 +159,15 @@ export default function KolomApiClient() {
                   tabel berarti memindahkan datanya juga, dan itu bukan
                   sesuatu yang boleh terjadi karena satu klik. */}
               {sunting.baru ? (
-                <Pilih nilai={sunting.sumber} cari={false}
+                <Pilih nilai={sunting.sumber} cari={sumber.length > 7}
                        onPilih={(v) => setSunting({ ...sunting, sumber: v })}
-                       opsi={[
-                         { nilai: "api", label: "Data API utama", ket: "tabel data_mentah" },
-                         { nilai: "pendukung", label: "Data pendukung", ket: "digabung lewat agreement_no" },
-                       ]} />
+                       opsi={sumber.map((s) => ({
+                         nilai: s.kode, label: s.nama,
+                         ket: s.jenis === "utama" ? "tabel utama" : `digabung lewat nomor kontrak · ${s.tabel}`,
+                       }))} />
               ) : (
-                <input value={NAMA_SUMBER[sunting.sumber] ?? sunting.sumber} disabled />
+                <input value={sumber.find((s) => s.kode === sunting.sumber)?.nama ?? sunting.sumber}
+                       disabled />
               )}
             </label>
             <label className="field">
@@ -286,8 +286,8 @@ export default function KolomApiClient() {
                   {!k.aktif && <span className="tag-warn">nonaktif</span>}
                   <div className="faint num">{k.kolom}</div>
                 </td>
-                <td className={k.sumber === "pendukung" ? "" : "faint"}>
-                  {k.sumber === "pendukung" ? "Pendukung" : "API utama"}
+                <td className={k.sumber === "api" ? "faint" : ""}>
+                  {sumber.find((s) => s.kode === k.sumber)?.nama ?? k.sumber}
                 </td>
                 <td className={k.field_api ? "num" : "faint"}>{k.field_api ?? "—"}</td>
                 <td>

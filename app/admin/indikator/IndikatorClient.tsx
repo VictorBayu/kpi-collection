@@ -15,6 +15,9 @@ type PitaNominal = { nilai_min: string; nilai_max: string; nominal: string };
 /** Gerbang kelayakan. sumber_id kosong = diuji pada nilai indikator ini sendiri. */
 type Gerbang = { label: string; sumber_id: string; operator: string; nilai: string };
 type IndikatorLain = { id: string; nama: string; satuan: string };
+type SumberRingkas = {
+  kode: string; nama: string; jenis: string; keterangan: string | null;
+};
 type Target = {
   alias: string; produk: string;
   /** kpi/reguler ikut skor tertimbang; reward/penalty menambah/mengurangi
@@ -421,6 +424,7 @@ export default function IndikatorClient() {
   const [kolom, setKolom] = useState<Kolom[]>([]);
   const [produk, setProduk] = useState<{ kode: string; nama: string }[]>([]);
   const [jabatan, setJabatan] = useState<string[]>([]);
+  const [sumber, setSumber] = useState<SumberRingkas[]>([]);
   const [nilaiUnik, setNilaiUnik] = useState<Record<string, string[]>>({});
 
   const [pilihId, setPilihId] = useState<string | null>(null);
@@ -429,6 +433,8 @@ export default function IndikatorClient() {
   const [satuan, setSatuan] = useState("persen");
   const [kaliSeratus, setKaliSeratus] = useState(true);
   const [peranPic, setPeranPic] = useState("staff");
+  /** Sumber TAMBAHAN yang dipakai indikator ini. Kosong = hanya data utama. */
+  const [sumberKode, setSumberKode] = useState("");
   const [komponen, setKomponen] = useState<Komponen[]>([kartuKosong(true)]);
   const [target, setTarget] = useState<Target[]>([]);
 
@@ -448,6 +454,43 @@ export default function IndikatorClient() {
    * tersimpan. Diri sendiri dikeluarkan: untuk menguji nilai sendiri,
    * gerbang cukup dibiarkan tanpa sumber ("Indikator ini sendiri").
    */
+  /**
+   * Kode sumber utama — tempat NIK PIC, cabang, dan produk berada.
+   * Kolomnya SELALU tersedia; yang dipilih admin hanyalah sumber
+   * tambahan di sampingnya.
+   */
+  const kodeUtama = useMemo(
+    () => sumber.find((s) => s.jenis === "utama")?.kode ?? "api",
+    [sumber]);
+
+  /**
+   * Kolom yang boleh dipakai rumus: seluruh kolom data utama, ditambah
+   * kolom milik sumber tambahan yang sedang dipilih.
+   *
+   * Penyaringan ini yang membuat satu indikator tidak pernah mencampur
+   * dua sumber tambahan sekaligus — begitu dua tabel digabung ke satu
+   * rumus, kontrak yang tidak berpasangan di salah satunya jadi sangat
+   * sulit ditelusuri saat angkanya terlihat ganjil.
+   */
+  const kolomTerpakai = useMemo(
+    () => kolom.filter((k) => {
+      const s = k.sumber ?? kodeUtama;
+      return s === kodeUtama || s === sumberKode;
+    }),
+    [kolom, kodeUtama, sumberKode]);
+
+  /** Kolom dari sumber lain yang masih tersangkut di rumus yang dibuka. */
+  const kolomAsing = useMemo(() => {
+    const sah = new Set(kolomTerpakai.map((k) => k.kolom));
+    const dipakai = new Set<string>();
+    for (const k of komponen) {
+      if (k.kolom) dipakai.add(k.kolom);
+      if (k.pengakuan_kolom) dipakai.add(k.pengakuan_kolom);
+      for (const y of k.syarat) if (y.kolom) dipakai.add(y.kolom);
+    }
+    return [...dipakai].filter((c) => c && !sah.has(c));
+  }, [komponen, kolomTerpakai]);
+
   const lain: IndikatorLain[] = useMemo(
     () => daftar
       .filter((d) => d.id !== pilihId)
@@ -462,6 +505,7 @@ export default function IndikatorClient() {
     setKolom(j.kolom ?? []);
     setProduk(j.produk ?? []);
     setJabatan((j.jabatan ?? []).map((x: any) => x.alias));
+    setSumber(j.sumber ?? []);
   }
   useEffect(() => { muatDaftar(); }, []);
 
@@ -492,6 +536,7 @@ export default function IndikatorClient() {
   function kosongkan() {
     setPilihId(null); setNama(""); setDeskripsi("");
     setSatuan("persen"); setKaliSeratus(true); setPeranPic("staff");
+    setSumberKode("");
     setKomponen([kartuKosong(true)]); setTarget([]); setUji(null); setPesan(null);
     setDetailBuka(null);
   }
@@ -506,6 +551,7 @@ export default function IndikatorClient() {
       setNama(j.def.nama); setDeskripsi(j.def.deskripsi ?? "");
       setSatuan(j.def.satuan); setKaliSeratus(j.def.kali_seratus);
       setPeranPic(j.def.peran_pic);
+      setSumberKode(j.def.sumber_kode ?? "");
       setKomponen((j.komponen ?? []).map((k: any) => ({
         agregat: k.agregat, kolom: k.kolom,
         operator_sebelum: k.operator_sebelum,
@@ -550,6 +596,7 @@ export default function IndikatorClient() {
   const badan = () => ({
     id: pilihId, nama, deskripsi, satuan,
     kali_seratus: kaliSeratus, peran_pic: peranPic,
+    sumber_kode: sumberKode || null,
     komponen, target,
   });
 
@@ -699,12 +746,41 @@ export default function IndikatorClient() {
                      { nilai: "unit", label: "Unit" },
                    ]} />
           </label>
+          <label>
+            <span className="faint small">Sumber data tambahan</span>
+            <Pilih nilai={sumberKode} cari={sumber.length > 7}
+                   onPilih={setSumberKode}
+                   opsi={[
+                     { nilai: "", label: "Hanya data utama",
+                       ket: "kolom dari API utama saja" },
+                     ...sumber
+                       .filter((s) => s.jenis !== "utama" && s.kode !== kodeUtama)
+                       .map((s) => ({
+                         nilai: s.kode, label: s.nama,
+                         ket: s.jenis === "api" ? "API, digabung lewat nomor kontrak"
+                                                : "unggahan, digabung lewat nomor kontrak",
+                       })),
+                   ]} />
+          </label>
           <label className="ind-cek">
             <input type="checkbox" checked={kaliSeratus}
                    onChange={(e) => setKaliSeratus(e.target.checked)} />
             Kalikan 100 (rasio jadi persen)
           </label>
         </div>
+
+        {/* Kolom data utama tidak pernah disembunyikan: di sanalah NIK PIC,
+            cabang, dan produk berada, dan tanpa ketiganya tidak ada
+            indikator yang bisa dihitung untuk siapa pun. Yang dipilih di
+            atas adalah sumber KEDUA yang ikut digabung. */}
+        {kolomAsing.length > 0 && (
+          <div className="alert warn mb">
+            Rumus ini masih memakai kolom dari sumber lain:{" "}
+            <b>{kolomAsing.join(", ")}</b>. Ganti kolomnya atau pilih kembali
+            sumber yang sesuai — kalau disimpan begini, perhitungannya akan
+            gagal karena tabelnya tidak ikut digabung.
+          </div>
+        )}
 
         {/* --- kartu komponen --- */}
         {komponen.map((k, i) => (
@@ -732,7 +808,7 @@ export default function IndikatorClient() {
               </div>
             )}
             <Kartu
-              k={k} indeks={i} kolom={kolom} sibuk={sibuk} nilaiUnik={nilaiUnik}
+              k={k} indeks={i} kolom={kolomTerpakai} sibuk={sibuk} nilaiUnik={nilaiUnik}
               diangkat={seret === i} sasaran={lewat === i && seret !== null && seret !== i}
               onSeretMulai={() => setSeret(i)}
               onSeretLewat={() => setLewat(i)}

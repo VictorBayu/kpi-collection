@@ -1,4 +1,7 @@
 import { q } from "./db";
+import {
+  daftarSumber, sumberUtama, penunjukKolom, gabungUntuk, type Sumber,
+} from "./sumber";
 import { RumusSalah, type Syarat } from "./rumus";
 
 /**
@@ -114,14 +117,23 @@ function potongan(s: Syarat, kolomSql: string, params: any[]): string {
 }
 
 type Katalog = {
-  /** kolom -> sumber ('api' | 'pendukung') */
+  /** kolom -> kode sumber, sesuai registri sumber_data */
   sumber: Map<string, string>;
+  peta: Map<string, Sumber>;
+  utama: Sumber;
 };
 
 async function katalog(): Promise<Katalog> {
-  const rows = await q<{ kolom: string; sumber: string }>(
-    `SELECT kolom, COALESCE(sumber,'api') AS sumber FROM mentah_kolom`);
-  return { sumber: new Map(rows.map((r) => [r.kolom, r.sumber])) };
+  const [rows, daftar] = await Promise.all([
+    q<{ kolom: string; sumber: string }>(
+      `SELECT kolom, COALESCE(sumber,'api') AS sumber FROM mentah_kolom`),
+    daftarSumber(),
+  ]);
+  return {
+    sumber: new Map(rows.map((r) => [r.kolom, r.sumber])),
+    peta: new Map(daftar.map((s) => [s.kode, s])),
+    utama: sumberUtama(daftar),
+  };
 }
 
 /** Nama kolom berkualifikasi tabel, sekaligus mencatat sumber yang dipakai. */
@@ -129,7 +141,7 @@ function penunjuk(kat: Katalog, kode: string, dipakai: Set<string>): string {
   const s = kat.sumber.get(kode);
   if (!s) throw new RumusSalah(`Kolom "${kode}" tidak ada di katalog.`);
   dipakai.add(s);
-  return s === "pendukung" ? `dp.${kode}` : `dm.${kode}`;
+  return penunjukKolom(kode, s, kat.utama.kode);
 }
 
 /** Ekspresi CASE WHEN dari definisi mode visual. */
@@ -185,30 +197,32 @@ export async function hitungTurunan(t: Turunan): Promise<number> {
   const tipe = t.jenis === "angka" ? "::numeric"
              : t.jenis === "tanggal" ? "::date" : "::text";
 
-  // Kolom turunan hanya boleh berada di data utama: menuliskannya ke data
-  // pendukung akan membuat penggabungan berputar pada dirinya sendiri.
-  if (kat.sumber.get(t.kolom) === "pendukung") {
-    throw new RumusSalah("Kolom turunan harus berada di sumber data API utama.");
+  // Kolom turunan hanya boleh berada di data utama: menuliskannya ke sumber
+  // tambahan akan membuat penggabungan berputar pada dirinya sendiri.
+  if ((kat.sumber.get(t.kolom) ?? kat.utama.kode) !== kat.utama.kode) {
+    throw new RumusSalah("Kolom turunan harus berada di sumber data utama.");
   }
 
   /**
    * Penggabungan memakai LEFT JOIN lewat baris bayangan, bukan
-   * `UPDATE ... FROM data_pendukung` langsung.
+   * `UPDATE ... FROM <tabel sumber>` langsung.
    *
    * Bentuk langsung itu bersifat INNER JOIN: kontrak yang belum ada di
-   * data pendukung tidak akan tersentuh sama sekali, sehingga kolom
+   * sumber tambahan tidak akan tersentuh sama sekali, sehingga kolom
    * turunannya tetap kosong alih-alih memakai cabang ELSE. Kekeliruan itu
    * sangat sulit disadari — kolomnya terisi untuk sebagian besar baris,
    * dan yang kosong terlihat seperti data yang memang belum lengkap.
+   *
+   * Klausa gabungnya dirakit dari registri, jadi kolom turunan yang
+   * memakai API kedua ikut bekerja tanpa perubahan di sini.
    */
-  const sql = dipakai.has("pendukung")
-    ? `UPDATE data_mentah dm
+  const gabung = gabungUntuk(dipakai, kat.peta, kat.utama, "src");
+  const sql = gabung
+    ? `UPDATE ${kat.utama.tabel} dm
           SET "${t.kolom}" = (${ekspresi})${tipe}
-         FROM data_mentah src
-         LEFT JOIN data_pendukung dp
-           ON dp.agreement_no = src.agreement_no AND COALESCE(dp.aktif, true)
+         FROM ${kat.utama.tabel} src${gabung}
         WHERE src.id = dm.id`
-    : `UPDATE data_mentah dm SET "${t.kolom}" = (${ekspresi})${tipe}`;
+    : `UPDATE ${kat.utama.tabel} dm SET "${t.kolom}" = (${ekspresi})${tipe}`;
 
   const hasil = await q<any>(sql + ` RETURNING 1`, params);
   return hasil.length;

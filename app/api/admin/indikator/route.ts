@@ -1,5 +1,6 @@
 import { requireAdmin, handler, HttpError } from "@/lib/auth";
 import { q, auditLog } from "@/lib/db";
+import { daftarSumber } from "@/lib/sumber";
 import { ujiRumus } from "@/lib/hitung-indikator";
 import { RumusSalah, type Komponen } from "@/lib/rumus";
 
@@ -115,7 +116,7 @@ export const GET = handler(async (req) => {
   const id = new URL(req.url).searchParams.get("id");
 
   if (!id) {
-    const [daftar, kolom, produk, jabatan] = await Promise.all([
+    const [daftar, kolom, produk, jabatan, sumber] = await Promise.all([
       q<any>(
         `SELECT d.id, d.nama, d.satuan, d.kali_seratus, d.peran_pic, d.aktif,
                 (SELECT COUNT(*)::int FROM indikator_komponen k WHERE k.indikator_id = d.id) AS komponen,
@@ -137,12 +138,20 @@ export const GET = handler(async (req) => {
            FROM app_user
           WHERE jabatan IS NOT NULL AND btrim(jabatan) <> ''
          ORDER BY alias`),
+      daftarSumber(),
     ]);
-    return Response.json({ daftar, kolom, produk, jabatan });
+    // Sumber ikut dikirim supaya pembangun indikator bisa menyaring daftar
+    // kolom mengikuti sumber tambahan yang dipilih.
+    return Response.json({
+      daftar, kolom, produk, jabatan,
+      sumber: sumber.map((s) => ({
+        kode: s.kode, nama: s.nama, jenis: s.jenis, keterangan: s.keterangan,
+      })),
+    });
   }
 
   const [def] = await q<any>(
-    `SELECT id, nama, deskripsi, satuan, kali_seratus, peran_pic, aktif
+    `SELECT id, nama, deskripsi, satuan, kali_seratus, peran_pic, aktif, sumber_kode
        FROM indikator_def WHERE id = $1`, [id]);
   if (!def) throw new HttpError(404, "Indikator tidak ditemukan.");
 
@@ -233,6 +242,26 @@ export const POST = handler(async (req) => {
   const satuan = ["rupiah","persen","unit"].includes(b.satuan) ? b.satuan : "rupiah";
   const komponen = bacaKomponen(b.komponen);
 
+  /**
+   * Sumber tambahan yang dipakai indikator ini.
+   *
+   * Diperiksa terhadap registri, bukan dipercaya apa adanya: kode yang
+   * tidak terdaftar akan ditolak kunci asing di database dengan pesan
+   * yang tidak berarti apa-apa bagi admin.
+   *
+   * Yang dipilih hanyalah sumber TAMBAHAN — kolom data utama selalu
+   * tersedia, karena di sanalah NIK PIC, cabang, dan produk berada dan
+   * tanpa ketiganya tidak ada indikator yang bisa dihitung untuk siapa
+   * pun.
+   */
+  let sumberKode: string | null = b.sumber_kode ? String(b.sumber_kode) : null;
+  if (sumberKode) {
+    const daftar = await daftarSumber();
+    const s = daftar.find((x) => x.kode === sumberKode);
+    if (!s) throw new HttpError(400, `Sumber data "${sumberKode}" tidak terdaftar.`);
+    if (s.jenis === "utama") sumberKode = null;
+  }
+
   let id: string = b.id ?? "";
 
   if (id) {
@@ -241,14 +270,17 @@ export const POST = handler(async (req) => {
     await q(
       `UPDATE indikator_def
           SET nama=$2, deskripsi=$3, satuan=$4, kali_seratus=$5,
-              peran_pic=$6, aktif=$7, diubah_pada=now()
+              peran_pic=$6, aktif=$7, sumber_kode=$8, diubah_pada=now()
         WHERE id=$1`,
-      [id, nama, b.deskripsi ?? null, satuan, !!b.kali_seratus, peran, b.aktif !== false]);
+      [id, nama, b.deskripsi ?? null, satuan, !!b.kali_seratus, peran,
+       b.aktif !== false, sumberKode]);
   } else {
     const [baru] = await q<any>(
-      `INSERT INTO indikator_def (nama, deskripsi, satuan, kali_seratus, peran_pic, aktif)
-       VALUES ($1,$2,$3,$4,$5,$6) RETURNING id`,
-      [nama, b.deskripsi ?? null, satuan, !!b.kali_seratus, peran, b.aktif !== false]);
+      `INSERT INTO indikator_def
+         (nama, deskripsi, satuan, kali_seratus, peran_pic, aktif, sumber_kode)
+       VALUES ($1,$2,$3,$4,$5,$6,$7) RETURNING id`,
+      [nama, b.deskripsi ?? null, satuan, !!b.kali_seratus, peran,
+       b.aktif !== false, sumberKode]);
     id = baru.id;
   }
 
