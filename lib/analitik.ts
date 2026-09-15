@@ -15,9 +15,9 @@ import { q } from "./db";
 
 /** Ambang skor jadi label yang sama dipakai di seluruh aplikasi. */
 export const PITA_SKOR = [
-  { batas: 4, label: "KPI 4 ke atas", warna: "#1F8A5B" },
-  { batas: 3, label: "KPI 3", warna: "#2C5FE8" },
-  { batas: 0, label: "Di bawah KPI 3", warna: "#C2410C" },
+  { batas: 4, label: "KPI 4 ke atas", warna: "#059669" },
+  { batas: 3, label: "KPI 3", warna: "#4F46E5" },
+  { batas: 0, label: "Di bawah KPI 3", warna: "#DC2626" },
 ];
 
 export function labelPita(skor: number): string {

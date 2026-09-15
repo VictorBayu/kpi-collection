@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import Ikon from "@/components/Ikon";
 
 export default function LoginForm() {
   const [nik, setNik] = useState("");
@@ -33,22 +34,30 @@ export default function LoginForm() {
   }
 
   return (
-    <form onSubmit={masuk}>
-      <label className="field mb">
-        <span>Nomor Induk Karyawan</span>
-        <input className="num" inputMode="numeric" autoComplete="username"
-               placeholder="20240117" value={nik} required
-               onChange={(e) => setNik(e.target.value)} />
+    <form onSubmit={masuk} className="login-form">
+      <label className="field">
+        <span className="field-atas"><span>Nomor Induk Karyawan (NIK)</span></span>
+        <span className="login-input">
+          <Ikon nama="badge" ukuran={18} className="login-input-ikon" />
+          <input className="num" inputMode="numeric" autoComplete="username"
+                 placeholder="20240117" value={nik} required
+                 onChange={(e) => setNik(e.target.value)} />
+        </span>
       </label>
 
       <label className="field">
-        <span>Password</span>
-        <span className="inputgroup">
+        <span className="field-atas">
+          <span>Password</span>
+          <em>Lupa? Hubungi admin data</em>
+        </span>
+        <span className="login-input">
+          <Ikon nama="key" ukuran={18} className="login-input-ikon" />
           <input type={lihat ? "text" : "password"} autoComplete="current-password"
                  placeholder="••••••••" value={password} required
                  onChange={(e) => setPassword(e.target.value)} />
-          <button type="button" onClick={() => setLihat(!lihat)}
+          <button type="button" className="login-lihat" onClick={() => setLihat(!lihat)}
                   aria-label={lihat ? "Sembunyikan password" : "Tampilkan password"}>
+            <Ikon nama={lihat ? "eyeOff" : "eye"} ukuran={16} />
             {lihat ? "Sembunyikan" : "Lihat"}
           </button>
         </span>
@@ -56,11 +65,9 @@ export default function LoginForm() {
 
       {galat && <p className="inline-error" role="alert">{galat}</p>}
 
-      <button className="btn wide" disabled={sibuk}>
-        {sibuk ? "Memeriksa..." : "Masuk ke dasbor"}
+      <button className="btn wide login-masuk" disabled={sibuk}>
+        {sibuk ? "Memeriksa..." : <>Masuk ke Dasbor <Ikon nama="arrowRight" ukuran={18} tebal={2.2} /></>}
       </button>
-
-      <p className="faint center">Lupa password? Hubungi admin data di ext. 4120.</p>
     </form>
   );
 }

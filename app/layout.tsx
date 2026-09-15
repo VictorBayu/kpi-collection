@@ -1,7 +1,7 @@
 import "./globals.css";
 import type { Metadata } from "next";
 import { SpeedInsights } from "@vercel/speed-insights/next";
-import { Archivo, Inter, IBM_Plex_Mono } from "next/font/google";
+import { Plus_Jakarta_Sans, Inter, IBM_Plex_Mono } from "next/font/google";
 
 /**
  * Font di-host sendiri oleh Next (bukan <link> ke fonts.googleapis.com).
@@ -10,16 +10,16 @@ import { Archivo, Inter, IBM_Plex_Mono } from "next/font/google";
  */
 const inter = Inter({
   subsets: ["latin"],
-  weight: ["400", "500", "600"],
+  weight: ["400", "500", "600", "700"],
   display: "swap",
   variable: "--font-inter",
 });
 
-const archivo = Archivo({
+const jakarta = Plus_Jakarta_Sans({
   subsets: ["latin"],
   weight: ["500", "600", "700", "800"],
   display: "swap",
-  variable: "--font-archivo",
+  variable: "--font-jakarta",
 });
 
 const plexMono = IBM_Plex_Mono({
@@ -38,7 +38,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     <html
       lang="id"
-      className={`${inter.variable} ${archivo.variable} ${plexMono.variable}`}
+      className={`${inter.variable} ${jakarta.variable} ${plexMono.variable}`}
     >
       <body>
         {children}
