@@ -3,6 +3,7 @@
 import { useCallback, useMemo, useState } from "react";
 import AmChart from "@/components/AmChart";
 import Pilih from "@/components/Pilih";
+import Ikon from "@/components/Ikon";
 
 type Komposisi = {
   label: string;
@@ -69,9 +70,9 @@ type Props = {
   biaya: Biaya[];
 };
 
-const HIJAU = 0x1f8a5b,
-  BIRU = 0x2c5fe8,
-  MERAH = 0xc2410c;
+const HIJAU = 0x059669,
+  BIRU = 0x4f46e5,
+  MERAH = 0xdc2626;
 const warnaSkor = (v: number) => (v >= 4 ? HIJAU : v < 3 ? MERAH : BIRU);
 
 const BULAN = [
@@ -377,7 +378,7 @@ export default function AnalitikClient({
           yAxis: sumbuY,
           valueYField: "acuan",
           categoryXField: "indikator",
-          stroke: am5.color(0x9aa6bf),
+          stroke: am5.color(0x94a3b8),
         }),
       );
       acuan.strokes.template.setAll({
@@ -477,14 +478,14 @@ export default function AnalitikClient({
       // Garis ambang KPI 3 supaya batang punya acuan, sama seperti di radar.
       const jangkar = sumbuX.createAxisRange(sumbuX.makeDataItem({ value: 3 }));
       jangkar.get("grid").setAll({
-        stroke: am5.color(0x9aa6bf),
+        stroke: am5.color(0x94a3b8),
         strokeWidth: 1,
         strokeDasharray: [4, 3],
         strokeOpacity: 1,
       });
       jangkar
         .get("label")
-        .setAll({ text: "KPI 3", fontSize: 10, fill: am5.color(0x6b7a99) });
+        .setAll({ text: "KPI 3", fontSize: 10, fill: am5.color(0x64748b) });
 
       seri.appear(700);
       chart.appear(700, 100);
@@ -619,11 +620,11 @@ export default function AnalitikClient({
       });
       petunjuk.get("background").setAll({
         fill: am5.color(0xffffff),
-        stroke: am5.color(0xdfe5ee),
+        stroke: am5.color(0xe2e8f0),
         fillOpacity: 1,
       });
       petunjuk.label.setAll({
-        fill: am5.color(0x111a2b),
+        fill: am5.color(0x0f172a),
         fontSize: 12,
       });
 
@@ -762,18 +763,34 @@ export default function AnalitikClient({
   const terkuat = radarTampil[radarTampil.length - 1];
   const radarCukup = radarTampil.length >= 3;
 
+  // Kalimat ringkas di kaki tiap grafik — dihitung dari data yang sama
+  // dengan grafiknya, supaya pembaca yang hanya memindai tetap menangkap
+  // pesan utamanya tanpa harus membaca sumbu.
+  const puncakSebaran = sebaran.reduce<Sebaran | null>((m, b) => (!m || b.orang > m.orang ? b : m), null);
+  const totalSebaran = sebaran.reduce((n, b) => n + b.orang, 0);
+  const areaBawah = area.filter((a) => a.skorRata < 3).length;
+  const areaTerendah = area.slice().sort((a, b) => a.skorRata - b.skorRata)[0];
+  const medianPerOrang = (() => {
+    const v = biaya.map((b) => b.perOrang).sort((a, b) => a - b);
+    return v.length ? v[Math.floor(v.length / 2)] : 0;
+  })();
+  const anomali = biaya.filter((b) => b.skorRata < 3 && b.perOrang > medianPerOrang).length;
+  const trenAkhir = tren[tren.length - 1];
+  const trenSebelum = tren[tren.length - 2];
+  const arahTren = trenAkhir && trenSebelum ? trenAkhir.skorRata - trenSebelum.skorRata : null;
+  const fmt2 = (v: number) => v.toFixed(2).replace(".", ",");
+
   return (
     <>
       {/* --- tren --- */}
-      <section className="card mb">
-        <div className="cardhead">
-          <h3 style={{ fontSize: 15 }}>Tren skor dan beban perbaikan</h3>
-          <p className="muted small">
-            Garis biru: skor rata-rata nasional. Batang merah: jumlah karyawan
-            di bawah KPI 3. Arahnya lebih penting daripada angka satu bulan.
-          </p>
-        </div>
-        <div className="card-pad">
+      <section className="card an-kartu mb">
+        <KepalaGrafik
+          ikon="chart"
+          judul="Tren skor dan beban perbaikan"
+          desk="Garis indigo: skor rata-rata nasional. Batang merah: jumlah karyawan di bawah KPI 3. Arahnya lebih penting daripada angka satu bulan."
+          aksi={<span className="an-legenda"><i className="accent" /> Skor rata-rata <i className="bad" /> Di bawah KPI 3</span>}
+        />
+        <div className="an-isi">
           <AmChart
             gambar={gambarTren}
             tinggi={300}
@@ -782,33 +799,42 @@ export default function AnalitikClient({
             pesanKosong="Tren butuh minimal dua periode. Grafik ini akan terisi sendiri seiring bertambahnya bulan."
           />
         </div>
+        {arahTren !== null && (
+          <div className="an-kaki">
+            <span>
+              Skor rata-rata periode terakhir <b className="num">{fmt2(trenAkhir.skorRata)}</b>{" "}
+              <span className={"an-arah " + (arahTren > 0 ? "naik" : arahTren < 0 ? "turun" : "")}>
+                {arahTren > 0 ? "▲" : arahTren < 0 ? "▼" : "–"} {fmt2(Math.abs(arahTren))}
+              </span>{" "}
+              dibanding bulan sebelumnya.
+            </span>
+            <span className="an-kaki-lbl">{tren.length} periode</span>
+          </div>
+        )}
       </section>
 
       {/* --- komposisi jabatan --- */}
-      <section className="card mb">
-        <div className="cardhead rowbetween">
-          <div>
-            <h3 style={{ fontSize: 15 }}>Komposisi pencapaian per jabatan</h3>
-            <p className="muted small">
-              Setiap batang satu jabatan, dibagi menurut proporsi pencapaiannya.
-              Dibaca dalam persen supaya jabatan besar dan kecil bisa
-              dibandingkan tingkat masalahnya, bukan ukurannya.
-            </p>
-          </div>
-          <div style={{ width: 190 }}>
-            <Pilih
-              nilai={urutKomposisi}
-              cari={false}
-              onPilih={(v) => setUrutKomposisi(v as typeof urutKomposisi)}
-              opsi={[
-                { nilai: "bawah", label: "Urut: paling bermasalah" },
-                { nilai: "skor", label: "Urut: skor terendah" },
-                { nilai: "orang", label: "Urut: jumlah orang" },
-              ]}
-            />
-          </div>
-        </div>
-        <div className="card-pad">
+      <section className="card an-kartu mb">
+        <KepalaGrafik
+          ikon="users"
+          judul="Komposisi pencapaian per jabatan"
+          desk="Setiap batang satu jabatan, dibagi menurut proporsi pencapaiannya. Dibaca dalam persen supaya jabatan besar dan kecil bisa dibandingkan tingkat masalahnya, bukan ukurannya."
+          aksi={
+            <div className="an-pilih">
+              <Pilih
+                nilai={urutKomposisi}
+                cari={false}
+                onPilih={(v) => setUrutKomposisi(v as typeof urutKomposisi)}
+                opsi={[
+                  { nilai: "bawah", label: "Urut: paling bermasalah" },
+                  { nilai: "skor", label: "Urut: skor terendah" },
+                  { nilai: "orang", label: "Urut: jumlah orang" },
+                ]}
+              />
+            </div>
+          }
+        />
+        <div className="an-isi">
           {/* Tinggi per batang dipatok kecil (26px). Dengan 34px, dua belas
               jabatan sudah memenuhi seluruh layar dan grafik terasa
               menggantung tanpa ujung; angka ini muat sekitar lima belas
@@ -823,32 +849,31 @@ export default function AnalitikClient({
         </div>
       </section>
 
-      <div className="grafik-dua">
+      <div className="grafik-dua an-dua">
         {/* --- radar indikator --- */}
-        <section className="card">
-          <div className="cardhead">
-            <h3 style={{ fontSize: 15 }}>Kekuatan indikator</h3>
-            <p className="muted small">
-              Skor rata-rata tiap indikator. Garis putus-putus adalah ambang KPI
-              3 — yang jatuh di dalamnya lemah secara menyeluruh, bukan cuma di
-              satu cabang.
-            </p>
-            <div className="mt" style={{ maxWidth: 280 }}>
-              <Pilih
-                nilai={jabatanRadar}
-                onPilih={setJabatanRadar}
-                opsi={[
-                  { nilai: "", label: "Semua jabatan (nasional)" },
-                  ...jabatan.map((j) => ({
-                    nilai: j.jabatan,
-                    label: j.jabatan,
-                    ket: `${j.orang} orang`,
-                  })),
-                ]}
-              />
-            </div>
-          </div>
-          <div className="card-pad">
+        <section className="card an-kartu">
+          <KepalaGrafik
+            ikon="target"
+            judul="Kekuatan indikator"
+            desk="Skor rata-rata tiap indikator. Garis putus-putus adalah ambang KPI 3 — yang jatuh di dalamnya lemah secara menyeluruh, bukan cuma di satu cabang."
+            aksi={
+              <div className="an-pilih lebar">
+                <Pilih
+                  nilai={jabatanRadar}
+                  onPilih={setJabatanRadar}
+                  opsi={[
+                    { nilai: "", label: "Semua jabatan (nasional)" },
+                    ...jabatan.map((j) => ({
+                      nilai: j.jabatan,
+                      label: j.jabatan,
+                      ket: `${j.orang} orang`,
+                    })),
+                  ]}
+                />
+              </div>
+            }
+          />
+          <div className="an-isi">
             <AmChart
               gambar={radarCukup ? gambarRadar : gambarRadarBatang}
               tinggi={
@@ -860,51 +885,45 @@ export default function AnalitikClient({
             />
           </div>
           {radarTampil.length > 0 && (
-            <div className="grafik-catatan">
-              {radarTampil.length === 1 ? (
-                <>
-                  Jabatan ini hanya punya satu indikator:{" "}
-                  <b>{terlemah.indikator}</b> ({terlemah.skorRata}).
-                </>
-              ) : (
-                <>
-                  Paling lemah <b>{terlemah.indikator}</b> ({terlemah.skorRata}
-                  ), paling kuat <b>{terkuat.indikator}</b> ({terkuat.skorRata}
-                  ).
-                  {!radarCukup &&
-                    " Ditampilkan sebagai batang karena radar butuh minimal tiga indikator."}
-                </>
-              )}
+            <div className="an-kaki">
+              <span>
+                {radarTampil.length === 1 ? (
+                  <>
+                    Jabatan ini hanya punya satu indikator:{" "}
+                    <b className="teks-bad">{terlemah.indikator}</b> ({terlemah.skorRata}).
+                  </>
+                ) : (
+                  <>
+                    Paling lemah <b className="teks-bad">{terlemah.indikator}</b> ({terlemah.skorRata}),
+                    paling kuat <b className="teks-accent">{terkuat.indikator}</b> ({terkuat.skorRata}).
+                    {!radarCukup &&
+                      " Ditampilkan sebagai batang karena radar butuh minimal tiga indikator."}
+                  </>
+                )}
+              </span>
+              <span className="an-kaki-lbl">{radarTampil.length} indikator</span>
             </div>
           )}
         </section>
 
         {/* --- sebaran skor --- */}
-        <section className="card">
-          <div className="cardhead rowbetween">
-            <div>
-              <h3 style={{ fontSize: 15 }}>Persebaran skor karyawan</h3>
-              <p className="muted small">
-                Rata-rata menyembunyikan bentuk. Arahkan kursor ke sebuah
-                batang untuk melihat dari mana isinya datang.
-              </p>
-            </div>
-            <div className="viewswitch">
-              <button
-                className={"vbtn" + (rinciSebaran === "area" ? " on" : "")}
-                onClick={() => setRinciSebaran("area")}
-              >
-                Per area
-              </button>
-              <button
-                className={"vbtn" + (rinciSebaran === "cabang" ? " on" : "")}
-                onClick={() => setRinciSebaran("cabang")}
-              >
-                Per cabang
-              </button>
-            </div>
-          </div>
-          <div className="card-pad">
+        <section className="card an-kartu">
+          <KepalaGrafik
+            ikon="chart"
+            judul="Persebaran skor karyawan"
+            desk="Rata-rata menyembunyikan bentuk. Arahkan kursor ke sebuah batang untuk melihat dari mana isinya datang."
+            aksi={
+              <div className="wz-segmen an-segmen" role="radiogroup" aria-label="Rincian sebaran">
+                {(["area", "cabang"] as const).map((v) => (
+                  <button key={v} type="button" role="radio" aria-checked={rinciSebaran === v}
+                          className={rinciSebaran === v ? "on" : ""} onClick={() => setRinciSebaran(v)}>
+                    Per {v}
+                  </button>
+                ))}
+              </div>
+            }
+          />
+          <div className="an-isi">
             <AmChart
               gambar={gambarSebaran}
               tinggi={300}
@@ -913,20 +932,28 @@ export default function AnalitikClient({
               pesanKosong="Belum ada data skor di periode ini."
             />
           </div>
+          {puncakSebaran && (
+            <div className="an-kaki">
+              <span>
+                Konsentrasi terbesar: <b className={puncakSebaran.pita < 3 ? "teks-bad" : "teks-accent"}>{puncakSebaran.orang} orang</b>{" "}
+                di rentang {puncakSebaran.label}.
+              </span>
+              <span className="an-kaki-lbl num">Total {totalSebaran.toLocaleString("id-ID")} orang</span>
+            </div>
+          )}
         </section>
       </div>
 
-      <div className="grafik-dua">
+      <div className="grafik-dua an-dua">
         {/* --- per area --- */}
-        <section className="card">
-          <div className="cardhead">
-            <h3 style={{ fontSize: 15 }}>Skor rata-rata per area</h3>
-            <p className="muted small">
-              Kalau radar menjawab indikator apa yang lemah, ini menjawab di
-              mana lemahnya.
-            </p>
-          </div>
-          <div className="card-pad">
+        <section className="card an-kartu">
+          <KepalaGrafik
+            ikon="network"
+            judul="Skor rata-rata per area"
+            desk="Kalau radar menjawab indikator apa yang lemah, ini menjawab di mana lemahnya."
+            aksi={<span className="an-kaki-lbl">{area.length} area</span>}
+          />
+          <div className="an-isi">
             <AmChart
               gambar={gambarArea}
               tinggi={Math.max(280, area.length * 40)}
@@ -935,18 +962,28 @@ export default function AnalitikClient({
               pesanKosong="Belum ada data area di periode ini."
             />
           </div>
+          {area.length > 0 && (
+            <div className="an-kaki">
+              <span>
+                {areaBawah === area.length
+                  ? <>Semua {area.length} area masih di bawah ambang <b className="teks-bad">KPI 3</b>.</>
+                  : areaBawah > 0
+                    ? <><b className="teks-bad">{areaBawah} dari {area.length} area</b> di bawah KPI 3; terendah {areaTerendah.area} ({fmt2(areaTerendah.skorRata)}).</>
+                    : <>Semua area sudah di atas ambang KPI 3.</>}
+              </span>
+            </div>
+          )}
         </section>
 
         {/* --- biaya vs skor --- */}
-        <section className="card">
-          <div className="cardhead">
-            <h3 style={{ fontSize: 15 }}>Insentif per orang dibanding skor</h3>
-            <p className="muted small">
-              Satu titik satu cabang. Titik di kiri-atas — insentif tinggi tapi
-              skor di bawah ambang — adalah yang paling perlu ditanyakan.
-            </p>
-          </div>
-          <div className="card-pad">
+        <section className="card an-kartu">
+          <KepalaGrafik
+            ikon="wallet"
+            judul="Insentif per orang dibanding skor"
+            desk="Satu titik satu cabang. Titik di kiri-atas — insentif tinggi tapi skor di bawah ambang — adalah yang paling perlu ditanyakan."
+            aksi={<span className="an-legenda"><i className="accent bulat" /> 1 titik = 1 cabang</span>}
+          />
+          <div className="an-isi">
             <AmChart
               gambar={gambarBiaya}
               tinggi={320}
@@ -955,42 +992,51 @@ export default function AnalitikClient({
               pesanKosong="Butuh minimal dua cabang berisi tiga karyawan atau lebih."
             />
           </div>
+          {biaya.length >= 2 && (
+            <div className="an-kaki">
+              <span>
+                Kuadran kiri-atas: <b className={anomali ? "teks-bad" : "teks-accent"}>{anomali ? `${anomali} cabang` : "tidak ada cabang"}</b>{" "}
+                dengan skor di bawah KPI 3 tapi insentif per orang di atas median.
+              </span>
+            </div>
+          )}
         </section>
       </div>
 
       {/* --- ujung cabang --- */}
-      <div className="grafik-dua">
-        <section className="card">
-          <div className="cardhead">
-            <h3 style={{ fontSize: 15 }}>Cabang Perlu Perhatian</h3>
-            <p className="muted small">
-              Skor terendah dari {ujung.jumlahCabang} cabang berisi tiga
-              karyawan atau lebih.
-              {ujung.adaPembanding &&
-                " Panah hijau berarti peringkatnya membaik sejak bulan lalu."}
-            </p>
-          </div>
-          <TabelCabang
-            data={ujung.terburuk}
-            adaPembanding={ujung.adaPembanding}
+      <div className="grafik-dua an-dua">
+        <section className="card an-kartu">
+          <KepalaGrafik
+            judul="Cabang perlu perhatian"
+            desk={`Skor terendah dari ${ujung.jumlahCabang} cabang berisi tiga karyawan atau lebih.${ujung.adaPembanding ? " Panah hijau berarti peringkatnya membaik sejak bulan lalu." : ""}`}
+            aksi={<span className="an-tag bad">Kritis</span>}
           />
+          <TabelCabang data={ujung.terburuk} adaPembanding={ujung.adaPembanding} />
         </section>
-        <section className="card">
-          <div className="cardhead">
-            <h3 style={{ fontSize: 15 }}>Cabang Terbaik</h3>
-            <p className="muted small">
-              Yang pantas ditiru — dan ditanya apa yang mereka lakukan berbeda.
-              {ujung.adaPembanding &&
-                " Yang turun tajam justru paling perlu ditanyai."}
-            </p>
-          </div>
-          <TabelCabang
-            data={ujung.terbaik}
-            adaPembanding={ujung.adaPembanding}
+        <section className="card an-kartu">
+          <KepalaGrafik
+            judul="Cabang terbaik"
+            desk={`Yang pantas ditiru — dan ditanya apa yang mereka lakukan berbeda.${ujung.adaPembanding ? " Yang turun tajam justru paling perlu ditanyai." : ""}`}
+            aksi={<span className="an-tag info">Benchmark</span>}
           />
+          <TabelCabang data={ujung.terbaik} adaPembanding={ujung.adaPembanding} />
         </section>
       </div>
     </>
+  );
+}
+
+function KepalaGrafik({ ikon, judul, desk, aksi }: {
+  ikon?: string; judul: string; desk: string; aksi?: React.ReactNode;
+}) {
+  return (
+    <div className="an-kepala">
+      <div className="an-kepala-teks">
+        <h3>{ikon && <Ikon nama={ikon} ukuran={17} />}{judul}</h3>
+        <p>{desk}</p>
+      </div>
+      {aksi && <div className="an-kepala-aksi">{aksi}</div>}
+    </div>
   );
 }
 
@@ -1011,7 +1057,7 @@ function TabelCabang({
   adaPembanding: boolean;
 }) {
   return (
-    <table className="rapat tabel-cabang">
+    <div className="tabel-scroll"><table className="an-tabel">
       <thead>
         <tr>
           <th style={{ width: 34 }} className="r">
@@ -1041,15 +1087,15 @@ function TabelCabang({
               </td>
             )}
             <td className="r num faint">{c.orang}</td>
-            <td className="r num">{c.bawah > 0 ? c.bawah : "—"}</td>
+            <td className={"r num" + (c.bawah > 0 ? " teks-bad" : " faint")}>{c.bawah > 0 ? c.bawah : "—"}</td>
             <td className="r">
               <span
                 className={
-                  "skorpill " +
-                  (c.skorRata >= 4 ? "hi" : c.skorRata < 3 ? "lo" : "")
+                  "skorpill num " +
+                  (c.skorRata >= 4 ? "hi" : c.skorRata < 3 ? "lo" : "mid")
                 }
               >
-                {c.skorRata.toFixed(2)}
+                {c.skorRata.toFixed(2).replace(".", ",")}
               </span>
             </td>
           </tr>
@@ -1062,7 +1108,7 @@ function TabelCabang({
           </tr>
         )}
       </tbody>
-    </table>
+    </table></div>
   );
 }
 

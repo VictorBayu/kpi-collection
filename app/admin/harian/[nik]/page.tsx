@@ -6,6 +6,7 @@ import RincianHarian from "@/components/RincianHarian";
 import { readSession } from "@/lib/auth";
 import { statusHarian, progresNik, ringkasHarian } from "@/lib/harian";
 import { q } from "@/lib/db";
+import Ikon from "@/components/Ikon";
 
 export const metadata = { title: "Progres harian karyawan" };
 export const dynamic = "force-dynamic";
@@ -28,21 +29,32 @@ export default async function DetailHarian({
   return (
     <AppShell>
       <main className="shell">
-        <div className="sectionhead">
-          <div>
-            <Link className="dk-balik"
-                  href={`/admin/harian?cabang=${encodeURIComponent(orang?.cabang ?? "")}`}>
-              ← {orang?.cabang ?? "Kembali"}
-            </Link>
-            <h2>{orang?.nama ?? nik}</h2>
-            <p className="faint num">
-              {nik} · {orang?.jabatan ?? "—"} · {orang?.cabang ?? "—"}
-            </p>
+        <header className="rk-kepala">
+          <div className="rk-id">
+            <div className="rk-atas">
+              <Link className="rk-balik"
+                    href={`/admin/harian?cabang=${encodeURIComponent(orang?.cabang ?? "")}`}>
+                <Ikon nama="chevronRight" ukuran={15} className="rk-balik-ikon" />
+                {orang?.cabang ?? "Kembali"}
+              </Link>
+              <span className="jh-titik" aria-hidden>•</span>
+              <span className="jh-meta">Progres harian · bulan berjalan</span>
+            </div>
+            <h1 className="rk-nama">{orang?.nama ?? nik}</h1>
+            <div className="rk-meta">
+              <span className="rk-nik num">NIK {nik}</span>
+              <span><Ikon nama="badge" ukuran={15} /> Jabatan: <b>{orang?.jabatan ?? "—"}</b></span>
+              <span><Ikon nama="building" ukuran={15} /> Wilayah: <b>{orang?.cabang ?? "—"}{orang?.area ? ` (${orang.area})` : ""}</b></span>
+            </div>
           </div>
-        </div>
+          <div className="rk-aksi">
+            <Link className="btn tint sm" href={`/admin/kpi/${nik}`}>
+              <Ikon nama="table" ukuran={15} /> Rincian KPI bulanan
+            </Link>
+          </div>
+        </header>
 
         <StatusHarianBar s={status} />
-        <div className="mt" />
         <RincianHarian ringkas={ringkas} baris={baris} />
       </main>
     </AppShell>

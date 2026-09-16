@@ -11,6 +11,9 @@ import {
 import { angka, rp, toISODate } from "@/lib/format";
 import PilihPeriode from "@/components/PilihPeriode";
 import AnalitikClient from "./AnalitikClient";
+import Ikon from "@/components/Ikon";
+import JudulHalaman, { KartuMetrik } from "@/components/JudulHalaman";
+import { namaPeriode } from "@/lib/format";
 
 export const metadata = { title: "Dashboard Analitik" };
 export const dynamic = "force-dynamic";
@@ -75,90 +78,80 @@ export default async function Page({
   return (
     <AppShell>
       <main className="shell">
-        <div className="sectionhead">
-          <div>
-            <h2>Dashboard Analitik</h2>
-            <p>
-              Pola menyeluruh dari data KPI — untuk melihat apa yang tidak
-              terlihat saat memeriksa cabang satu per satu.
-            </p>
-          </div>
-          <PilihPeriode daftar={daftar.map((p) => toISODate(p.periode))} aktif={periode} />
-        </div>
+        <JudulHalaman
+          eyebrow="Modul eksekutif · analisis mendalam"
+          nada="tegas"
+          meta={`Periode ${namaPeriode(periode)}`}
+          judul="Diagnostik kinerja & sebaran portofolio"
+          deskripsi="Pola menyeluruh dari data KPI — untuk melihat apa yang tidak terlihat saat memeriksa cabang satu per satu."
+          aksi={<PilihPeriode daftar={daftar.map((p) => toISODate(p.periode))} aktif={periode} />}
+        />
 
-        <div className="kartu-angka mb">
-          <div className="angka-kotak">
-            <span>Karyawan dinilai</span>
-            <b>{ringkas.karyawan.toLocaleString("id-ID")}</b>
-          </div>
-          <div className="angka-kotak">
-            <span>Skor rata-rata</span>
-            <b className={ringkas.skorRata === null ? "" :
-                          ringkas.skorRata >= 4 ? "baik" : ringkas.skorRata < 3 ? "buruk" : ""}>
-              {ringkas.skorRata === null ? "—" : angka(ringkas.skorRata)}
-            </b>
-          </div>
-          <div className="angka-kotak">
-            <span>KPI 4 ke atas</span>
-            <b className="baik">{ringkas.jumlahKpi4}</b>
-            <i>{persen(ringkas.jumlahKpi4)}% dari total</i>
-          </div>
-          <div className="angka-kotak">
-            <span>Di bawah KPI 3</span>
-            <b className="buruk">{ringkas.jumlahBawah}</b>
-            <i>{persen(ringkas.jumlahBawah)}% dari total</i>
-          </div>
-          <div className="angka-kotak">
-            <span>Total insentif</span>
-            <b>{rp(ringkas.insentif)}</b>
-            <i>{rincian.penerima} penerima</i>
-          </div>
+        <div className="km-grid lima">
+          <KartuMetrik label="Karyawan dinilai" nilai={ringkas.karyawan.toLocaleString("id-ID")} satuan="orang"
+                       catatan={`Periode ${namaPeriode(periode)}`}
+                       ikon={<Ikon nama="users" ukuran={20} />} nada="accent" />
+          <KartuMetrik label="Skor rata-rata"
+                       nilai={ringkas.skorRata === null ? "—" : angka(ringkas.skorRata)}
+                       lencana={ringkas.skorRata === null ? undefined
+                         : ringkas.skorRata >= 3 ? { teks: "≥ KPI 3", nada: "good" } : { teks: "< KPI 3", nada: "bad" }}
+                       catatan="Rata-rata nasional"
+                       ikon={<Ikon nama={ringkas.skorRata !== null && ringkas.skorRata < 3 ? "trendDown" : "chart"} ukuran={20} />}
+                       nada={ringkas.skorRata !== null && ringkas.skorRata < 3 ? "bad" : "good"} />
+          <KartuMetrik label="KPI 4 ke atas" nilai={ringkas.jumlahKpi4.toLocaleString("id-ID")} satuan="orang"
+                       catatan={`${persen(ringkas.jumlahKpi4)}% dari total`}
+                       ikon={<Ikon nama="checkCircle" ukuran={20} />} nada="good" />
+          <KartuMetrik label="Di bawah KPI 3" nilai={ringkas.jumlahBawah.toLocaleString("id-ID")} satuan="orang"
+                       catatan={`${persen(ringkas.jumlahBawah)}% dari total`}
+                       ikon={<Ikon nama="alert" ukuran={20} />} nada="bad" />
+          <KartuMetrik label="Total insentif" nilai={rp(ringkas.insentif)}
+                       catatan={`${rincian.penerima.toLocaleString("id-ID")} penerima`}
+                       ikon={<Ikon nama="wallet" ukuran={20} />} />
         </div>
 
         {/* Rincian insentif: total saja menyembunyikan hal yang justru paling
             perlu diawasi — apakah angka besar itu datang dari pencapaian
             pokok, dari bonus tambahan, atau sudah dipotong penalti besar. */}
-        <section className="card mb">
-          <div className="cardhead">
-            <h3 style={{ fontSize: 15 }}>Rincian insentif</h3>
-            <p className="muted small">
-              Reguler adalah pencapaian pokok; reward menambah, penalty
-              mengurangi. Ketiganya diatur aturan berbeda, jadi pantas
-              diawasi terpisah.
-            </p>
-          </div>
-          <div className="card-pad">
-            <div className="rincian-baris">
-              <div className="rincian-pos">
-                <span>Insentif reguler</span>
-                <b>{rp(rincian.dasar)}</b>
-              </div>
-              <div className="rincian-tanda">+</div>
-              <div className="rincian-pos naik">
-                <span>Reward</span>
-                <b>{rp(rincian.reward)}</b>
-              </div>
-              <div className="rincian-tanda">−</div>
-              <div className="rincian-pos turun">
-                <span>Penalty</span>
-                <b>{rp(rincian.penalty)}</b>
-              </div>
-              <div className="rincian-tanda">=</div>
-              <div className="rincian-pos total">
-                <span>Dibayarkan</span>
-                <b>{rp(rincian.total)}</b>
-              </div>
-            </div>
-
-            {rincian.tanpaRincian > 0 && (
-              <p className="faint small mt">
-                {rp(rincian.tanpaRincian)} berasal dari baris lama yang belum
-                punya rincian reguler/reward/penalty — masuk total, tapi tidak
-                bisa dipecah. Angka ini akan hilang sendiri setelah periode
-                bersangkutan dihitung ulang dari API.
+        <section className="card an-kartu mb">
+          <div className="an-kepala">
+            <div className="an-kepala-teks">
+              <h3><Ikon nama="wallet" ukuran={17} />Rincian insentif</h3>
+              <p>
+                Reguler adalah pencapaian pokok; reward menambah, penalty mengurangi.
+                Ketiganya diatur aturan berbeda, jadi pantas diawasi terpisah.
               </p>
-            )}
+            </div>
           </div>
+          <div className="an-rincian">
+            <div className="an-pos">
+              <span>Insentif reguler</span>
+              <b className="num">{rp(rincian.dasar)}</b>
+            </div>
+            <span className="an-tanda" aria-hidden>+</span>
+            <div className="an-pos naik">
+              <span>Reward</span>
+              <b className="num">{rp(rincian.reward)}</b>
+            </div>
+            <span className="an-tanda" aria-hidden>−</span>
+            <div className="an-pos turun">
+              <span>Penalty</span>
+              <b className="num">{rp(rincian.penalty)}</b>
+            </div>
+            <span className="an-tanda" aria-hidden>=</span>
+            <div className="an-pos total">
+              <span>Dibayarkan</span>
+              <b className="num">{rp(rincian.total)}</b>
+            </div>
+          </div>
+          {rincian.tanpaRincian > 0 && (
+            <div className="an-kaki">
+              <span>
+                {rp(rincian.tanpaRincian)} berasal dari baris lama yang belum punya rincian
+                reguler/reward/penalty — masuk total, tapi tidak bisa dipecah. Angka ini akan
+                hilang sendiri setelah periode bersangkutan dihitung ulang dari API.
+              </span>
+            </div>
+          )}
         </section>
 
         <AnalitikClient komposisi={komposisi} radar={radar}

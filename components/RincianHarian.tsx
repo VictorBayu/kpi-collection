@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { rp, angka, nilai, tebakSatuan } from "@/lib/format";
 import type { progresNik, ringkasHarian } from "@/lib/harian";
+import Ikon from "./Ikon";
 
 type Baris = Awaited<ReturnType<typeof progresNik>>[number];
 type Ringkas = Awaited<ReturnType<typeof ringkasHarian>>;
@@ -99,6 +100,10 @@ const JUDUL: Record<string, { judul: string; ket: string }> = {
 
 const URUT = ["nominal", "kpi", "reward", "penalty", "tier", "pendukung"];
 
+const IKON_PERAN: Record<string, string> = {
+  nominal: "shield", kpi: "chart", reward: "plus", penalty: "trendDown", tier: "layers", pendukung: "file",
+};
+
 export default function RincianHarian({
   ringkas, baris,
 }: { ringkas: Ringkas; baris: Baris[] }) {
@@ -114,36 +119,50 @@ export default function RincianHarian({
 
   return (
     <>
-      <div className="kartu-angka mb">
-        <div className="angka-kotak">
-          <span>Skor berjalan</span>
-          <b className={ringkas.skor === null ? "" :
-                        ringkas.skor >= 4 ? "baik" : ringkas.skor < 3 ? "buruk" : ""}>
-            {ringkas.skor === null ? "—" : angka(ringkas.skor)}
-          </b>
-          <i>{ringkas.dinilai} indikator dinilai</i>
-        </div>
-        <div className="angka-kotak">
-          <span>Di bawah KPI 3</span>
-          <b className={ringkas.bawah ? "buruk" : ""}>{ringkas.bawah}</b>
-          <i>perlu dikejar</i>
-        </div>
-        <div className="angka-kotak">
-          <span>Proyeksi insentif</span>
-          <b>{rp(ringkas.insentif)}</b>
-          <i>belum final</i>
-        </div>
-        {adaRincian ? (
-          <div className="angka-kotak">
-            <span>Rincian</span>
-            <b style={{ fontSize: 15 }}>
-              {rp(ringkas.dasar)}
-              {ringkas.reward ? ` + ${rp(ringkas.reward)}` : ""}
-              {ringkas.penalty ? ` − ${rp(ringkas.penalty)}` : ""}
-            </b>
-            <i>pokok{ringkas.reward ? " + reward" : ""}{ringkas.penalty ? " − penalty" : ""}</i>
+      <div className="hr-ringkas">
+        <div className="hr-m">
+          <div className="hr-m-atas">
+            <span className="km-label">Skor berjalan</span>
+            <span className="km-ikon accent"><Ikon nama="gauge" ukuran={18} /></span>
           </div>
-        ) : null}
+          <b className={"num " + (ringkas.skor === null ? "" : ringkas.skor >= 4 ? "good" : ringkas.skor < 3 ? "bad" : "mid")}>
+            {ringkas.skor === null ? "—" : angka(ringkas.skor)}<small>/ 5,00</small>
+          </b>
+          <span className="rk-m-bar">
+            <i className={ringkas.skor === null ? "" : ringkas.skor >= 4 ? "good" : ringkas.skor < 3 ? "bad" : ""}
+               style={{ width: `${Math.min(100, ((ringkas.skor ?? 0) / 5) * 100)}%` }} />
+          </span>
+          <span className="hr-m-cat"><Ikon nama="checkCircle" ukuran={14} /> {ringkas.dinilai} indikator dinilai</span>
+        </div>
+        <div className="hr-m">
+          <div className="hr-m-atas">
+            <span className="km-label">Di bawah KPI 3</span>
+            <span className={"km-ikon " + (ringkas.bawah ? "warn" : "good")}><Ikon nama={ringkas.bawah ? "alert" : "checkCircle"} ukuran={18} /></span>
+          </div>
+          <b className={"num " + (ringkas.bawah ? "bad" : "good")}>
+            {ringkas.bawah}<small>indikator</small>
+          </b>
+          <span className="rk-m-bar">
+            <i className="bad" style={{ width: `${ringkas.dinilai ? (ringkas.bawah / ringkas.dinilai) * 100 : 0}%` }} />
+          </span>
+          <span className="hr-m-cat">{ringkas.bawah ? "Perlu dikejar sebelum bulan ditutup" : "Semua indikator di atas ambang"}</span>
+        </div>
+        <div className="hr-m sorot">
+          <div className="hr-m-atas">
+            <span className="km-label">Proyeksi insentif <span className="km-lencana warn">Belum final</span></span>
+            <span className="km-ikon good"><Ikon nama="wallet" ukuran={18} /></span>
+          </div>
+          <b className="num">{rp(ringkas.insentif)}</b>
+          {adaRincian ? (
+            <span className="hr-rincian num">
+              {rp(ringkas.dasar)} pokok
+              {ringkas.reward ? <> <em className="naik">+ {rp(ringkas.reward)}</em></> : null}
+              {ringkas.penalty ? <> <em className="turun">− {rp(ringkas.penalty)}</em></> : null}
+            </span>
+          ) : (
+            <span className="hr-m-cat">Estimasi dari aturan insentif yang berlaku</span>
+          )}
+        </div>
       </div>
 
       {URUT.filter((p) => kelompok.has(p)).map((peran) => (
@@ -171,12 +190,17 @@ function KelompokPeran({ peran, isi }: { peran: string; isi: Baris[] }) {
   const adaPita = !nominalPeran && isi.some((b) => b.pita.length > 0);
 
   return (
-    <section className={"card mb rh-grup rh-" + peran}>
-      <div className="cardhead">
-        <h3 style={{ fontSize: 14 }}>{info.judul}</h3>
-        <p className="muted small">{info.ket}</p>
+    <section className={"card mb rh-grup hr-grup rh-" + peran}>
+      <div className="hr-grup-kepala">
+        <span className={"hr-grup-ikon ik-" + peran}><Ikon nama={IKON_PERAN[peran] ?? "table"} ukuran={18} /></span>
+        <div>
+          <h3>{info.judul}</h3>
+          <p className="muted small">{info.ket}</p>
+        </div>
+        <span className="hr-grup-jml num">{isi.length} indikator</span>
       </div>
-      <table className="dk-tabel rh-tabel">
+      <div className="tabel-scroll">
+      <table className="dk-tabel rh-tabel hr-tabel-rinci">
         <thead>
           <tr>
             <th>Indikator</th>
@@ -198,6 +222,7 @@ function KelompokPeran({ peran, isi }: { peran: string; isi: Baris[] }) {
           ))}
         </tbody>
       </table>
+      </div>
     </section>
   );
 }
@@ -221,9 +246,9 @@ function BarisIndikator({
           {b.produk && <div className="dk-produk">{b.produk}</div>}
           {nominalPeran && (
             b.gerbangGagal
-              ? <div className="dk-gerbang gagal">Tidak cair — {b.gerbangGagal}</div>
+              ? <div className="rk-gerbang gagal"><b>Tidak cair — syarat gagal</b><span>{b.gerbangGagal}</span></div>
               : b.nominalBaris
-              ? <div className="dk-gerbang lolos">Semua syarat lolos</div>
+              ? <div className="rk-gerbang lolos"><b>Semua syarat lolos</b></div>
               : null
           )}
         </td>
@@ -261,7 +286,7 @@ function BarisIndikator({
                     )}
                   </>
                 ) : punyaPita ? (
-                  <span className="rh-max">tercapai maks</span>
+                  <span className="rh-max"><Ikon nama="check" ukuran={13} tebal={2.4} /> tercapai maks</span>
                 ) : (
                   <span className="faint">—</span>
                 )}
