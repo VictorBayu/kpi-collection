@@ -184,6 +184,15 @@ function BarisJejak({ j, berjalan }: { j: any; berjalan: boolean }) {
   // mengalikannya lagi dengan 100 -- itulah sumber "1082%".
   const pencapaianNum = j.pencapaian === null || j.pencapaian === undefined ? null : Number(j.pencapaian);
   const sat = tebakSatuan(j.indikator, pencapaianNum);
+  // kali_seratus sudah pasti (bukan tebakan): rumus indikator ini secara
+  // eksplisit dikalikan 100 di mesin hitung, jadi nilainya SUDAH berskala
+  // 0-100 -- cukup ditambah "%", tidak boleh dikalikan 100 lagi lewat
+  // nilai(v,"persen") (itu mengasumsikan rasio 0-1, hasilnya jadi
+  // "4316%"). Dipakai lewat helper tampilkanNilai() untuk semua angka
+  // pada skala yang sama: pencapaian, pita, dan ambang KPI3/4/5.
+  const kaliSeratus = !!j.kali_seratus;
+  const tampilkanNilai = (v: number | null) =>
+    v === null || v === undefined ? "—" : kaliSeratus ? angka(v) + "%" : nilai(v, sat);
 
   const gerbangLulus = (g: any) => {
     const u = g.ukur === null || g.ukur === undefined ? null : Number(g.ukur);
@@ -206,7 +215,7 @@ function BarisJejak({ j, berjalan }: { j: any; berjalan: boolean }) {
         <span className="trc-chip">{j.peran ?? "kpi"}</span>
         {j.sumber !== "api" && <span className="trc-chip">dari Excel</span>}
         <span className="trc-sela" />
-        <span className="trc-angka"><small>Pencapaian</small><b className="num">{j.pencapaian === null ? "—" : nilai(Number(j.pencapaian), sat)}</b></span>
+        <span className="trc-angka"><small>Pencapaian</small><b className="num">{tampilkanNilai(pencapaianNum)}</b></span>
         <span className="trc-angka"><small>Skor</small><b className={"num " + nada}>{skor === null ? "—" : angka(skor)}</b></span>
       </header>
 
@@ -267,8 +276,8 @@ function BarisJejak({ j, berjalan }: { j: any; berjalan: boolean }) {
                         (p.nilai_max === null || v < Number(p.nilai_max));
                       return (
                         <tr key={i} className={kena ? "kena" : ""}>
-                          <td className="num">{p.nilai_min === null ? "−∞" : nilai(Number(p.nilai_min), sat)}</td>
-                          <td className="num">{p.nilai_max === null ? "∞" : nilai(Number(p.nilai_max), sat)}</td>
+                          <td className="num">{p.nilai_min === null ? "−∞" : tampilkanNilai(Number(p.nilai_min))}</td>
+                          <td className="num">{p.nilai_max === null ? "∞" : tampilkanNilai(Number(p.nilai_max))}</td>
                           <td className="r num">
                             {angka(Number(p.poin_min))}
                             {Number(p.poin_min) !== Number(p.poin_max) && ` – ${angka(Number(p.poin_max))}`}
@@ -344,8 +353,8 @@ function BarisJejak({ j, berjalan }: { j: any; berjalan: boolean }) {
                     <tbody>
                       {j.nominal_pita.map((p: any, i: number) => (
                         <tr key={i}>
-                          <td className="num">{p.nilai_min === null ? "−∞" : nilai(Number(p.nilai_min), sat)}</td>
-                          <td className="num">{p.nilai_max === null ? "∞" : nilai(Number(p.nilai_max), sat)}</td>
+                          <td className="num">{p.nilai_min === null ? "−∞" : tampilkanNilai(Number(p.nilai_min))}</td>
+                          <td className="num">{p.nilai_max === null ? "∞" : tampilkanNilai(Number(p.nilai_max))}</td>
                           <td className="r num">{rp(Number(p.nominal))}</td>
                         </tr>
                       ))}
