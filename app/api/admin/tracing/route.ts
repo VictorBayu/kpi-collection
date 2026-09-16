@@ -1,6 +1,7 @@
 import { requireAdmin, handler, HttpError } from "@/lib/auth";
 import { q } from "@/lib/db";
 import { periodeBerjalan } from "@/lib/hitung-indikator";
+import { toISODate } from "@/lib/format";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -88,8 +89,17 @@ export const GET = handler(async (req) => {
   // saat NIK belum diketik.
   const periodeList = await q<{ periode: string }>(
     `SELECT DISTINCT periode FROM kpi_row ORDER BY periode DESC LIMIT 18`);
+  // toISODate(), bukan String(date).slice(0,10) — driver mengembalikan
+  // periode sebagai objek Date, dan String(Date) menghasilkan teks
+  // seperti "Tue Sep 01 2026 ..." yang terpotong jadi "Tue Sep 01" tanpa
+  // tahun. Teks itu lolos ke Response.json() sebagai string biasa, lalu
+  // di klien di-parse ulang oleh `new Date(...)` sebagai fallback —
+  // yang oleh mesin JS diperlakukan sebagai tanggal tanpa tahun dan
+  // dibulatkan ke tahun rujukan 2001. Bug ini pernah dijaga eksplisit di
+  // toISODate() sendiri (lihat komentarnya), tapi di sini kena lagi
+  // karena dipanggil manual dengan cara yang salah.
   const periode = periodeMinta ||
-    (periodeList[0] ? String(periodeList[0].periode).slice(0, 10) : "");
+    (periodeList[0] ? toISODate(periodeList[0].periode) : "");
 
   if (!nik) return Response.json({ periodeList, periode, kosong: true });
 
@@ -232,27 +242,32 @@ export const GET = handler(async (req) => {
     staff: "staff", spv: "spv", bch: "bch",
   };
 
-  const jejak = baris.map((b) => {
-    const pic = KOLOM_PIC[b.peran_pic] ?? "staff";
-    const m = petaMentah.get(String(b.produk ?? "").toUpperCase());
-    return {
-      ...b,
-      pita: petaPita.get(b.target_id) ?? [],
-      nominal_pita: petaNominal.get(b.target_id) ?? [],
-      gerbang: petaGerbang.get(b.target_id) ?? [],
-      komponen: petaKomponen.get(b.indikator_id) ?? [],
-      // Baris mentah yang bisa terbaca rumus ini: dari kolom NIK sesuai
-      // peran pemegang indikator, bukan sembarang baris milik orangnya.
-      baris_mentah: m ? Number(m[pic] ?? 0) : 0,
-    };
-  });
-
   // data_mentah hanya menyimpan tarikan TERKINI, bukan arsip per bulan.
   // Untuk periode lampau, jumlah baris mentah di layar menggambarkan
   // keadaan hari ini — bukan bahan yang dulu dipakai menghitung baris
   // itu. Dibiarkan tampil tanpa keterangan, angka itu akan dibaca
   // sebagai bukti dan menuntun ke kesimpulan yang salah.
   const berjalan = periode === periodeBerjalan();
+
+  const jejak = await Promise.all(baris.map(async (b) => {
+    const pic = KOLOM_PIC[b.peran_pic] ?? "staff";
+    const m = petaMentah.get(String(b.produk ?? "").toUpperCase());
+    const komponenIndikator = petaKomponen.get(b.indikator_id) ?? [];
+    return {
+      ...b,
+      pita: petaPita.get(b.target_id) ?? [],
+      nominal_pita: petaNominal.get(b.target_id) ?? [],
+      gerbang: petaGerbang.get(b.target_id) ?? [],
+      komponen: komponenIndikator,
+      // Baris mentah yang bisa terbaca rumus ini: dari kolom NIK sesuai
+      // peran pemegang indikator, bukan sembarang baris milik orangnya.
+      baris_mentah: m ? Number(m[pic] ?? 0) : 0,
+      // Hanya untuk periode berjalan — lihat alasan `berjalan` di atas.
+      contoh_bahan: berjalan
+        ? await contohBahan(pic, nik, String(b.produk ?? ""), komponenIndikator[0])
+        : null,
+    };
+  }));
 
   return Response.json({
     periodeList, periode, orang, periode_berjalan: berjalan,
@@ -261,6 +276,97 @@ export const GET = handler(async (req) => {
     temuan: temuan(jejak, yatim, insentif, tierTabel, berjalan),
   });
 });
+
+/** Nama kolom lolos pola ini SEBELUM ditempel ke SQL — lihat lib/rumus.ts. */
+const POLA_KOLOM = /^[a-z][a-z0-9_]{0,50}$/;
+
+/**
+ * Contoh baris data_mentah yang menjadi bahan satu komponen rumus.
+ *
+ * "Bahan yang masuk kategori" tidak terlihat dari kalimat rumus saja —
+ * admin perlu melihat baris sungguhan untuk memastikan penyaringannya
+ * (jabatan → kolom nik_staff/spv/bch, dan syarat komponen) benar-benar
+ * mengenai kontrak yang seharusnya. Karena itu potongan WHERE di sini
+ * SENGAJA ditulis dengan pola yang sama seperti `potonganSyarat` di
+ * lib/rumus.ts (operator, placeholder, ANY(...) untuk larik) — bukan
+ * versi tersendiri yang berisiko diam-diam berbeda hasil dari mesin
+ * hitung yang sesungguhnya.
+ *
+ * Hanya komponen PERTAMA yang ditelusuri. Untuk formula bersusun
+ * (A - B, dst.) ini cukup mewakili kasus paling umum tanpa membuat
+ * satu halaman menelusuri semua sisi rumus sekaligus.
+ */
+async function contohBahan(
+  pic: "staff" | "spv" | "bch", nik: string, produk: string, komponen: any,
+): Promise<{ kolom_label: string | null; kolom: string | null; baris: any[]; syarat_kolom: string[] } | null> {
+  if (!komponen) return null;
+  const kolomNik = `nik_${pic}`;
+
+  const kolomUtama: string | null = komponen.kolom;
+  if (kolomUtama && !POLA_KOLOM.test(kolomUtama)) return null;
+
+  const syaratList: { kolom: string; label: string; operator: string; nilai: string[] }[] =
+    komponen.syarat ?? [];
+  for (const s of syaratList) {
+    if (!POLA_KOLOM.test(s.kolom)) return null;
+  }
+
+  const params: any[] = [nik, produk];
+  const kolomTampil = [
+    "agreement_no",
+    ...(kolomUtama ? [kolomUtama] : []),
+    ...syaratList.map((s) => s.kolom),
+  ];
+  const unik = [...new Set(kolomTampil)];
+  const select = unik.map((k) => `"${k}"`).join(", ");
+
+  // Potongan syarat — sama seperti potonganSyarat() di lib/rumus.ts,
+  // ditulis ulang di sini karena fungsi itu tidak diekspor.
+  const potongan = (s: { kolom: string; operator: string; nilai: string[] }) => {
+    const kolomSql = `"${s.kolom}"`;
+    const p = (v: any) => { params.push(v); return `$${params.length}`; };
+    const satu = () => s.nilai[0] ?? "";
+    switch (s.operator) {
+      case "kosong": return `(${kolomSql} IS NULL OR ${kolomSql}::text = '')`;
+      case "terisi": return `(${kolomSql} IS NOT NULL AND ${kolomSql}::text <> '')`;
+      case "sama": return `${kolomSql}::text = ${p(satu())}`;
+      case "tidak_sama": return `(${kolomSql} IS NULL OR ${kolomSql}::text <> ${p(satu())})`;
+      case "termasuk": return `${kolomSql}::text = ANY(${p(s.nilai)}::text[])`;
+      case "tidak_termasuk": return `(${kolomSql} IS NULL OR NOT (${kolomSql}::text = ANY(${p(s.nilai)}::text[])))`;
+      case "mengandung": return `${kolomSql}::text ILIKE ${p("%" + satu() + "%")}`;
+      case "lebih": return `${kolomSql} > ${p(satu())}`;
+      case "lebih_sama": return `${kolomSql} >= ${p(satu())}`;
+      case "kurang": return `${kolomSql} < ${p(satu())}`;
+      case "kurang_sama": return `${kolomSql} <= ${p(satu())}`;
+      case "antara": return `${kolomSql} BETWEEN ${p(s.nilai[0] ?? "")} AND ${p(s.nilai[1] ?? "")}`;
+      default: return "true";
+    }
+  };
+
+  // "lulus_syarat" dihitung sebagai kolom, bukan disaring lewat WHERE —
+  // baris yang GAGAL syarat sengaja tetap ditampilkan (ditandai silang)
+  // supaya admin melihat kenapa baris itu tidak ikut terhitung, bukan
+  // cuma melihat baris yang lolos.
+  const lulusExpr = syaratList.length
+    ? `(${syaratList.map(potongan).join(komponen.gabung_syarat === "atau" ? " OR " : " AND ")})`
+    : "true";
+
+  const sql = `
+    SELECT ${select}, (${lulusExpr}) AS lulus_syarat
+      FROM data_mentah
+     WHERE "${kolomNik}" = $1
+       AND upper(btrim(COALESCE(product,''))) = upper($2)
+     ORDER BY id DESC
+     LIMIT 15`;
+
+  const rows = await q<any>(sql, params);
+  return {
+    kolom_label: kolomUtama ?? null,
+    kolom: kolomUtama,
+    syarat_kolom: syaratList.map((s) => s.kolom),
+    baris: rows,
+  };
+}
 
 /**
  * Pemeriksaan kewajaran susunan indikator.
