@@ -137,10 +137,16 @@ export const GET = handler(async (req) => {
       // sama persis seperti saat mesin menilainya — termasuk "tidak ada
       // angka berarti gagal". Menampilkan gerbang tanpa angkanya hanya
       // memindahkan pertanyaan, bukan menjawabnya.
+      // kali_seratus dibaca dari indikator SUMBER gerbangnya (bukan
+      // selalu indikator ini sendiri): sumber_id kosong berarti gerbang
+      // menguji indikator ini sendiri (pakai kali_seratus-nya sendiri
+      // lewat `di`), sumber_id terisi berarti menguji indikator lain
+      // dan satuannya ikut indikator itu (`d`).
       targetIds.length
         ? q<any>(
             `SELECT g.target_id, g.urutan, g.operator, g.nilai, g.sumber_id,
                     COALESCE(NULLIF(BTRIM(g.label), ''), d.nama, 'Syarat') AS nama,
+                    COALESCE(d.kali_seratus, di.kali_seratus, false) AS kali_seratus,
                     (SELECT s.pencapaian FROM kpi_row s
                       WHERE s.sumber = 'api' AND s.periode = $2::date
                         AND s.nik = $1 AND s.produk = tr.produk
@@ -153,7 +159,8 @@ export const GET = handler(async (req) => {
                           AND x.aktif)) AS sumber_tak_terdaftar
                FROM indikator_gerbang g
                JOIN indikator_target tr ON tr.id = g.target_id
-               LEFT JOIN indikator_def d ON d.id = g.sumber_id
+               LEFT JOIN indikator_def d  ON d.id = g.sumber_id
+               LEFT JOIN indikator_def di ON di.id = tr.indikator_id
               WHERE g.target_id = ANY($3::uuid[])
               ORDER BY g.target_id, g.urutan`, [nik, periode, targetIds])
         : [],

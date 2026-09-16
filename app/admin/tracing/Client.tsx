@@ -17,6 +17,20 @@ import { rp, angka, nilai, namaPeriode, toISODate, tebakSatuan } from "@/lib/for
  * dipakai, bukan salinan kedua yang kebetulan sama.
  */
 
+const NF2 = new Intl.NumberFormat("id-ID", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+
+/**
+ * Angka polos, apa adanya -- dipakai KHUSUS untuk batas pita nominal.
+ *
+ * Batas pita nominal (indikator_nominal) dicocokkan ke nilai indikator
+ * "pemilih" yang skalanya bisa berbeda-beda -- bukan selalu skala
+ * indikator yang barisnya sedang ditampilkan. Menebak satuannya di sini
+ * pernah salah memberi akhiran "%" pada batas yang sebenarnya rupiah
+ * (mis. "100.000.000,00%"), padahal layar Create Indicator sendiri
+ * menampilkannya sebagai angka polos tanpa satuan.
+ */
+const angkaPolos = (v: number | null) => (v === null || v === undefined ? "—" : NF2.format(v));
+
 const OP: Record<string, string> = {
   lebih: ">", lebih_sama: "≥", kurang: "<", kurang_sama: "≤", sama: "=",
   tidak_sama: "≠", termasuk: "salah satu dari", tidak_termasuk: "bukan",
@@ -334,11 +348,17 @@ function BarisJejak({ j, berjalan }: { j: any; berjalan: boolean }) {
                   <ul className="trc-gerbang">
                     {j.gerbang.map((g: any, i: number) => {
                       const ok = gerbangLulus(g);
+                      // Satuan gerbang ikut indikator yang DIUJI olehnya --
+                      // bisa indikator lain (g.sumber_id terisi), bukan
+                      // selalu indikator baris ini.
+                      const ukurNum = g.ukur === null || g.ukur === undefined ? null : Number(g.ukur);
+                      const tampil = (v: number | null) =>
+                        v === null ? "tidak ada" : g.kali_seratus ? angka(v) + "%" : angkaPolos(v);
                       return (
                         <li key={i} className={ok ? "lulus" : "gagal"}>
                           <span className="trc-bulat" aria-hidden>{ok ? "✓" : "✕"}</span>
-                          <b>{g.nama}</b> {OP[g.operator] ?? g.operator} <b className="num">{angka(Number(g.nilai))}</b>
-                          <span className="faint">— nilai terbaca <b className="num">{g.ukur === null ? "tidak ada" : angka(Number(g.ukur))}</b></span>
+                          <b>{g.nama}</b> {OP[g.operator] ?? g.operator} <b className="num">{tampil(Number(g.nilai))}</b>
+                          <span className="faint">— nilai terbaca <b className="num">{tampil(ukurNum)}</b></span>
                           {g.sumber_tak_terdaftar && <span className="trc-chip">indikator sumber tidak terdaftar</span>}
                         </li>
                       );
@@ -353,8 +373,8 @@ function BarisJejak({ j, berjalan }: { j: any; berjalan: boolean }) {
                     <tbody>
                       {j.nominal_pita.map((p: any, i: number) => (
                         <tr key={i}>
-                          <td className="num">{p.nilai_min === null ? "−∞" : tampilkanNilai(Number(p.nilai_min))}</td>
-                          <td className="num">{p.nilai_max === null ? "∞" : tampilkanNilai(Number(p.nilai_max))}</td>
+                          <td className="num">{p.nilai_min === null ? "−∞" : angkaPolos(Number(p.nilai_min))}</td>
+                          <td className="num">{p.nilai_max === null ? "∞" : angkaPolos(Number(p.nilai_max))}</td>
                           <td className="r num">{rp(Number(p.nominal))}</td>
                         </tr>
                       ))}
