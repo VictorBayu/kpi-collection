@@ -157,7 +157,7 @@ export default async function Page({
         <AnalitikClient komposisi={komposisi} radar={radar}
                         radarPerJabatan={radarPerJabatan}
                         jabatan={jabatan} area={area} tren={tren}
-                        sebaran={sebaran} ujung={ujung} biaya={biaya} />
+                        sebaran={sebaran} ujung={ujung} biaya={biaya} periode={periode} />
       </main>
     </AppShell>
   );

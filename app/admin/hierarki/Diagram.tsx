@@ -96,12 +96,17 @@ export default function Diagram({ list, levelRef, sibuk, onSimpanRantai, onEdit 
   return (
     <section className="diagram">
       <div className="diagram-bar">
-        <div>
+        <div className="diagram-bar-judul">
           <b>Struktur per level</b>
-          <span className="faint">
-            {" "}— klik satu jabatan untuk melihat jalur atasannya
-          </span>
+          <span className="faint">{lapisan.length} tingkatan · {list.length} jabatan</span>
         </div>
+        {terpilih && (
+          <span className="diagram-legenda">
+            <span><i className="ini" />jabatan dipilih</span>
+            <span><i className="nyala" />rantai atasan</span>
+            <span><i className="redup" />di luar rantai</span>
+          </span>
+        )}
         {terpilih && (
           <button className="btn ghost sm" onClick={() => { setFokus(null); setDraf(null); }}>
             Bersihkan pilihan
@@ -110,9 +115,12 @@ export default function Diagram({ list, levelRef, sibuk, onSimpanRantai, onEdit 
       </div>
 
       <div className="diagram-lapis">
-        {lapisan.map((lp) => (
-          <div className="lapis" key={lp.level}>
-            <span className="lapis-judul">{lp.label}</span>
+        {lapisan.map((lp, idx) => (
+          <div className={"lapis" + (lp.isi.some((j) => menyala.has(j.jabatan)) ? " aktif" : "")} key={lp.level}>
+            <span className="lapis-judul">
+              <span className="lapis-no num">L{idx + 1}</span>
+              <span className="lapis-nama">{lp.label}</span>
+            </span>
             <div className="lapis-isi">
               {!lp.isi.length && (
                 <span className="lapis-kosong">Belum ada jabatan di level ini</span>
@@ -145,7 +153,7 @@ export default function Diagram({ list, levelRef, sibuk, onSimpanRantai, onEdit 
         <div className="rantai-panel">
           <div className="rantai-panel-head">
             <div>
-              <b>Rantai atasan {terpilih.jabatan}</b>
+              <b>Rantai atasan {terpilih.jabatan} <span className="da-hitung num">{rantaiAktif.length} tingkat</span></b>
               <p className="faint small nomargin">
                 Seret kartu untuk mengubah urutan. Nomor 1 adalah atasan langsung.
                 Atasan bernomor besar boleh melihat KPI semua yang bernomor lebih kecil.
@@ -155,6 +163,18 @@ export default function Diagram({ list, levelRef, sibuk, onSimpanRantai, onEdit 
               Buka form
             </button>
           </div>
+
+          {rantaiAktif.length > 0 && (
+            <div className="rantai-jalur" aria-label="Jalur eskalasi">
+              <span className="rantai-jalur-chip ini">{terpilih.jabatan}</span>
+              {rantaiAktif.map((nama, i) => (
+                <span key={nama + "-j" + i} className="rantai-jalur-langkah">
+                  <span aria-hidden className="rantai-panah">→</span>
+                  <span className="rantai-jalur-chip">{nama}</span>
+                </span>
+              ))}
+            </div>
+          )}
 
           {rantaiAktif.length === 0 ? (
             <p className="faint">

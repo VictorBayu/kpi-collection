@@ -4,6 +4,7 @@ import { useCallback, useMemo, useState } from "react";
 import AmChart from "@/components/AmChart";
 import Pilih from "@/components/Pilih";
 import Ikon from "@/components/Ikon";
+import Link from "next/link";
 
 type Komposisi = {
   label: string;
@@ -68,6 +69,8 @@ type Props = {
     jumlahCabang: number; adaPembanding: boolean;
   };
   biaya: Biaya[];
+  /** Periode aktif, dioper ke tautan "Lihat semua cabang". */
+  periode?: string;
 };
 
 const HIJAU = 0x059669,
@@ -119,6 +122,7 @@ export default function AnalitikClient({
   sebaran,
   ujung,
   biaya,
+  periode,
 }: Props) {
   const [jabatanRadar, setJabatanRadar] = useState("");
   const [urutKomposisi, setUrutKomposisi] = useState<
@@ -1009,7 +1013,7 @@ export default function AnalitikClient({
           <KepalaGrafik
             judul="Cabang perlu perhatian"
             desk={`Skor terendah dari ${ujung.jumlahCabang} cabang berisi tiga karyawan atau lebih.${ujung.adaPembanding ? " Panah hijau berarti peringkatnya membaik sejak bulan lalu." : ""}`}
-            aksi={<span className="an-tag bad">Kritis</span>}
+            aksi={<><span className="an-tag bad">Kritis</span><Link className="btn ghost sm" href={`/admin/analitik/cabang${periode ? `?periode=${periode}` : ""}`}>Lihat semua cabang</Link></>}
           />
           <TabelCabang data={ujung.terburuk} adaPembanding={ujung.adaPembanding} />
         </section>

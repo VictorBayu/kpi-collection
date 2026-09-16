@@ -23,6 +23,8 @@ export default function Remah() {
   if (!label) return null;
 
   const lebihDalam = menu && path !== menu.href;
+  // Halaman turunan yang punya nama sendiri; sisanya tetap "Rincian".
+  const judulDalam: Record<string, string> = { "/admin/analitik/cabang": "Prioritas pemulihan cabang" };
 
   return (
     <nav className="remah tanpa-cetak" aria-label="Remah roti">
@@ -33,7 +35,7 @@ export default function Remah() {
         {lebihDalam
           ? <Link href={menu.href}>{label}</Link>
           : <span className="remah-ini" aria-current="page">{label}</span>}
-        {lebihDalam && (<><Ikon nama="chevronRight" ukuran={14} className="remah-sep" /><span className="remah-ini" aria-current="page">Rincian</span></>)}
+        {lebihDalam && (<><Ikon nama="chevronRight" ukuran={14} className="remah-sep" /><span className="remah-ini" aria-current="page">{judulDalam[path] ?? "Rincian"}</span></>)}
       </div>
     </nav>
   );

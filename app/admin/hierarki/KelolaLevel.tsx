@@ -92,10 +92,10 @@ export default function KelolaLevel({ onBerubah }: { onBerubah?: () => void }) {
   }
 
   return (
-    <section className="card card-pad mb">
-      <div className="rowbetween" style={{ marginBottom: 12 }}>
+    <section className="card card-pad mb mh-panel">
+      <div className="rowbetween mh-panel-kepala">
         <div>
-          <h3 className="formtitle" style={{ margin: 0 }}>Tingkatan jabatan</h3>
+          <h3 className="formtitle">Tingkatan jabatan</h3>
           <p className="faint small nomargin">
             Urutan menentukan susunan diagram. Tanda “se-area” membuat pemegang
             level itu melihat seluruh cabang dalam areanya, bukan satu cabang saja.
