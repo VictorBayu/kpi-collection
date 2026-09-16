@@ -25,7 +25,7 @@ export default function RollbackButton({ batchId, periode }: { batchId: string; 
   }
 
   return (
-    <button className="btn ghost sm" onClick={aktifkan} disabled={sibuk}>
+    <button className="btn hati sm" onClick={aktifkan} disabled={sibuk}>
       {sibuk ? "Mengaktifkan..." : "Aktifkan lagi"}
     </button>
   );

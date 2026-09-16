@@ -4,118 +4,114 @@ import AppShell from "@/components/AppShell";
 import { readSession } from "@/lib/auth";
 import { q } from "@/lib/db";
 import { namaPeriode, waktu } from "@/lib/format";
-import RollbackButton from "./RollbackButton";
-import HapusButton from "./HapusButton";
+import Ikon from "@/components/Ikon";
+import JudulHalaman, { KartuMetrik, TitikStatus } from "@/components/JudulHalaman";
+import RiwayatClient, { type BarisBatch } from "./RiwayatClient";
 
 export const metadata = { title: "Riwayat impor" };
 
-const STATUS: Record<string, { label: string; warna: string }> = {
-  published:  { label: "Aktif",       warna: "var(--good)" },
-  draft:      { label: "Draf",        warna: "var(--ink-faint)" },
-  validated:  { label: "Siap terbit", warna: "var(--accent)" },
-  superseded: { label: "Digantikan",  warna: "var(--warn)" },
-  failed:     { label: "Gagal",       warna: "var(--bad)" },
-};
+const angka = (n: unknown) => Number(n ?? 0).toLocaleString("id-ID");
 
 export default async function Riwayat() {
   const s = await readSession();
   if (!s) redirect("/login");
   if (s.peran !== "admin") redirect("/dashboard");
 
-  const list = await q<any>(
-    `SELECT b.id, b.periode, b.tipe, b.status, b.nama_file, b.blob_url,
-            b.total_baris, b.baris_valid, b.baris_warning, b.baris_ditolak,
-            b.diunggah_pada, b.diterbitkan_pada, u.nama AS pengunggah
-       FROM import_batch b LEFT JOIN app_user u ON u.id = b.diunggah_oleh
-      ORDER BY b.diunggah_pada DESC LIMIT 60`);
+  const [list, [total], [jumlah]] = await Promise.all([
+    q<any>(
+      `SELECT b.id, b.periode, b.tipe, b.status, b.nama_file, b.blob_url,
+              b.total_baris, b.baris_valid, b.baris_warning, b.baris_ditolak,
+              b.diunggah_pada, b.diterbitkan_pada, u.nama AS pengunggah
+         FROM import_batch b LEFT JOIN app_user u ON u.id = b.diunggah_oleh
+        ORDER BY b.diunggah_pada DESC LIMIT 60`),
+    // Ringkasan dihitung dari seluruh tabel, bukan hanya 60 baris yang
+    // ditampilkan, supaya angkanya tidak diam-diam berubah makna saat
+    // riwayat sudah panjang.
+    q<{ berkas: number; baris: number; valid: number; aktif: number }>(
+      `SELECT COUNT(*)::int AS berkas,
+              COALESCE(SUM(total_baris),0)::int AS baris,
+              COALESCE(SUM(baris_valid),0)::int AS valid,
+              COUNT(*) FILTER (WHERE status = 'published')::int AS aktif
+         FROM import_batch`),
+    q<{ n: number }>(`SELECT COUNT(*)::int AS n FROM app_user WHERE aktif`),
+  ]);
 
   const aktif = list.find((b) => b.status === "published" && b.tipe === "kpi");
-  const [jumlah] = await q<{ n: number }>(
-    `SELECT COUNT(*)::int AS n FROM app_user WHERE aktif`);
+  const validitas = total.baris ? (total.valid / total.baris) * 100 : null;
+
+  // Teks tanggal diformat di server supaya tampilan server dan browser
+  // selalu sama (zona waktu keduanya bisa berbeda).
+  const baris: BarisBatch[] = list.map((b) => ({
+    id: b.id,
+    periode: namaPeriode(b.periode),
+    tipe: b.tipe,
+    status: b.status,
+    namaFile: b.nama_file,
+    blobUrl: b.blob_url,
+    total: Number(b.total_baris),
+    valid: Number(b.baris_valid),
+    warning: Number(b.baris_warning),
+    ditolak: Number(b.baris_ditolak),
+    diunggah: waktu(b.diunggah_pada),
+    pengunggah: b.pengunggah ?? "—",
+  }));
 
   return (
     <AppShell>
       <main className="shell">
-        <div className="sectionhead rowbetween">
-          <div>
-            <h2>Riwayat impor</h2>
-            <p>Setiap unggahan tersimpan lengkap dengan berkas aslinya selama 24 bulan.</p>
-          </div>
-          <Link className="btn nowrap" href="/admin/import">+ Unggah berkas baru</Link>
+        <JudulHalaman
+          eyebrow="Data & indikator"
+          meta={<><TitikStatus nada={total.aktif ? "good" : "netral"} /> {total.aktif} batch tayang</>}
+          judul="Riwayat impor"
+          deskripsi="Setiap unggahan tersimpan lengkap dengan berkas aslinya selama 24 bulan."
+          aksi={
+            <Link className="btn" href="/admin/import">
+              <Ikon nama="upload" ukuran={16} /> Unggah berkas baru
+            </Link>
+          }
+        />
+
+        <div className="km-grid">
+          <KartuMetrik label="Total berkas impor" nilai={angka(total.berkas)} satuan="berkas"
+                       catatan="Seluruh unggahan tersimpan"
+                       ikon={<Ikon nama="history" ukuran={20} />} nada="accent" />
+          <KartuMetrik label="Total baris terproses" nilai={angka(total.baris)} satuan="baris"
+                       catatan={`${angka(total.valid)} baris siap pakai`}
+                       ikon={<Ikon nama="sheet" ukuran={20} />} nada="good" />
+          <KartuMetrik label="Tingkat validitas"
+                       nilai={validitas === null ? "—" : validitas.toFixed(1).replace(".", ",") + "%"}
+                       catatan="Baris siap dibanding total baris"
+                       ikon={<Ikon nama="checkCircle" ukuran={20} />}
+                       nada={validitas === null ? "netral" : validitas >= 95 ? "good" : validitas >= 80 ? "warn" : "bad"} />
+          <KartuMetrik label="Batch KPI tayang"
+                       nilai={<span className="km-teks">{aktif ? namaPeriode(aktif.periode) : "Belum ada"}</span>}
+                       catatan={aktif ? `${angka(aktif.baris_valid)} baris · ${angka(jumlah.n)} karyawan aktif` : "Terbitkan batch dari layar unggah"}
+                       ikon={<Ikon nama="eye" ukuran={20} />} nada={aktif ? "accent" : "warn"} />
         </div>
 
-        {aktif && (
-          <div className="banner info">
-            <b>Yang dilihat karyawan sekarang: {namaPeriode(aktif.periode)}</b>
-            {Number(aktif.baris_valid).toLocaleString("id-ID")} baris, terbit{" "}
-            {waktu(aktif.diterbitkan_pada)} oleh {aktif.pengunggah ?? "—"}. Mengaktifkan
-            batch lain akan langsung mengubah angka di layar {jumlah.n} karyawan.
+        {aktif ? (
+          <div className="ri-tayang">
+            <span className="sd-ikon warn"><Ikon nama="eye" ukuran={20} /></span>
+            <div className="ri-tayang-teks">
+              <div className="ri-tayang-atas">
+                <h2>Yang dilihat karyawan sekarang: {namaPeriode(aktif.periode)}</h2>
+                <span className="pa-status good">Batch aktif</span>
+              </div>
+              <p>
+                <b>{angka(aktif.baris_valid)} baris</b>, terbit {waktu(aktif.diterbitkan_pada)} oleh{" "}
+                <b>{aktif.pengunggah ?? "—"}</b>. Mengaktifkan batch lain akan langsung mengubah angka di
+                layar <b>{angka(jumlah.n)} karyawan</b>.
+              </p>
+            </div>
+          </div>
+        ) : (
+          <div className="alert-box warn ri-tayang-kosong">
+            <span className="alert-ikon">!</span>
+            <span>Belum ada batch Data KPI yang tayang — karyawan belum melihat angka apa pun.</span>
           </div>
         )}
 
-        <section className="card">
-          <table>
-            <thead>
-              <tr>
-                <th>Periode</th><th>Berkas</th><th>Hasil pemeriksaan</th>
-                <th>Status</th><th className="r">Tindakan</th>
-              </tr>
-            </thead>
-            <tbody>
-              {list.map((b) => {
-                const st = STATUS[b.status] ?? { label: b.status, warna: "var(--ink-faint)" };
-                return (
-                  <tr key={b.id}>
-                    <td>
-                      <b>{namaPeriode(b.periode)}</b>
-                      <div className="faint">{b.tipe === "kpi" ? "Data KPI" : "Data insentif"}</div>
-                    </td>
-                    <td>
-                      <span className="num small">{b.nama_file}</span>
-                      <div className="faint">{waktu(b.diunggah_pada)} · {b.pengunggah ?? "—"}</div>
-                    </td>
-                    <td className="small">
-                      {Number(b.baris_valid).toLocaleString("id-ID")} siap ·{" "}
-                      {Number(b.baris_warning).toLocaleString("id-ID")} dicek ·{" "}
-                      {Number(b.baris_ditolak).toLocaleString("id-ID")} ditolak
-                    </td>
-                    <td>
-                      <span className="dotstat" style={{ color: st.warna }}>
-                        <i style={{ background: st.warna }} />{st.label}
-                      </span>
-                    </td>
-                    <td className="r">
-                      <div className="rowact">
-                        {b.status === "superseded" && (
-                          <RollbackButton batchId={b.id} periode={namaPeriode(b.periode)} />
-                        )}
-                        {b.status === "draft" && (
-                          <Link className="btn ghost sm" href="/admin/import">Lanjutkan</Link>
-                        )}
-                        <a className="btn ghost sm" href={b.blob_url} download>Unduh</a>
-                        {/* Batch yang sedang terbit dilindungi: menghapusnya
-                            akan mengosongkan layar seluruh karyawan. */}
-                        {b.status !== "published" && (
-                          <HapusButton
-                            batchId={b.id}
-                            periode={namaPeriode(b.periode)}
-                            namaFile={b.nama_file}
-                            baris={Number(b.baris_valid)}
-                          />
-                        )}
-                      </div>
-                    </td>
-                  </tr>
-                );
-              })}
-              {!list.length && (
-                <tr><td colSpan={5} className="empty">
-                  Belum ada berkas yang diunggah. Mulai dari tombol Unggah berkas baru.
-                </td></tr>
-              )}
-            </tbody>
-          </table>
-        </section>
+        <RiwayatClient baris={baris} />
       </main>
     </AppShell>
   );
