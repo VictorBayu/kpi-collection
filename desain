@@ -1,0 +1,89 @@
+* [33m1d0557c[m[33m ([m[1;36mHEAD[m[33m -> [m[1;32mredesign-enterprise[m[33m, [m[1;31morigin/redesign-enterprise[m[33m)[m Redesign Phase 1
+* [33m0d4ed60[m[33m ([m[1;31morigin/master[m[33m, [m[1;32mmaster[m[33m)[m test setelah putus akses akun bagdrack
+* [33m94abaf2[m Penambahan: fitur sumber data create indikator, pengujian kolom (new)
+* [33m92a533c[m trigger redeploy - fix identitas commit
+* [33mb2c96d1[m trigger redeploy setelah fix koneksi Vercel2
+* [33m531157b[m trigger redeploy setelah fix koneksi Vercel
+[31m|[m *   [33m951b9c8[m[33m ([m[1;31morigin/main[m[33m)[m Merge pull request #1 from VictorBayu/master
+[31m|[m [32m|[m[31m\[m  
+[31m|[m [32m|[m[31m/[m  
+[31m|[m[31m/[m[32m|[m   
+* [32m|[m [33md1ee284[m Penambahan: fitur sumber data create indikator, pengujian kolom
+* [32m|[m [33m0f49d72[m Update desain create indicator v4
+* [32m|[m [33meb3d4b7[m Update desain create indicator v3
+* [32m|[m [33mbd8fb48[m Update desain create indicator v2
+* [32m|[m [33m6b5bbb9[m Update desain create indicator
+* [32m|[m [33m3be6016[m Update desain
+* [32m|[m [33m3749ee0[m Penambahan: fitur delete data pendukung
+* [32m|[m [33m21efaac[m Penambahan: adjustment load data API
+* [32m|[m [33mb3d7477[m Penambahan: query kolom baru, dashboard spv untuk view tim,upload gambar support
+* [32m|[m [33m48bb331[m Penambahan: logic pengakuan success
+* [32m|[m [33m71cbe44[m Penambahan: management role dan akses
+* [32m|[m [33m3685a3d[m Perbaikan: pita terbalik, target berikutnya, jabatan historis, format persen harian
+* [32m|[m [33ma33c1ca[m Perbaikan view detail KPI harian V2
+* [32m|[m [33m78970da[m Perbaikan view detail KPI harian V1
+* [32m|[m [33mbc2639e[m Build button calculate
+* [32m|[m [33m5616af3[m Build interface daily KPI
+* [32m|[m [33md40c33e[m Penyesuaian input amount
+* [32m|[m [33mb719981[m Penyesuaian kondisi indikator
+* [32m|[m [33m6fb2f01[m Penyesuaian tampilan indikator
+* [32m|[m [33m5d536c1[m Penyesuaian create indikator
+* [32m|[m [33m5c6728a[m Perbaikan UI analitik grafik persebaran skor V3
+* [32m|[m [33mc7ce486[m Perbaikan UI analitik grafik persebaran skor V2
+* [32m|[m [33ma32bbfb[m Perbaikan UI analitik grafik persebaran skor
+* [32m|[m [33m826509a[m Perbaikan analitik view
+* [32m|[m [33m45a18c6[m Perbaikan UI
+* [32m|[m [33m6cb7981[m Komposisi per jabatan (lebih ringkas dan konsisten), perbaiki tooltip scatter
+* [32m|[m [33m0ec81d2[m Rincian insentif, ganti Sankey jadi batang bertumpuk, tren, sebaran, biaya-vs-skor
+* [32m|[m [33mdd1718a[m Dashboard analitik (Sankey, radar, per area) + pemilih periode modern
+* [32m|[m [33m662208a[m Route admin ke Data KPI, rename menu, tier cabang per produk, perbaikan dropdown
+* [32m|[m [33m51b447c[m Perjelas label peran indikator: Skor KPI / Insentif reguler
+* [32m|[m [33m44547cc[m Dropdown jabatan Pagu ambil dari master jabatan, bukan jabatan_produk
+* [32m|[m [33m52da5c8[m Label kelas Large/Medium/Small, dropdown Pilih melebar mengikuti isi
+* [32m|[m [33m60c7feb[m Perbaiki galat diam-diam saat muat data admin, lebar dropdown Pilih
+* [32m|[m [33m1b9e427[m add some view for insentif
+* [32m|[m [33m7024941[m v9: pita interpolasi, peran indikator, mekanisme tier vs pagu, reward/penalty
+* [32m|[m [33me3822bc[m add schema v9: pita target, peran indikator, kelas cabang, tier insentif
+[32m|[m[32m/[m  
+* [33m3e14a07[m add some view master amount insentif
+* [33m9441adb[m fixing view add indicator KPI
+* [33mf8c2970[m fixing view & crud log
+* [33m7a33989[m change kolom lain
+* [33m99e1630[m update count get data transaction
+* [33m10d8f0d[m fixing failed get data
+* [33me28799e[m add column builder
+* [33md4c559d[m fixing paging API
+* [33md937561[m fixing bug paging and search bar
+* [33mc94b4fe[m fixing bug get API and clean UI
+* [33m831533c[m fixing bug get API
+* [33m8fa13fa[m add some KPI daily, api loc, fixing bug
+* [33m3647c47[m update view Admin
+* [33mbb01706[m upgrade fitur hirarki
+* [33m828bd7d[m fixing bug
+* [33mfc5b961[m fixing bug logout, change dashboard role manager
+* [33mee67aec[m change UI
+* [33m11f8ff5[m change env & json
+* [33m163731b[m diagram hirarki, dropdown modern, penyesuaian jabatan
+* [33m164a83a[m hierarki visibilitas, CRUD user, master hierarki, dashboard mobile, impor NIK asing
+* [33m202c784[m perf: cache periode, satukan query tim
+* [33m7c1280b[m perf: self-host fonts, cache login query
+* [33mf9b7ee9[m add SpeedInsights to root layout
+* [33m5f1c21b[m Revert "add SpeedInsights to root layout"
+* [33ma46cd9c[m add SpeedInsights to root layout
+*   [33mafb72af[m resolve merge conflict package,json
+[34m|[m[35m\[m  
+[34m|[m * [33m6ec864e[m fixing delay
+[34m|[m * [33m3fb2345[m fix negatif numbering & notification request
+[34m|[m * [33m7e9198d[m update logic
+[34m|[m * [33md7c068a[m bugs version
+[34m|[m * [33m9219f13[m update version
+[34m|[m * [33m71a6496[m update fitur
+[34m|[m * [33m4132f91[m perbaiki format tanggal periode
+[34m|[m * [33m91cff40[m change to Public
+[34m|[m * [33mbefb7af[m bugs ini allowedContentTypes
+[34m|[m * [33mb79fc58[m fixing bugs
+[34m|[m * [33m3f4a816[m perbaiki COOKIE is not defined
+[34m|[m * [33mc4be4fa[m lewati error tipe saat build
+[34m|[m * [33mb7d4009[m perbaiki build: pindahkan KATEGORI dan COOKIE
+[34m|[m * [33mf6e4c73[m Add files via upload
+* [33me780bb1[m update speed insight
