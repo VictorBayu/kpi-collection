@@ -5,6 +5,8 @@ import Pilih from "@/components/Pilih";
 import KotakCari from "@/components/KotakCari";
 import Penyaring, { type Aturan, type Skema } from "./Penyaring";
 import ImporPengguna from "./ImporPengguna";
+import Ikon from "@/components/Ikon";
+import JudulHalaman from "@/components/JudulHalaman";
 
 type User = {
   id: string; nik: string; nama: string; peran: string;
@@ -44,6 +46,7 @@ export default function PenggunaClient() {
   const [galat, setGalat] = useState<string | null>(null);
   const [kabar, setKabar] = useState<string | null>(null);
   const [sibuk, setSibuk] = useState(false);
+  const [lihatPw, setLihatPw] = useState(false);
 
   // null = form tertutup. { id: null } = tambah baru, { id: "..." } = edit.
   const [form, setForm] = useState<(FormUser & { id: string | null }) | null>(null);
@@ -213,236 +216,321 @@ export default function PenggunaClient() {
   // ditampilkan apa adanya agar tetap terbaca, bukan jadi "Karyawan" keliru.
   const labelPeran = (p: string) =>
     peranOpsi.find((x) => x.kode === p)?.nama ?? p;
+  const inisial = (nama: string) => {
+    const k = nama.trim().split(/\s+/).filter(Boolean);
+    return ((k[0]?.[0] ?? "") + (k.length > 1 ? k[k.length - 1][0] : k[0]?.[1] ?? "")).toUpperCase();
+  };
+  const persen = (n: number) => stat.total ? `${(n / stat.total * 100).toFixed(1).replace(".", ",")}%` : "—";
+
+  /** Nomor halaman yang ditampilkan: awal, akhir, dan tetangga halaman aktif. */
+  const nomorHal = Array.from({ length: totalHal }, (_, i) => i)
+    .filter((i) => i === 0 || i === totalHal - 1 || Math.abs(i - hal) <= 1);
+
+  const STAT = [
+    { kunci: "", label: "Total pengguna", nilai: stat.total, satuan: "akun", catatan: "Seluruh akun terdaftar", ikon: "users", nada: "accent" },
+    { kunci: "aktif", label: "Aktif", nilai: stat.aktif, satuan: "akun", catatan: `${persen(stat.aktif)} dari total`, ikon: "checkCircle", nada: "good" },
+    { kunci: "jarang", label: "Jarang akses (30h < 3)", nilai: stat.jarang, satuan: "akun", catatan: "Perlu verifikasi supervisi", ikon: "alert", nada: "warn", lencana: stat.jarang ? "Perhatian" : undefined },
+    { kunci: "suspend", label: "Dinonaktifkan", nilai: stat.suspend, satuan: "akun", catatan: "Login dibekukan", ikon: "lock", nada: "bad" },
+  ] as const;
 
   return (
     <>
-      <div className="sectionhead rowbetween">
-        <div>
-          <h2>Pengguna & Akses</h2>
-          <p>Kelola akun login dan pantau seberapa sering tiap akun dipakai.</p>
-        </div>
-        <div className="rowact">
-          <button className="btn ghost" onClick={() => setImpor(!impor)} disabled={sibuk}>
-            {impor ? "Tutup impor" : "↑ Impor Excel"}
-          </button>
-          <button className="btn nowrap" onClick={bukaTambah} disabled={sibuk}>+ Tambah pengguna</button>
-        </div>
-      </div>
+      <JudulHalaman
+        eyebrow="Master data & keamanan"
+        meta={`${stat.total.toLocaleString("id-ID")} akun terdaftar`}
+        judul="Pengguna & Akses"
+        deskripsi="Kelola akun login, penempatan jabatan, dan pantau seberapa sering tiap akun dipakai."
+        aksi={
+          <>
+            <button className={"btn " + (impor ? "tint" : "ghost")} onClick={() => setImpor(!impor)} disabled={sibuk}>
+              <Ikon nama={impor ? "chevronDown" : "upload"} ukuran={16} /> {impor ? "Tutup impor" : "Impor Excel (.xlsx)"}
+            </button>
+            <button className="btn nowrap" onClick={bukaTambah} disabled={sibuk}>
+              <Ikon nama="plus" ukuran={16} tebal={2.2} /> Tambah pengguna
+            </button>
+          </>
+        }
+      />
 
       {impor && <ImporPengguna onSelesai={muat} />}
 
-      <div className="statgrid">
-        <button className={"statcard" + (status === "" ? " on" : "")} onClick={() => setStatus("")}>
-          <span className="eyebrow">Total pengguna</span><b className="num">{stat.total}</b>
-        </button>
-        <button className={"statcard" + (status === "aktif" ? " on" : "")} onClick={() => setStatus("aktif")}>
-          <span className="eyebrow">Aktif</span><b className="num" style={{ color: "var(--good)" }}>{stat.aktif}</b>
-        </button>
-        <button className={"statcard" + (status === "jarang" ? " on" : "")} onClick={() => setStatus("jarang")}>
-          <span className="eyebrow">Jarang akses (30h &lt; 3)</span><b className="num" style={{ color: "var(--warn)" }}>{stat.jarang}</b>
-        </button>
-        <button className={"statcard" + (status === "suspend" ? " on" : "")} onClick={() => setStatus("suspend")}>
-          <span className="eyebrow">Dinonaktifkan</span><b className="num" style={{ color: "var(--bad)" }}>{stat.suspend}</b>
-        </button>
+      <div className="pa-stat-grid">
+        {STAT.map((k) => (
+          <button key={k.kunci || "semua"} type="button"
+                  className={"pa-stat" + (status === k.kunci ? " on" : "")}
+                  aria-pressed={status === k.kunci}
+                  onClick={() => setStatus(k.kunci)}>
+            <span className="pa-stat-isi">
+              <span className="km-label">
+                {k.label}
+                {"lencana" in k && k.lencana && <span className="km-lencana warn">{k.lencana}</span>}
+              </span>
+              <span className="km-nilai">
+                <b className={"num " + (k.kunci ? k.nada : "")}>{k.nilai.toLocaleString("id-ID")}</b>
+                <span className="km-satuan">{k.satuan}</span>
+              </span>
+              <span className="km-catatan">{k.catatan}</span>
+            </span>
+            <span className={"km-ikon " + k.nada}><Ikon nama={k.ikon} ukuran={20} /></span>
+          </button>
+        ))}
       </div>
 
-      {galat && <div className="banner warn"><b>Gagal</b>{galat}</div>}
-      {kabar && <div className="banner good"><b>Selesai</b>{kabar}</div>}
+      {galat && (
+        <div className="alert-box bad mb" role="alert">
+          <span className="alert-ikon" aria-hidden>✕</span>
+          <span><b>Gagal.</b> {galat}</span>
+          <button className="alert-tutup" aria-label="Tutup pesan" onClick={() => setGalat(null)}>×</button>
+        </div>
+      )}
+      {kabar && (
+        <div className="alert-box good mb" role="status">
+          <span className="alert-ikon" aria-hidden>✓</span>
+          <span><b>Perubahan berhasil disimpan.</b> {kabar}</span>
+          <button className="alert-tutup" aria-label="Tutup pesan" onClick={() => setKabar(null)}>×</button>
+        </div>
+      )}
 
       {form && (
-        <section className="card card-pad mb">
-          <h3 className="formtitle">
-            {form.id === null ? "Tambah pengguna" : `Ubah data ${form.nama || "pengguna"}`}
-          </h3>
+        <section className="card pa-form mb">
+          <div className="sd-form-kepala">
+            <span className="sd-ikon accent"><Ikon nama={form.id === null ? "userCog" : "pencil"} ukuran={20} /></span>
+            <div className="pa-form-judul">
+              <h3>{form.id === null ? "Tambah pengguna baru" : `Ubah data ${form.nama || "pengguna"}`}</h3>
+              <p className="muted small">Lengkapi formulir untuk membuat kredensial akun dan hak akses.</p>
+            </div>
+            <button type="button" className="pa-tutup" aria-label="Tutup formulir" onClick={() => setForm(null)}>×</button>
+          </div>
           <form onSubmit={simpan}>
-            <div className="formgrid">
-              <label className="field">
-                <span>NIK</span>
-                <input className="num" inputMode="numeric" required value={form.nik}
-                       placeholder="20240117"
-                       onChange={(e) => setForm({ ...form, nik: e.target.value })} />
-              </label>
-              <label className="field">
-                <span>Nama lengkap</span>
-                <input required value={form.nama}
-                       onChange={(e) => setForm({ ...form, nama: e.target.value })} />
-              </label>
-              <label className="field">
-                <span>Jabatan</span>
-                <Pilih
-                  nilai={form.jabatan}
-                  onPilih={(v) => setForm({ ...form, jabatan: v })}
-                  opsi={jabatanOpsi}
-                  placeholder="Pilih jabatan"
-                  bebas
-                />
-              </label>
-              <label className="field">
-                <span>Peran aplikasi</span>
-                <Pilih
-                  nilai={form.peran}
-                  onPilih={(v) => setForm({ ...form, peran: v })}
-                  opsi={peranOpsi.map((p) => ({
-                    nilai: p.kode, label: p.nama,
-                    ket: p.keterangan ?? `${p.menu} menu`,
-                  }))}
-                />
-              </label>
-              <label className="field">
-                <span>Cabang</span>
-                <input value={form.cabang} placeholder="AMBON"
-                       onChange={(e) => setForm({ ...form, cabang: e.target.value })} />
-              </label>
-              <label className="field">
-                <span>Area</span>
-                <input value={form.area} placeholder="AREA MALUKU-PAPUA"
-                       onChange={(e) => setForm({ ...form, area: e.target.value })} />
-              </label>
-              <label className="field">
-                <span>{form.id === null ? "Password awal" : "Password baru (kosongkan bila tidak diganti)"}</span>
-                <input type="text" value={form.password}
-                       required={form.id === null}
-                       placeholder={form.id === null ? "minimal 8 karakter" : "biarkan kosong"}
-                       onChange={(e) => setForm({ ...form, password: e.target.value })} />
-              </label>
+            <div className="card-pad">
+              <div className="pa-form-grid">
+                <label className="field">
+                  <span>NIK (nomor induk) *</span>
+                  <input className="num" inputMode="numeric" required value={form.nik}
+                         placeholder="contoh: 20240117"
+                         onChange={(e) => setForm({ ...form, nik: e.target.value })} />
+                  <small className="faint">Dipakai sebagai username login</small>
+                </label>
+                <label className="field">
+                  <span>Nama lengkap *</span>
+                  <input required value={form.nama} placeholder="Nama staf sesuai HRIS"
+                         onChange={(e) => setForm({ ...form, nama: e.target.value })} />
+                  <small className="faint">Nama resmi sesuai SK</small>
+                </label>
+                <label className="field">
+                  <span>Jabatan</span>
+                  <Pilih
+                    nilai={form.jabatan}
+                    onPilih={(v) => setForm({ ...form, jabatan: v })}
+                    opsi={jabatanOpsi}
+                    placeholder="Pilih jabatan"
+                    bebas
+                  />
+                  <small className="faint">Menentukan KPI siapa saja yang bisa dilihat</small>
+                </label>
+                <label className="field">
+                  <span>Peran aplikasi *</span>
+                  <Pilih
+                    nilai={form.peran}
+                    onPilih={(v) => setForm({ ...form, peran: v })}
+                    opsi={peranOpsi.map((p) => ({
+                      nilai: p.kode, label: p.nama,
+                      ket: p.keterangan ?? `${p.menu} menu`,
+                    }))}
+                  />
+                  <small className="faint">Level otorisasi menu</small>
+                </label>
+                <label className="field">
+                  <span>Kantor cabang</span>
+                  <input value={form.cabang} placeholder="AMBON"
+                         onChange={(e) => setForm({ ...form, cabang: e.target.value })} />
+                </label>
+                <label className="field">
+                  <span>Wilayah / area</span>
+                  <input value={form.area} placeholder="AREA MALUKU-PAPUA"
+                         onChange={(e) => setForm({ ...form, area: e.target.value })} />
+                </label>
+                <label className="field">
+                  <span>{form.id === null ? "Password awal *" : "Password baru"}</span>
+                  <span className="pa-pw">
+                    <input type={lihatPw ? "text" : "password"} value={form.password}
+                           required={form.id === null} autoComplete="new-password"
+                           placeholder={form.id === null ? "minimal 8 karakter" : "kosongkan bila tidak diganti"}
+                           onChange={(e) => setForm({ ...form, password: e.target.value })} />
+                    <button type="button" className="pa-pw-lihat" onClick={() => setLihatPw(!lihatPw)}
+                            aria-label={lihatPw ? "Sembunyikan password" : "Tampilkan password"}>
+                      <Ikon nama={lihatPw ? "eyeOff" : "eye"} ukuran={16} />
+                    </button>
+                  </span>
+                  <small className="faint">Minimal 8 karakter</small>
+                </label>
+              </div>
+
+              <div className="pa-cek">
+                <label>
+                  <input type="checkbox" checked={form.aktif}
+                         onChange={(e) => setForm({ ...form, aktif: e.target.checked })} />
+                  Akun aktif (boleh login ke sistem)
+                </label>
+                <label>
+                  <input type="checkbox" checked={form.mustChange}
+                         onChange={(e) => setForm({ ...form, mustChange: e.target.checked })} />
+                  Wajib ganti password saat login berikutnya
+                </label>
+              </div>
+
+              <div className="alert-box info">
+                <span className="alert-ikon" aria-hidden>i</span>
+                <span>
+                  <b>Ketentuan akses:</b> peran menentukan menu yang tampil. Yang menentukan KPI siapa saja
+                  yang bisa dilihat adalah <b>jabatan</b> — diatur lewat rantai hierarki di menu Master Hierarki.
+                </span>
+              </div>
             </div>
-
-            <div className="formcheck">
-              <label>
-                <input type="checkbox" checked={form.aktif}
-                       onChange={(e) => setForm({ ...form, aktif: e.target.checked })} />
-                <span>Akun aktif (boleh login)</span>
-              </label>
-              <label>
-                <input type="checkbox" checked={form.mustChange}
-                       onChange={(e) => setForm({ ...form, mustChange: e.target.checked })} />
-                <span>Wajib ganti password saat login berikutnya</span>
-              </label>
-            </div>
-
-            <p className="faint small">
-              Peran menentukan menu yang tampil. Yang menentukan KPI siapa saja yang
-              bisa dilihat adalah <b>jabatan</b> — diatur di menu Master Hierarki.
-            </p>
-
-            <div className="formact">
-              <button className="btn" type="submit" disabled={sibuk}>
-                {sibuk ? "Menyimpan…" : "Simpan"}
-              </button>
+            <div className="sd-form-kaki">
               <button className="btn ghost" type="button" onClick={() => setForm(null)}>Batal</button>
+              <button className="btn" type="submit" disabled={sibuk}>
+                <Ikon nama="check" ukuran={16} tebal={2.2} /> {sibuk ? "Menyimpan…" : form.id === null ? "Simpan pengguna" : "Simpan perubahan"}
+              </button>
             </div>
           </form>
         </section>
       )}
 
-      <div className="filterbar">
-        <div className="filter-cari">
-          <KotakCari nilai={cari} onUbah={setCari} lebar={260}
-                     placeholder="Cari NIK atau nama" />
+      <section className="card pa-tabel-kartu">
+        <div className="pa-alat">
+          <div className="pa-alat-cari">
+            <KotakCari nilai={cari} onUbah={setCari} lebar={420}
+                       placeholder="Cari NIK atau nama staf…" />
+          </div>
+          <div className="filter-pilih">
+            <Pilih nilai={urut} onPilih={setUrut} cari={false}
+                   opsi={[
+                     { nilai: "akses", label: "Urut: akses tersedikit" },
+                     { nilai: "akses_turun", label: "Urut: akses terbanyak" },
+                     { nilai: "login", label: "Urut: login tersedikit" },
+                     { nilai: "nama",  label: "Urut: nama" },
+                     { nilai: "cabang", label: "Urut: cabang" },
+                   ]} />
+          </div>
         </div>
-        <div className="filter-pilih">
-          <Pilih nilai={urut} onPilih={setUrut} cari={false}
-                 opsi={[
-                   { nilai: "akses", label: "Urut: akses tersedikit" },
-                   { nilai: "akses_turun", label: "Urut: akses terbanyak" },
-                   { nilai: "login", label: "Urut: login tersedikit" },
-                   { nilai: "nama",  label: "Urut: nama" },
-                   { nilai: "cabang", label: "Urut: cabang" },
-                 ]} />
+
+        <div className="pa-penyaring">
+          <Penyaring
+            skema={skema} aturan={aturan} gabung={gabung}
+            onUbah={setAturan} onGabung={setGabung}
+            hasil={cocok} total={stat.total}
+          />
         </div>
-      </div>
 
-      <Penyaring
-        skema={skema} aturan={aturan} gabung={gabung}
-        onUbah={setAturan} onGabung={setGabung}
-        hasil={cocok} total={stat.total}
-      />
-
-      <section className="card">
-        <table className="tabel-padat">
-          <thead>
-            <tr>
-              <th>Pengguna</th>
-              <th>Jabatan &amp; penempatan</th>
-              <th style={{ width: 88 }}>Peran</th>
-              <th className="r" style={{ width: 96 }}>Akses 30h</th>
-              <th style={{ width: 88 }}>Status</th>
-              <th className="r" style={{ width: 44 }}></th>
-            </tr>
-          </thead>
-          <tbody>
-            {tampil.map((u) => {
-              const suspended = !u.aktif || !!u.suspended_at;
-              const jarang = u.akses_30h < 3 && !suspended;
-              return (
-                <tr key={u.id}>
-                  <td>
-                    <div className="pg-nama">{u.nama}</div>
-                    <div className="pg-sub num">{u.nik}</div>
-                  </td>
-                  <td>
-                    <div className="pg-jab">
-                      {u.jabatan ?? <span className="faint">tanpa jabatan</span>}
-                      {u.jabatan && !u.level && (
-                        <span className="tag-warn" title="Belum terdaftar di Master Hierarki">?</span>
-                      )}
-                    </div>
-                    <div className="pg-sub">{u.cabang ?? u.area ?? "—"}</div>
-                  </td>
-                  <td><span className={"pg-peran " + u.peran}>{labelPeran(u.peran)}</span></td>
-                  <td className="r">
-                    <span className={"pg-akses num" + (jarang ? " jarang" : "")}>{u.akses_30h}</span>
-                    <div className="pg-sub">{fmt(u.last_access_at)}</div>
-                  </td>
-                  <td>
-                    {suspended
-                      ? <span className="titik bad" title={u.suspended_reason ?? "Nonaktif"}>Nonaktif</span>
-                      : jarang
-                        ? <span className="titik warn">Jarang</span>
-                        : <span className="titik good">Aktif</span>}
-                  </td>
-                  <td className="r">
-                    {/* Tindakan disembunyikan di balik satu tombol: empat tombol
-                        sejajar membuat tiap baris jadi tinggi, dan yang sering
-                        dipakai sebenarnya cuma satu-dua. */}
-                    <details className="menu">
-                      <summary title="Tindakan">⋯</summary>
-                      <div className="menu-isi">
-                        <button onClick={() => bukaEdit(u)}>Ubah data</button>
-                        <button onClick={() => resetPassword(u)}>Reset password</button>
-                        {suspended
-                          ? <button className="baik" onClick={() => aksi(u.id, "aktifkan", u.nama)}>Aktifkan</button>
-                          : <button className="hati" onClick={() => aksi(u.id, "suspend", u.nama)}>Nonaktifkan</button>}
-                        <button className="bahaya" onClick={() => hapus(u)}>Hapus</button>
+        <div className="tabel-scroll">
+          <table className="pa-tabel">
+            <thead>
+              <tr>
+                <th>Pengguna</th>
+                <th>Jabatan &amp; penempatan</th>
+                <th style={{ width: 120 }}>Peran</th>
+                <th className="r" style={{ width: 130 }}>Akses 30h</th>
+                <th style={{ width: 110 }}>Status</th>
+                <th className="r" style={{ width: 88 }}>Aksi</th>
+              </tr>
+            </thead>
+            <tbody>
+              {tampil.map((u) => {
+                const suspended = !u.aktif || !!u.suspended_at;
+                const jarang = u.akses_30h < 3 && !suspended;
+                return (
+                  <tr key={u.id} className={suspended ? "mati" : ""}>
+                    <td>
+                      <div className="pa-orang">
+                        <span className="pa-avatar" aria-hidden>{inisial(u.nama)}</span>
+                        <div>
+                          <div className="pa-nama">{u.nama}</div>
+                          <div className="pa-sub num">{u.nik}</div>
+                        </div>
                       </div>
-                    </details>
-                  </td>
-                </tr>
-              );
-            })}
-            {!tampil.length && (
-              <tr><td colSpan={6} className="empty">Tidak ada pengguna yang cocok dengan penyaringan.</td></tr>
-            )}
-          </tbody>
-        </table>
+                    </td>
+                    <td>
+                      <div className="pa-jab">
+                        {u.jabatan ?? <span className="faint">tanpa jabatan</span>}
+                        {u.jabatan && !u.level && (
+                          <span className="tag-warn" title="Belum terdaftar di Master Hierarki">belum di hierarki</span>
+                        )}
+                      </div>
+                      <div className="pa-sub">
+                        {u.cabang ?? "—"}{u.area ? ` • ${u.area}` : ""}
+                      </div>
+                    </td>
+                    <td><span className={"pa-peran " + u.peran}>{labelPeran(u.peran)}</span></td>
+                    <td className="r">
+                      <span className={"pa-akses num" + (jarang ? " jarang" : "")}>{u.akses_30h}</span>
+                      <div className="pa-sub">{fmt(u.last_access_at)}</div>
+                    </td>
+                    <td>
+                      {suspended
+                        ? <span className="pa-status bad" title={u.suspended_reason ?? "Nonaktif"}>Nonaktif</span>
+                        : jarang
+                          ? <span className="pa-status warn">Jarang</span>
+                          : <span className="pa-status good">Aktif</span>}
+                    </td>
+                    <td className="r">
+                      <div className="pa-aksi">
+                        <button className="pa-ikon-btn" title="Ubah data" aria-label={`Ubah data ${u.nama}`}
+                                onClick={() => bukaEdit(u)}>
+                          <Ikon nama="pencil" ukuran={16} />
+                        </button>
+                        {/* Tindakan lain di balik satu tombol supaya baris tetap pendek. */}
+                        <details className="menu">
+                          <summary title="Tindakan lain" aria-label={`Tindakan lain untuk ${u.nama}`}>⋯</summary>
+                          <div className="menu-isi">
+                            <button onClick={() => resetPassword(u)}>Reset password</button>
+                            {suspended
+                              ? <button className="baik" onClick={() => aksi(u.id, "aktifkan", u.nama)}>Aktifkan</button>
+                              : <button className="hati" onClick={() => aksi(u.id, "suspend", u.nama)}>Nonaktifkan</button>}
+                            <button className="bahaya" onClick={() => hapus(u)}>Hapus</button>
+                          </div>
+                        </details>
+                      </div>
+                    </td>
+                  </tr>
+                );
+              })}
+              {!tampil.length && (
+                <tr><td colSpan={6} className="empty">Tidak ada pengguna yang cocok dengan penyaringan.</td></tr>
+              )}
+            </tbody>
+          </table>
+        </div>
 
-        {totalHal > 1 && (
-          <div className="pager">
-            <span className="faint">
-              {hal * PER + 1}–{Math.min(hal * PER + PER, list.length)} dari {list.length} pengguna
-            </span>
-            <div className="pager-btns">
+        <div className="pa-pager">
+          <span className="faint">
+            {list.length
+              ? <>Menampilkan <b>{hal * PER + 1}–{Math.min(hal * PER + PER, list.length)}</b> dari <b>{list.length.toLocaleString("id-ID")}</b> pengguna</>
+              : "Tidak ada data"}
+          </span>
+          {totalHal > 1 && (
+            <div className="pa-pager-btn">
               <button className="btn ghost sm" disabled={hal === 0} onClick={() => setHal((h) => h - 1)}>← Sebelumnya</button>
-              <span className="pager-num">Hal {hal + 1}/{totalHal}</span>
+              {nomorHal.map((i, idx) => (
+                <span key={i} className="pa-hal-wrap">
+                  {idx > 0 && i - nomorHal[idx - 1] > 1 && <span className="pa-elipsis">…</span>}
+                  <button className={"pa-hal num" + (i === hal ? " on" : "")}
+                          aria-current={i === hal ? "page" : undefined}
+                          onClick={() => setHal(i)}>{i + 1}</button>
+                </span>
+              ))}
               <button className="btn ghost sm" disabled={hal >= totalHal - 1} onClick={() => setHal((h) => h + 1)}>Berikutnya →</button>
             </div>
-          </div>
-        )}
+          )}
+        </div>
       </section>
 
-      <p className="faint mt">
-        “Akses 30h” menghitung berapa kali akun membuka halaman dalam 30 hari terakhir, bukan sekadar login.
-        Akun dengan akses di bawah 3 ditandai “Jarang”.
+      <p className="pa-catatan">
+        <Ikon nama="shield" ukuran={16} />
+        <span>
+          “Akses 30h” menghitung berapa kali akun membuka halaman dalam 30 hari terakhir, bukan sekadar login.
+          Akun dengan akses di bawah 3 ditandai “Jarang”.
+        </span>
       </p>
     </>
   );
