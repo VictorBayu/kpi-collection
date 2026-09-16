@@ -46,6 +46,7 @@ export const MENU: Menu[] = [
 
   // — grup: Data & indikator —
   { kode: "admin_indikator", label: "Create Indicator",     href: "/admin/indikator",   grup: "Data & indikator" },
+  { kode: "admin_tracing",   label: "Tracing KPI",          href: "/admin/tracing",     grup: "Data & indikator" },
   { kode: "admin_data_api",  label: "Data API",             href: "/admin/data-api",    grup: "Data & indikator" },
   { kode: "admin_sumber",    label: "Sumber Data",          href: "/admin/sumber",      grup: "Data & indikator" },
   { kode: "admin_kolom_api", label: "CRUD Kolom API",       href: "/admin/kolom-api",   grup: "Data & indikator" },
