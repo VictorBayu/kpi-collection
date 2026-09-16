@@ -1,8 +1,10 @@
 "use client";
 
+import Ikon from "./Ikon";
+
 export default function LogoutButton() {
   return (
-    <button className="icobtn" title="Keluar"
+    <button className="icobtn" title="Keluar" aria-label="Keluar"
       onClick={async () => {
         await fetch("/api/auth/logout", { method: "POST" });
 
@@ -20,7 +22,7 @@ export default function LogoutButton() {
          */
         window.location.replace("/login");
       }}>
-      ⎋
+      <Ikon nama="logout" ukuran={17} />
     </button>
   );
 }

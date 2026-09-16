@@ -3,6 +3,8 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import KotakCari from "@/components/KotakCari";
+import Ikon from "@/components/Ikon";
+import JudulHalaman, { KartuMetrik, TitikStatus } from "@/components/JudulHalaman";
 
 type Kolom = { kolom: string; label: string; jenis: string };
 type Baris = {
@@ -124,280 +126,330 @@ export default function Client() {
     return String(v);
   };
 
+  const pesanOk = !!pesan && /Berhasil|Tersimpan|dihapus/.test(pesan);
+  const tidakDipakai = (ringkas.baris ?? 0) - (ringkas.aktif ?? 0);
+  const nomorHal = Array.from(new Set([0, hal - 1, hal, hal + 1, halTotal - 1]))
+    .filter((i) => i >= 0 && i < halTotal).sort((a, b) => a - b);
+  const ukuran = (n: number) => n < 1024 * 1024
+    ? `${Math.max(1, Math.round(n / 1024)).toLocaleString("id-ID")} KB`
+    : `${(n / 1024 / 1024).toFixed(2).replace(".", ",")} MB`;
+
+  async function simpanSunting() {
+    if (!sunting) return;
+    const nilai: Record<string, any> = {};
+    for (const k of kolom) nilai[k.kolom] = sunting[k.kolom];
+    const ok = await kirim("PUT", { id: sunting.id, aktif: sunting.aktif, catatan: sunting.catatan, nilai });
+    if (ok) { setSunting(null); setPesan("Tersimpan."); }
+  }
+
   return (
     <>
-      <div className="sectionhead">
-        <div>
-          <h2>Data Pendukung</h2>
-          <p>
-            Data tambahan yang digabung ke data API lewat <b>agreement_no</b>.
-            Baris yang dinonaktifkan berhenti dipakai perhitungan.
-          </p>
-        </div>
-      </div>
+      <JudulHalaman
+        eyebrow="Data & indikator"
+        meta={<><TitikStatus nada={kolom.length ? "good" : "warn"} /> digabung lewat <span className="num">agreement_no</span></>}
+        judul="Data Pendukung"
+        deskripsi={<>Data tambahan yang digabung ke data API lewat <code className="ka-field">agreement_no</code>.
+          Baris yang dinonaktifkan berhenti dipakai perhitungan.</>}
+      />
 
-      {pesan && (
-        <div className={"alert mb " + (/Berhasil|Tersimpan|dihapus/.test(pesan) ? "ok" : "bad")}>
-          {pesan}
+      {pesan && !sunting && (
+        <div className={"alert-box dp-pesan " + (pesanOk ? "good" : "bad")} role="status">
+          <span className="alert-ikon">{pesanOk ? "✓" : "!"}</span>
+          <span>{pesan}</span>
+          <button className="alert-tutup" onClick={() => setPesan(null)} aria-label="Tutup pesan">×</button>
         </div>
       )}
 
-      <div className="kartu-angka mb">
-        <div className="angka-kotak">
-          <span>Kontrak tersimpan</span>
-          <b>{(ringkas.baris ?? 0).toLocaleString("id-ID")}</b>
-          <i>{(ringkas.aktif ?? 0).toLocaleString("id-ID")} dipakai</i>
-        </div>
-        <div className="angka-kotak">
-          <span>Tidak dipakai</span>
-          <b className={(ringkas.baris ?? 0) - (ringkas.aktif ?? 0) ? "buruk" : ""}>
-            {((ringkas.baris ?? 0) - (ringkas.aktif ?? 0)).toLocaleString("id-ID")}
-          </b>
-          <i>dinonaktifkan</i>
-        </div>
-        <div className="angka-kotak">
-          <span>Pembaruan terakhir</span>
-          <b style={{ fontSize: 15 }}>
-            {ringkas.terakhir
-              ? new Date(ringkas.terakhir).toLocaleDateString("id-ID",
-                  { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })
-              : "—"}
-          </b>
-          <i>waktu unggah</i>
-        </div>
-        <div className="angka-kotak">
-          <span>Kolom terdaftar</span>
-          <b>{kolom.length}</b>
-          <i>selain nomor kontrak</i>
-        </div>
+      <div className="km-grid">
+        <KartuMetrik label="Kontrak tersimpan" nilai={(ringkas.baris ?? 0).toLocaleString("id-ID")}
+                     catatan={`${(ringkas.aktif ?? 0).toLocaleString("id-ID")} dipakai perhitungan`}
+                     ikon={<Ikon nama="file" ukuran={20} />} nada="accent" />
+        <KartuMetrik label="Tidak dipakai" nilai={<span className={tidakDipakai ? "teks-bad" : ""}>{tidakDipakai.toLocaleString("id-ID")}</span>}
+                     catatan="Dinonaktifkan dari perhitungan"
+                     ikon={<Ikon nama="eyeOff" ukuran={20} />} nada={tidakDipakai ? "warn" : "netral"} />
+        <KartuMetrik label="Pembaruan terakhir"
+                     nilai={<span className="km-teks">{ringkas.terakhir
+                       ? new Date(ringkas.terakhir).toLocaleDateString("id-ID", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })
+                       : "—"}</span>}
+                     catatan="Waktu unggah terakhir"
+                     ikon={<Ikon nama="clock" ukuran={20} />} nada="good" />
+        <KartuMetrik label="Kolom terdaftar" nilai={kolom.length} satuan="kolom"
+                     catatan="Selain nomor kontrak"
+                     ikon={<Ikon nama="columns" ukuran={20} />} nada={kolom.length ? "netral" : "warn"} />
       </div>
 
       {!kolom.length ? (
-        <section className="card card-pad mb">
-          <h3 style={{ fontSize: 14, marginBottom: 6 }}>Belum siap menerima berkas</h3>
-          <p className="muted">
-            Belum ada kolom data pendukung yang terdaftar. Tambahkan dulu di{" "}
-            <Link className="lnk" href="/admin/kolom-api">CRUD Kolom API</Link> dengan
-            memilih Sumber = &quot;Data pendukung&quot;.
-          </p>
-        </section>
+        <div className="sd-panduan dp-belum">
+          <span className="sd-ikon warn"><Ikon nama="alert" ukuran={20} /></span>
+          <div className="sd-panduan-teks">
+            <h3>Belum siap menerima berkas</h3>
+            <p>Belum ada kolom data pendukung yang terdaftar. Tambahkan dulu di CRUD Kolom API dengan memilih
+              Sumber = “Data pendukung”.</p>
+          </div>
+          <div className="sd-panduan-aksi">
+            <Link className="btn" href="/admin/kolom-api"><Ikon nama="columns" ukuran={16} /> Buka CRUD Kolom API</Link>
+          </div>
+        </div>
       ) : (
-        <section className="card card-pad mb">
-          <div className="rowbetween" style={{ marginBottom: 10 }}>
-            <h3 style={{ fontSize: 14 }}>Unggah berkas</h3>
-            <span className="faint small">
-              Kolom dikenali: {kolom.map((k) => k.label).join(", ")}
-            </span>
+        <section className="card dp-unggah">
+          <div className="rk-kartu-kepala">
+            <span className="km-ikon accent"><Ikon nama="upload" ukuran={20} /></span>
+            <div>
+              <h2>Unggah berkas</h2>
+              <p className="faint small">Nomor kontrak yang sudah ada diperbarui, bukan digandakan.</p>
+            </div>
+            <span className="dp-dikenali">Kolom dikenali: <b>{kolom.map((k) => k.label).join(", ")}</b></span>
           </div>
 
-          {/* Area seret-lepas: cara yang paling sering dipakai orang untuk
-              berkas, dan tetap menyediakan tombol bagi yang tidak menyeret. */}
-          <div className={"dropzone" + (seret ? " aktif" : "") + (berkas ? " terisi" : "")}
-               onDragOver={(e) => { e.preventDefault(); setSeret(true); }}
-               onDragLeave={() => setSeret(false)}
-               onDrop={(e) => {
-                 e.preventDefault(); setSeret(false);
-                 const f = e.dataTransfer.files?.[0];
-                 if (f) setBerkas(f);
-               }}
-               onClick={() => input.current?.click()}
-               role="button" tabIndex={0}>
-            {berkas ? (
-              <>
-                <b>{berkas.name}</b>
-                <span className="faint small">
-                  {(berkas.size / 1024).toLocaleString("id-ID", { maximumFractionDigits: 0 })} KB
-                  · klik untuk mengganti
-                </span>
-              </>
-            ) : (
-              <>
-                <b>Seret berkas ke sini</b>
-                <span className="faint small">atau klik untuk memilih · .xlsx, .xls, .csv</span>
-              </>
-            )}
+          <div className="dp-unggah-isi">
+            {/* Area seret-lepas: cara yang paling sering dipakai orang untuk
+                berkas, dan tetap menyediakan tombol bagi yang tidak menyeret. */}
+            <div className={"dp-drop" + (seret ? " aktif" : "") + (berkas ? " terisi" : "")}
+                 onDragOver={(e) => { e.preventDefault(); setSeret(true); }}
+                 onDragLeave={() => setSeret(false)}
+                 onDrop={(e) => {
+                   e.preventDefault(); setSeret(false);
+                   const f = e.dataTransfer.files?.[0];
+                   if (f) setBerkas(f);
+                 }}
+                 onClick={() => input.current?.click()}
+                 onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); input.current?.click(); } }}
+                 role="button" tabIndex={0}>
+              {berkas ? (
+                <>
+                  <span className="ri-xls" aria-hidden>{berkas.name.split(".").pop()?.toUpperCase().slice(0, 4)}</span>
+                  <div className="dp-drop-teks">
+                    <b>{berkas.name}</b>
+                    <span className="num">{ukuran(berkas.size)} · klik untuk mengganti</span>
+                  </div>
+                </>
+              ) : (
+                <>
+                  <span className="dp-drop-ikon"><Ikon nama="upload" ukuran={22} /></span>
+                  <b>Seret berkas ke sini</b>
+                  <span>atau klik untuk memilih · <span className="num">.xlsx, .xls, .csv</span></span>
+                </>
+              )}
+            </div>
+
+            <input ref={input} type="file" accept=".xlsx,.xls,.csv" hidden
+                   onChange={(e) => setBerkas(e.target.files?.[0] ?? null)} />
+
+            <div className="dp-unggah-kaki">
+              <span className="faint small">
+                Berkas wajib punya kolom <b className="num">AGREEMENT_NO</b>. Baris tanpa nomor kontrak diabaikan.
+              </span>
+              <div className="dp-unggah-aksi">
+                {berkas && (
+                  <button className="btn ghost" disabled={sibuk}
+                          onClick={() => { setBerkas(null); if (input.current) input.current.value = ""; }}>
+                    Batal
+                  </button>
+                )}
+                <button className="btn" disabled={sibuk || !berkas} onClick={unggah}>
+                  <Ikon nama="upload" ukuran={16} /> {sibuk && berkas ? "Mengunggah…" : "Unggah dan simpan"}
+                </button>
+              </div>
+            </div>
           </div>
+        </section>
+      )}
 
-          <input ref={input} type="file" accept=".xlsx,.xls,.csv" hidden
-                 onChange={(e) => setBerkas(e.target.files?.[0] ?? null)} />
-
-          <div className="mt" style={{ display: "flex", gap: 8, alignItems: "center" }}>
-            <button className="btn" disabled={sibuk || !berkas} onClick={unggah}>
-              {sibuk ? "Mengunggah…" : "Unggah dan simpan"}
-            </button>
-            {berkas && (
-              <button className="btn ghost" disabled={sibuk}
-                      onClick={() => { setBerkas(null); if (input.current) input.current.value = ""; }}>
-                Batal
+      <section className="card pa-tabel-kartu dp-isi">
+        <div className="pa-alat dp-alat">
+          <div className="dp-alat-judul">
+            <h2>Isi data pendukung</h2>
+            <p className="pa-sub"><span className="num">{total.toLocaleString("id-ID")}</span> kontrak {cari || saring ? "cocok dengan penyaring" : "terdaftar"}.</p>
+          </div>
+          <div className="dp-alat-kanan">
+            <KotakCari nilai={cari} onUbah={setCari} lebar={240} placeholder="Cari nomor kontrak…" />
+            <div className="dp-hapus">
+              <input value={hapusNomor} placeholder="Hapus nomor kontrak…" className="num"
+                     onChange={(e) => setHapusNomor(e.target.value)}
+                     onKeyDown={(e) => { if (e.key === "Enter") hapusPerNomor(); }} />
+              <button className="btn tint-bad sm" disabled={sibuk || !hapusNomor.trim()} onClick={hapusPerNomor}>
+                <Ikon nama="trash" ukuran={14} /> Hapus
               </button>
-            )}
-            <span className="faint small">
-              Berkas wajib punya kolom <b>AGREEMENT_NO</b>. Nomor kontrak yang sudah ada
-              diperbarui, bukan digandakan.
-            </span>
-          </div>
-        </section>
-      )}
-
-      {sunting && (
-        <section className="card card-pad mb">
-          <h3 style={{ fontSize: 15, marginBottom: 10 }}>
-            Ubah kontrak {sunting.agreement_no}
-          </h3>
-          <div className="kolom-form">
-            {kolom.map((k) => (
-              <label className="field" key={k.kolom}>
-                <span>{k.label}</span>
-                <input value={sunting[k.kolom] ?? ""}
-                       type={k.jenis === "angka" ? "number" : "text"}
-                       onChange={(e) =>
-                         setSunting({ ...sunting, [k.kolom]: e.target.value })} />
-              </label>
-            ))}
-          </div>
-          <label className="field mt">
-            <span>Catatan (opsional)</span>
-            <input value={sunting.catatan ?? ""} placeholder="mis. koreksi dari tim data"
-                   onChange={(e) => setSunting({ ...sunting, catatan: e.target.value })} />
-          </label>
-          <label className="ind-cek mt">
-            <input type="checkbox" checked={sunting.aktif}
-                   onChange={(e) => setSunting({ ...sunting, aktif: e.target.checked })} />
-            Dipakai dalam perhitungan
-          </label>
-          <div className="mt" style={{ display: "flex", gap: 8 }}>
-            <button className="btn" disabled={sibuk}
-                    onClick={async () => {
-                      const nilai: Record<string, any> = {};
-                      for (const k of kolom) nilai[k.kolom] = sunting[k.kolom];
-                      const ok = await kirim("PUT", {
-                        id: sunting.id, aktif: sunting.aktif,
-                        catatan: sunting.catatan, nilai,
-                      });
-                      if (ok) { setSunting(null); setPesan("Tersimpan."); }
-                    }}>Simpan</button>
-            <button className="btn ghost" disabled={sibuk}
-                    onClick={() => setSunting(null)}>Batal</button>
-          </div>
-        </section>
-      )}
-
-      <section className="card mb">
-        <div className="cardhead rowbetween">
-          <div>
-            <h3 style={{ fontSize: 14 }}>Isi data pendukung</h3>
-            <p className="muted small">{total.toLocaleString("id-ID")} kontrak.</p>
-          </div>
-          <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
-            <KotakCari nilai={cari} onUbah={setCari} placeholder="Cari nomor kontrak…" />
-            <span className="faint">·</span>
-            <input value={hapusNomor} placeholder="Hapus nomor kontrak…"
-                   style={{ width: 180 }}
-                   onChange={(e) => setHapusNomor(e.target.value)}
-                   onKeyDown={(e) => { if (e.key === "Enter") hapusPerNomor(); }} />
-            <button className="btn ghost sm bahaya" disabled={sibuk || !hapusNomor.trim()}
-                    onClick={hapusPerNomor}>Hapus</button>
+            </div>
           </div>
         </div>
 
-        <div className="filterbar">
+        <div className="dp-tab" role="tablist">
           {[["", "Semua"], ["aktif", "Dipakai"], ["nonaktif", "Tidak dipakai"]].map(([v, t]) => (
-            <button key={v} aria-pressed={saring === v} onClick={() => setSaring(v)}>{t}</button>
+            <button key={v} role="tab" aria-selected={saring === v} className={saring === v ? "on" : ""}
+                    onClick={() => setSaring(v)}>{t}</button>
           ))}
         </div>
 
-        <table>
-          <thead>
-            <tr>
-              <th>Nomor kontrak</th>
-              {kolom.map((k) => <th key={k.kolom} className="r">{k.label}</th>)}
-              <th>Status</th><th></th>
-            </tr>
-          </thead>
-          <tbody>
-            {baris.map((b) => (
-              <tr key={b.id} className={b.aktif ? "" : "kurang"}>
-                <td>
-                  <b className="num">{b.agreement_no}</b>
-                  {b.catatan && <div className="faint">{b.catatan}</div>}
-                </td>
-                {kolom.map((k) => (
-                  <td key={k.kolom} className="r num">{fmtNilai(b[k.kolom], k.jenis)}</td>
-                ))}
-                <td>
-                  {b.aktif
-                    ? <span className="tag-ok">dipakai</span>
-                    : <span className="tag-warn">tidak dipakai</span>}
-                </td>
-                <td className="r" style={{ whiteSpace: "nowrap" }}>
-                  <button className="btn ghost sm" disabled={sibuk}
-                          onClick={() => kirim("PUT", {
-                            id: b.id, aktif: !b.aktif, catatan: b.catatan, nilai: {},
-                          })}>
-                    {b.aktif ? "Nonaktifkan" : "Aktifkan"}
-                  </button>{" "}
-                  <button className="btn ghost sm"
-                          onClick={() => setSunting({ ...b })}>Ubah</button>{" "}
-                  <button className="btn ghost sm bahaya" disabled={sibuk}
-                          onClick={() => kirim("DELETE", undefined,
-                            `/api/admin/pendukung?id=${b.id}`)}>Hapus</button>
-                </td>
+        <div className="tabel-scroll">
+          <table className="pa-tabel dp-tabel">
+            <thead>
+              <tr>
+                <th>Nomor kontrak</th>
+                {kolom.map((k) => <th key={k.kolom} className={k.jenis === "angka" ? "r" : undefined}>{k.label}</th>)}
+                <th>Status</th><th className="r">Aksi</th>
               </tr>
-            ))}
-            {!baris.length && (
-              <tr><td colSpan={kolom.length + 3} className="empty">
-                {cari || saring ? "Tidak ada kontrak yang cocok."
-                  : "Belum ada data. Unggah berkas di atas."}
-              </td></tr>
-            )}
-          </tbody>
-        </table>
-
-        {total > perHal && (
-          <div className="paging">
-            <button className="btn ghost sm" disabled={hal === 0}
-                    onClick={() => setHal(hal - 1)}>← Sebelumnya</button>
-            <span className="faint small">Halaman {hal + 1} dari {halTotal}</span>
-            <button className="btn ghost sm" disabled={hal >= halTotal - 1}
-                    onClick={() => setHal(hal + 1)}>Berikutnya →</button>
-          </div>
-        )}
-      </section>
-
-      <section className="card">
-        <div className="cardhead">
-          <h3 style={{ fontSize: 14 }}>Riwayat unggah</h3>
+            </thead>
+            <tbody>
+              {baris.map((b) => (
+                <tr key={b.id} className={b.aktif ? "" : "mati"}>
+                  <td>
+                    <span className="dp-kontrak num">{b.agreement_no}</span>
+                    {b.catatan && <div className="pa-sub">{b.catatan}</div>}
+                  </td>
+                  {kolom.map((k) => (
+                    <td key={k.kolom} className={"num " + (k.jenis === "angka" ? "r" : "")}>{fmtNilai(b[k.kolom], k.jenis)}</td>
+                  ))}
+                  <td>
+                    {b.aktif
+                      ? <span className="pa-status good">dipakai</span>
+                      : <span className="pa-status warn">tidak dipakai</span>}
+                  </td>
+                  <td className="r">
+                    <div className="ri-aksi">
+                      <button className={"btn sm " + (b.aktif ? "hati" : "pulih")} disabled={sibuk}
+                              onClick={() => kirim("PUT", { id: b.id, aktif: !b.aktif, catatan: b.catatan, nilai: {} })}>
+                        {b.aktif ? "Nonaktifkan" : "Aktifkan"}
+                      </button>
+                      <button className="btn ghost sm" onClick={() => { setPesan(null); setSunting({ ...b }); }}>
+                        <Ikon nama="pencil" ukuran={14} /> Ubah
+                      </button>
+                      <button className="btn danger sm" disabled={sibuk} title="Hapus kontrak ini"
+                              onClick={() => { if (confirm(`Hapus kontrak "${b.agreement_no}" dari data pendukung?`)) kirim("DELETE", undefined, `/api/admin/pendukung?id=${b.id}`); }}>
+                        <Ikon nama="trash" ukuran={14} />
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+              ))}
+              {!baris.length && (
+                <tr><td colSpan={kolom.length + 3} className="empty">
+                  {cari || saring ? "Tidak ada kontrak yang cocok." : "Belum ada data. Unggah berkas di atas."}
+                </td></tr>
+              )}
+            </tbody>
+          </table>
         </div>
-        <table>
-          <thead>
-            <tr><th>Berkas</th><th>Kolom terisi</th>
-                <th className="r">Masuk</th><th className="r">Diabaikan</th>
-                <th className="r">Masih aktif</th><th>Waktu</th><th></th></tr>
-          </thead>
-          <tbody>
-            {riwayat.map((r) => (
-              <tr key={r.id}>
-                <td><b>{r.nama_file ?? "—"}</b></td>
-                <td className="faint">{(r.kolom_diisi ?? []).join(", ") || "—"}</td>
-                <td className="r num">{r.baris_masuk.toLocaleString("id-ID")}</td>
-                <td className={"r num " + (r.baris_tolak ? "" : "faint")}>{r.baris_tolak}</td>
-                <td className={"r num " + (r.baris_aktif ? "" : "faint")}
-                    title="Baris yang isinya masih berasal dari unggahan ini, belum ditimpa unggahan berikutnya">
-                  {r.baris_aktif.toLocaleString("id-ID")}
-                </td>
-                <td className="faint">{new Date(r.dibuat_pada).toLocaleString("id-ID")}</td>
-                <td className="r" style={{ whiteSpace: "nowrap" }}>
-                  <button className="btn ghost sm bahaya" disabled={sibuk || !r.baris_aktif}
-                          onClick={() => hapusBatch(r)}>Hapus batch ini</button>
-                </td>
-              </tr>
-            ))}
-            {!riwayat.length && (
-              <tr><td colSpan={7} className="empty">Belum ada unggahan.</td></tr>
-            )}
-          </tbody>
-        </table>
+
+        <div className="pa-pager">
+          <span className="faint">
+            {total
+              ? <>Menampilkan <b>{(hal * perHal + 1).toLocaleString("id-ID")}–{Math.min(hal * perHal + perHal, total).toLocaleString("id-ID")}</b> dari <b>{total.toLocaleString("id-ID")}</b> kontrak</>
+              : "Tidak ada data"}
+          </span>
+          {halTotal > 1 && (
+            <div className="pa-pager-btn">
+              <button className="btn ghost sm" disabled={hal === 0} onClick={() => setHal(hal - 1)}>← Sebelumnya</button>
+              {nomorHal.map((i, idx) => (
+                <span key={i} className="pa-hal-wrap">
+                  {idx > 0 && i - nomorHal[idx - 1] > 1 && <span className="pa-elipsis">…</span>}
+                  <button className={"pa-hal num" + (i === hal ? " on" : "")}
+                          aria-current={i === hal ? "page" : undefined}
+                          onClick={() => setHal(i)}>{(i + 1).toLocaleString("id-ID")}</button>
+                </span>
+              ))}
+              <button className="btn ghost sm" disabled={hal >= halTotal - 1} onClick={() => setHal(hal + 1)}>Berikutnya →</button>
+            </div>
+          )}
+        </div>
       </section>
+
+      <section className="card dp-riwayat">
+        <div className="rk-kartu-kepala">
+          <span className="km-ikon"><Ikon nama="history" ukuran={20} /></span>
+          <div>
+            <h2>Riwayat unggah</h2>
+            <p className="faint small">“Masih aktif” = baris yang isinya belum ditimpa unggahan berikutnya.</p>
+          </div>
+        </div>
+        <div className="tabel-scroll">
+          <table className="rk-tabel dp-riwayat-tabel">
+            <thead>
+              <tr><th>Berkas</th><th>Kolom terisi</th>
+                  <th className="r">Masuk</th><th className="r">Diabaikan</th>
+                  <th className="r">Masih aktif</th><th>Waktu</th><th className="r">Aksi</th></tr>
+            </thead>
+            <tbody>
+              {riwayat.map((r) => (
+                <tr key={r.id}>
+                  <td>
+                    <div className="ri-berkas">
+                      <span className="ri-xls" aria-hidden>{(r.nama_file ?? "").split(".").pop()?.toUpperCase().slice(0, 4) || "—"}</span>
+                      <span className="ri-nama" title={r.nama_file ?? undefined}>{r.nama_file ?? "—"}</span>
+                    </div>
+                  </td>
+                  <td>
+                    <div className="dp-kolom">
+                      {(r.kolom_diisi ?? []).length
+                        ? (r.kolom_diisi ?? []).map((k) => <span key={k} className="sp-produk">{k}</span>)
+                        : <span className="faint">—</span>}
+                    </div>
+                  </td>
+                  <td className="r num">{r.baris_masuk.toLocaleString("id-ID")}</td>
+                  <td className={"r num " + (r.baris_tolak ? "teks-bad" : "faint")}>{r.baris_tolak.toLocaleString("id-ID")}</td>
+                  <td className={"r num " + (r.baris_aktif ? "" : "faint")}
+                      title="Baris yang isinya masih berasal dari unggahan ini, belum ditimpa unggahan berikutnya">
+                    {r.baris_aktif ? <b>{r.baris_aktif.toLocaleString("id-ID")}</b> : 0}
+                  </td>
+                  <td className="num faint dp-waktu">{new Date(r.dibuat_pada).toLocaleString("id-ID", { dateStyle: "medium", timeStyle: "short" })}</td>
+                  <td className="r">
+                    <button className="btn danger sm" disabled={sibuk || !r.baris_aktif} onClick={() => hapusBatch(r)}>
+                      Hapus batch ini
+                    </button>
+                  </td>
+                </tr>
+              ))}
+              {!riwayat.length && (
+                <tr><td colSpan={7} className="empty">Belum ada unggahan.</td></tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      {sunting && (
+        <div className="modal-latar" onMouseDown={(e) => { if (e.target === e.currentTarget && !sibuk) setSunting(null); }}>
+          <div className="modal dp-modal" role="dialog" aria-modal="true" aria-labelledby="dp-judul">
+            <div className="modal-kepala">
+              <span className="sd-ikon accent"><Ikon nama="pencil" ukuran={20} /></span>
+              <div className="modal-judul">
+                <h2 id="dp-judul">Ubah kontrak <span className="num">{sunting.agreement_no}</span></h2>
+                <p>Perubahan langsung dipakai pada perhitungan berikutnya.</p>
+              </div>
+              <button className="pa-tutup" onClick={() => setSunting(null)} disabled={sibuk} aria-label="Tutup">×</button>
+            </div>
+            <div className="modal-isi">
+              {pesan && <div className="alert-box bad"><span className="alert-ikon">!</span><span>{pesan}</span></div>}
+              <div className="pa-form-grid dp-form-grid">
+                {kolom.map((k) => (
+                  <label className="field" key={k.kolom}>
+                    <span>{k.label}</span>
+                    <input value={sunting[k.kolom] ?? ""} className={k.jenis === "angka" ? "num" : undefined}
+                           type={k.jenis === "angka" ? "number" : "text"}
+                           onChange={(e) => setSunting({ ...sunting, [k.kolom]: e.target.value })} />
+                  </label>
+                ))}
+              </div>
+              <label className="field">
+                <span>Catatan (opsional)</span>
+                <input value={sunting.catatan ?? ""} placeholder="mis. koreksi dari tim data"
+                       onChange={(e) => setSunting({ ...sunting, catatan: e.target.value })} />
+              </label>
+              <label className={"ka-opsi-item" + (sunting.aktif ? " on" : "")}>
+                <input type="checkbox" checked={sunting.aktif}
+                       onChange={(e) => setSunting({ ...sunting, aktif: e.target.checked })} />
+                <span><b>Dipakai dalam perhitungan</b><small>Hilangkan centang untuk menghentikan angkanya dipakai tanpa menghapus jejaknya</small></span>
+              </label>
+            </div>
+            <div className="modal-kaki">
+              <button className="btn ghost" disabled={sibuk} onClick={() => setSunting(null)}>Batal</button>
+              <button className="btn" disabled={sibuk} onClick={simpanSunting}>
+                <Ikon nama="check" ukuran={16} tebal={2.2} /> {sibuk ? "Menyimpan…" : "Simpan"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </>
   );
 }

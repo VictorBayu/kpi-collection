@@ -3,6 +3,8 @@
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import Pilih from "@/components/Pilih";
+import Ikon from "@/components/Ikon";
+import JudulHalaman, { KartuMetrik, TitikStatus } from "@/components/JudulHalaman";
 
 type Sumber = {
   kode: string; nama: string; jenis: "utama" | "api" | "unggah";
@@ -146,32 +148,51 @@ export default function Client() {
   const waktu = (t: string | null) =>
     t ? new Date(t).toLocaleString("id-ID", { dateStyle: "medium", timeStyle: "short" }) : "—";
 
+  const aktifN = daftar.filter((d) => d.aktif).length;
+  const totalKolom = daftar.reduce((n, d) => n + (d.jumlahKolom || 0), 0);
+  const nApi = daftar.filter((d) => d.jenis !== "unggah").length;
+  const nUnggah = daftar.filter((d) => d.jenis === "unggah").length;
+  const nGagal = daftar.filter((d) => d.galat).length;
+  const berhasil = (t: string) => /Berhasil|Tersimpan|terdaftar|dihapus/.test(t);
+
+  const LABEL_JENIS = { utama: "Utama", api: "API", unggah: "Unggah" } as const;
+
   return (
     <>
-      <div className="sectionhead rowbetween">
-        <div>
-          <h2>Sumber Data</h2>
-          <p>
-            Daftar sumber yang boleh dipakai indikator. Sumber tambahan digabung
-            ke data utama lewat nomor kontrak, satu baris per kontrak.
-          </p>
-        </div>
-        <button className="btn" onClick={() => { setForm(kosong()); setUji(null); }}>
-          + Sumber
-        </button>
-      </div>
+      <JudulHalaman
+        eyebrow="Integrasi indikator"
+        meta={<><TitikStatus nada={aktifN ? "good" : "netral"} /> {aktifN} sumber aktif</>}
+        judul="Sumber Data"
+        deskripsi="Daftar sumber yang boleh dipakai untuk kalkulasi indikator. Sumber tambahan otomatis digabung ke data utama melalui nomor kontrak — satu baris per kontrak."
+        aksi={
+          <button className="btn" onClick={() => { setForm(kosong()); setUji(null); }}>
+            <Ikon nama="plus" ukuran={16} tebal={2.2} /> Sumber
+          </button>
+        }
+      />
 
       {pesan && (
-        <div className={"alert mb " + (/Berhasil|Tersimpan|terdaftar/.test(pesan) ? "ok" : "bad")}>
-          {pesan}
+        <div className={"alert-box mb " + (berhasil(pesan) ? "good" : "bad")} role="status">
+          <span className="alert-ikon" aria-hidden>{berhasil(pesan) ? "✓" : "✕"}</span>
+          <span>{pesan}</span>
+          <button className="alert-tutup" aria-label="Tutup pesan" onClick={() => setPesan(null)}>×</button>
         </div>
       )}
 
       {form && (
-        <section className="card card-pad mb">
-          <h3 style={{ fontSize: 15, marginBottom: 12 }}>
-            {form.baru ? "Sumber baru" : `Ubah ${form.kode}`}
-          </h3>
+        <section className="card sd-form mb">
+          <div className="sd-form-kepala">
+            <span className="sd-ikon accent"><Ikon nama={form.baru ? "plus" : "pencil"} ukuran={18} /></span>
+            <div>
+              <h3>{form.baru ? "Daftarkan sumber baru" : `Ubah sumber ${form.kode}`}</h3>
+              <p className="muted small">
+                {form.jenis === "api"
+                  ? "Endpoint ditarik berkala lalu digabung ke data utama lewat kunci gabung."
+                  : "Tabel diisi dari berkas Excel lewat menu Data Pendukung."}
+              </p>
+            </div>
+          </div>
+          <div className="card-pad">
 
           <div className="kolom-form">
             {form.baru && (
@@ -293,86 +314,104 @@ export default function Client() {
             Aktif
           </label>
 
-          <div className="mt" style={{ display: "flex", gap: 8 }}>
-            <button className="btn" disabled={sibuk} onClick={simpan}>Simpan</button>
+          </div>
+          <div className="sd-form-kaki">
             <button className="btn ghost" disabled={sibuk} onClick={() => setForm(null)}>Batal</button>
+            <button className="btn" disabled={sibuk} onClick={simpan}>
+              <Ikon nama="check" ukuran={16} tebal={2.2} /> {form.baru ? "Daftarkan sumber" : "Simpan perubahan"}
+            </button>
           </div>
         </section>
       )}
 
-      <div className="daftar-target">
+      <div className="sd-daftar">
         {daftar.map((s) => (
-          <div className={"trow" + (s.aktif ? "" : " kurang")} key={s.kode}>
-            <div className="trow-atas">
-              <div className="trow-field trow-jabatan">
-                <span className="trow-label">Sumber</span>
-                <span className="trow-ringkas-teks" style={{ fontWeight: 600 }}>
-                  {s.nama}
-                  <span className={"tag-" + (s.jenis === "utama" ? "ok" : "warn")}>
-                    {s.jenis === "utama" ? "utama" : s.jenis}
-                  </span>
+          <article className={"sd-kartu" + (s.aktif ? "" : " nonaktif") + (s.galat ? " galat" : "")} key={s.kode}>
+            <div className="sd-baris">
+              <div className="sd-identitas">
+                <span className={"sd-ikon " + (s.jenis === "unggah" ? "warn" : "accent")}>
+                  <Ikon nama={s.jenis === "unggah" ? "sheet" : "database"} ukuran={22} />
                 </span>
-                <span className="faint num">{s.kode} · {s.tabel}</span>
+                <div className="sd-nama">
+                  <div className="sd-nama-atas">
+                    <h3>{s.nama}</h3>
+                    <span className={"sd-jenis " + s.jenis}>{LABEL_JENIS[s.jenis]}</span>
+                    {!s.aktif && <span className="sd-jenis mati">Nonaktif</span>}
+                  </div>
+                  <div className="sd-kode num">
+                    <span>{s.kode}</span><span className="sd-sep">•</span><span>{s.tabel}</span>
+                    <span className="sd-pk">{s.jenis === "utama" ? "PK" : "Lookup"}: {s.kunci_gabung}</span>
+                  </div>
+                </div>
               </div>
 
-              <div className="trow-field trow-produk">
-                <span className="trow-label">Kolom</span>
-                <span className="trow-ringkas-teks num">{s.jumlahKolom}</span>
-              </div>
+              <dl className="sd-metrik">
+                <div>
+                  <dt>Kolom</dt>
+                  <dd><b className="num">{s.jumlahKolom}</b> atribut</dd>
+                </div>
+                <div>
+                  <dt>Kontrak</dt>
+                  <dd>
+                    <b className="num">{s.jumlahBaris < 0 ? "—" : s.jumlahBaris.toLocaleString("id-ID")}</b>
+                    {s.jumlahBaris >= 0 && " baris"}
+                  </dd>
+                </div>
+                <div>
+                  <dt>Penarikan terakhir</dt>
+                  <dd className="sd-tarik">
+                    {s.jenis === "unggah"
+                      ? <><Ikon nama="file" ukuran={14} /> diisi dari Excel</>
+                      : s.galat
+                        ? <><TitikStatus nada="bad" /> <span className="num">{waktu(s.ditarik_pada)}</span> <span className="sd-gagal">· gagal</span></>
+                        : <><TitikStatus nada={s.ditarik_pada ? "good" : "netral"} /> <span className="num">{waktu(s.ditarik_pada)}</span></>}
+                  </dd>
+                </div>
+              </dl>
 
-              <div className="trow-field trow-produk">
-                <span className="trow-label">Kontrak</span>
-                <span className="trow-ringkas-teks num">
-                  {s.jumlahBaris < 0 ? "—" : s.jumlahBaris.toLocaleString("id-ID")}
-                </span>
-              </div>
-
-              <div className="trow-ringkas">
-                <span className="trow-label">Penarikan terakhir</span>
-                <span className="trow-ringkas-teks">
-                  {s.jenis === "unggah" ? "diisi dari Excel" : waktu(s.ditarik_pada)}
-                  {s.galat && <b style={{ color: "var(--bad)" }}> · gagal</b>}
-                </span>
-              </div>
-
-              <div className="trow-aksi">
+              <div className="sd-aksi">
                 {s.jenis === "api" && (
                   <>
-                    <button className="btn ghost sm" disabled={sibuk}
-                            onClick={() => ujiKoneksi(s.kode)}>Uji</button>
-                    <button className="btn ghost sm" disabled={sibuk}
-                            onClick={() => tarik(s.kode)}>Tarik</button>
+                    <button className="btn tint sm" disabled={sibuk}
+                            onClick={() => ujiKoneksi(s.kode)}><Ikon nama="plug" ukuran={15} /> Uji</button>
+                    <button className="btn tint sm" disabled={sibuk}
+                            onClick={() => tarik(s.kode)}><Ikon nama="refresh" ukuran={15} /> Tarik</button>
                   </>
                 )}
-                <button className="btn ghost sm"
-                        onClick={() => { setForm(dariSumber(s)); setUji(null); }}>Ubah</button>
+                <button className="btn tint sm"
+                        onClick={() => { setForm(dariSumber(s)); setUji(null); }}><Ikon nama="pencil" ukuran={15} /> Ubah</button>
                 {s.jenis !== "utama" && (
-                  <button className="btn ghost sm bahaya" disabled={sibuk}
+                  <button className="btn tint-bad sm" disabled={sibuk}
                           onClick={async () => {
                             if (!confirm(`Hapus sumber "${s.kode}" dari daftar? Tabel datanya tidak ikut dihapus.`)) return;
                             const j = await kirim("DELETE", undefined,
                               `/api/admin/sumber?kode=${encodeURIComponent(s.kode)}`);
                             if (j) setPesan(`Sumber "${s.kode}" dihapus. Tabel ${j.tabelTersisa} dibiarkan apa adanya.`);
-                          }}>Hapus</button>
+                          }}><Ikon nama="trash" ukuran={15} /> Hapus</button>
                 )}
               </div>
             </div>
 
+            {s.keterangan && <p className="sd-ket">{s.keterangan}</p>}
+
             {s.galat && (
-              <div className="alert bad" style={{ margin: "0 14px 12px" }}>
-                Penarikan terakhir gagal: {s.galat}
+              <div className="alert-box bad sd-sisip">
+                <span className="alert-ikon" aria-hidden>✕</span>
+                <span><b>Penarikan terakhir gagal.</b> {s.galat}</span>
               </div>
             )}
 
             {uji?.kode === s.kode && (
-              <div className="trow-uji">
-                <b>Hasil uji koneksi</b>
-                {uji.pesan
-                  ? <p className="muted small">{uji.pesan}</p>
-                  : <p className="muted small">{uji.jumlah} baris terbaca pada halaman pertama.</p>}
+              <div className="sd-uji">
+                <div className="sd-uji-kepala">
+                  <Ikon nama="plug" ukuran={16} /> <b>Hasil uji koneksi</b>
+                  <span className="muted small">
+                    {uji.pesan ?? `${uji.jumlah} baris terbaca pada halaman pertama.`}
+                  </span>
+                </div>
                 {uji.field.length > 0 && (
                   <>
-                    <p className="faint small" style={{ marginBottom: 4 }}>
+                    <p className="faint small">
                       Nama field yang tersedia — pakai persis seperti ini pada isian
                       &quot;Field API&quot; tiap kolom di CRUD Kolom API:
                     </p>
@@ -383,21 +422,46 @@ export default function Client() {
                 )}
               </div>
             )}
-          </div>
+          </article>
         ))}
         {!daftar.length && (
-          <div className="trow-kosong">
-            Registri sumber belum terisi — jalankan migrasi v21 dulu.
+          <div className="sd-kosong">
+            <Ikon nama="database" ukuran={28} />
+            <b>Registri sumber belum terisi</b>
+            <span className="muted">Jalankan migrasi v21 dulu, lalu muat ulang halaman ini.</span>
           </div>
         )}
       </div>
 
-      <p className="faint small mt">
-        Setelah sumber didaftarkan, tambahkan kolomnya di{" "}
-        <Link className="lnk" href="/admin/kolom-api">CRUD Kolom API</Link> dengan memilih
-        sumber ini, lalu pilih sumbernya saat membuat indikator di{" "}
-        <Link className="lnk" href="/admin/indikator">Create Indicator</Link>.
-      </p>
+      <section className="sd-panduan">
+        <span className="sd-ikon accent"><Ikon nama="bulb" ukuran={20} /></span>
+        <div className="sd-panduan-teks">
+          <h3>Panduan relasi dan pembuatan indikator</h3>
+          <p>
+            Setelah sumber didaftarkan, tambahkan kolomnya di{" "}
+            <Link className="lnk" href="/admin/kolom-api">CRUD Kolom API</Link> dengan memilih
+            sumber ini, lalu pilih sumbernya saat membuat indikator di{" "}
+            <Link className="lnk" href="/admin/indikator">Create Indicator</Link>.
+          </p>
+        </div>
+        <div className="sd-panduan-aksi">
+          <Link className="btn sekunder" href="/admin/kolom-api">Kelola kolom</Link>
+          <Link className="btn" href="/admin/indikator">Buat indikator</Link>
+        </div>
+      </section>
+
+      <div className="km-grid tiga">
+        <KartuMetrik label="Total sumber terdaftar" nilai={daftar.length} satuan="unit"
+                     catatan={`${nApi} API/utama · ${nUnggah} tabel unggah`}
+                     ikon={<Ikon nama="network" ukuran={20} />} nada="accent" />
+        <KartuMetrik label="Kolom siap pakai" nilai={totalKolom.toLocaleString("id-ID")} satuan="kolom"
+                     catatan="Terdaftar di seluruh sumber"
+                     ikon={<Ikon nama="columns" ukuran={20} />} nada="accent" />
+        <KartuMetrik label="Kesehatan penarikan" nilai={`${daftar.length - nGagal}/${daftar.length}`} satuan="sehat"
+                     catatan={nGagal ? `${nGagal} sumber gagal pada penarikan terakhir` : "Tidak ada penarikan yang gagal"}
+                     ikon={<Ikon nama={nGagal ? "alert" : "checkCircle"} ukuran={20} />}
+                     nada={nGagal ? "bad" : "good"} />
+      </div>
     </>
   );
 }

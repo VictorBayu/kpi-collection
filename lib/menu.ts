@@ -21,6 +21,8 @@ export type Menu = {
   grup?: string;
   /** Menampilkan lencana jumlah belum dibaca (khusus Request/Supporting). */
   lencana?: boolean;
+  /** Nama ikon di components/Ikon.tsx untuk navigasi dan remah roti. */
+  ikon?: string;
   /** Ditempatkan setelah dropdown, bukan sebelum — menjaga urutan lama. */
   akhir?: boolean;
 };
@@ -32,38 +34,39 @@ export const MENU: Menu[] = [
   // ketahui tiap pagi adalah keadaan timnya, bukan skornya sendiri. Bagi
   // karyawan menu ini tidak muncul sama sekali, jadi urutan ini tidak
   // merugikan mereka — "Dasbor saya" tetap menu pertama yang mereka lihat.
-  { kode: "tim_dashboard", label: "Dashboard Tim", href: "/tim/dashboard" },
-  { kode: "dashboard",   label: "Dasbor saya",     href: "/dashboard" },
-  { kode: "harian_saya", label: "Progres harian",  href: "/harian" },
-  { kode: "tim",         label: "Tim saya",        href: "/tim" },
-  { kode: "request",     label: "Request",         href: "/request", lencana: true },
+  { kode: "tim_dashboard", label: "Dashboard Tim", href: "/tim/dashboard", ikon: "chart" },
+  { kode: "dashboard",   label: "Dasbor saya",     href: "/dashboard", ikon: "dashboard" },
+  { kode: "harian_saya", label: "Progres harian",  href: "/harian", ikon: "calendar" },
+  { kode: "tim",         label: "Tim saya",        href: "/tim", ikon: "users" },
+  { kode: "request",     label: "Request",         href: "/request", lencana: true, ikon: "message" },
 
   // — pemantauan (admin area, tautan langsung) —
-  { kode: "admin_analitik", label: "Dashboard",  href: "/admin/analitik" },
-  { kode: "admin_kpi",      label: "Data KPI",   href: "/admin/kpi" },
-  { kode: "admin_harian",   label: "KPI Harian", href: "/admin/harian" },
-  { kode: "admin_request",  label: "Supporting", href: "/admin/request", lencana: true, akhir: true },
+  { kode: "admin_analitik", label: "Dashboard",  href: "/admin/analitik", ikon: "dashboard" },
+  { kode: "admin_kpi",      label: "Data KPI",   href: "/admin/kpi", ikon: "table" },
+  { kode: "admin_harian",   label: "KPI Harian", href: "/admin/harian", ikon: "calendar" },
+  { kode: "admin_request",  label: "Supporting", href: "/admin/request", lencana: true, akhir: true, ikon: "message" },
 
   // — grup: Data & indikator —
-  { kode: "admin_indikator", label: "Create Indicator",     href: "/admin/indikator",   grup: "Data & indikator" },
-  { kode: "admin_data_api",  label: "Data API",             href: "/admin/data-api",    grup: "Data & indikator" },
-  { kode: "admin_sumber",    label: "Sumber Data",          href: "/admin/sumber",      grup: "Data & indikator" },
-  { kode: "admin_kolom_api", label: "CRUD Kolom API",       href: "/admin/kolom-api",   grup: "Data & indikator" },
-  { kode: "admin_turunan",   label: "Kolom Turunan",        href: "/admin/turunan",     grup: "Data & indikator" },
-  { kode: "admin_pendukung", label: "Data Pendukung",       href: "/admin/pendukung",   grup: "Data & indikator" },
-  { kode: "admin_sampel",    label: "Sample Data API",      href: "/admin/sampel-data", grup: "Data & indikator" },
-  { kode: "admin_riwayat",   label: "Riwayat impor Excel",  href: "/admin/riwayat",     grup: "Data & indikator" },
+  { kode: "admin_indikator", label: "Create Indicator",     href: "/admin/indikator",   grup: "Data & indikator", ikon: "formula" },
+  { kode: "admin_tracing",   label: "Tracing KPI",          href: "/admin/tracing",     grup: "Data & indikator", ikon: "search" },
+  { kode: "admin_data_api",  label: "Data API",             href: "/admin/data-api",    grup: "Data & indikator", ikon: "api" },
+  { kode: "admin_sumber",    label: "Sumber Data",          href: "/admin/sumber",      grup: "Data & indikator", ikon: "database" },
+  { kode: "admin_kolom_api", label: "CRUD Kolom API",       href: "/admin/kolom-api",   grup: "Data & indikator", ikon: "columns" },
+  { kode: "admin_turunan",   label: "Kolom Turunan",        href: "/admin/turunan",     grup: "Data & indikator", ikon: "branch" },
+  { kode: "admin_pendukung", label: "Data Pendukung",       href: "/admin/pendukung",   grup: "Data & indikator", ikon: "file" },
+  { kode: "admin_sampel",    label: "Sample Data API",      href: "/admin/sampel-data", grup: "Data & indikator", ikon: "code" },
+  { kode: "admin_riwayat",   label: "Riwayat impor Excel",  href: "/admin/riwayat",     grup: "Data & indikator", ikon: "history" },
 
   // — grup: Master —
-  { kode: "admin_import",       label: "Unggah data",         href: "/admin/import",       grup: "Master" },
-  { kode: "admin_hierarki",     label: "Master Hierarki",     href: "/admin/hierarki",     grup: "Master" },
-  { kode: "admin_produk",       label: "Master Produk",       href: "/admin/produk",       grup: "Master" },
-  { kode: "admin_pagu",         label: "Pagu Insentif",       href: "/admin/pagu",         grup: "Master" },
-  { kode: "admin_tier",         label: "Tabel Tier Insentif", href: "/admin/tier",         grup: "Master" },
-  { kode: "admin_kelas_cabang", label: "Tier Cabang",         href: "/admin/kelas-cabang", grup: "Master" },
-  { kode: "admin_cabang",       label: "Master Cabang API",   href: "/admin/cabang",       grup: "Master" },
-  { kode: "admin_pengguna",     label: "Pengguna & Akses",    href: "/admin/pengguna",     grup: "Master" },
-  { kode: "admin_peran",        label: "Peran & Hak Akses",   href: "/admin/peran",        grup: "Master" },
+  { kode: "admin_import",       label: "Unggah data",         href: "/admin/import",       grup: "Master", ikon: "upload" },
+  { kode: "admin_hierarki",     label: "Master Hierarki",     href: "/admin/hierarki",     grup: "Master", ikon: "hierarchy" },
+  { kode: "admin_produk",       label: "Master Produk",       href: "/admin/produk",       grup: "Master", ikon: "box" },
+  { kode: "admin_pagu",         label: "Pagu Insentif",       href: "/admin/pagu",         grup: "Master", ikon: "wallet" },
+  { kode: "admin_tier",         label: "Tabel Tier Insentif", href: "/admin/tier",         grup: "Master", ikon: "layers" },
+  { kode: "admin_kelas_cabang", label: "Tier Cabang",         href: "/admin/kelas-cabang", grup: "Master", ikon: "building" },
+  { kode: "admin_cabang",       label: "Master Cabang API",   href: "/admin/cabang",       grup: "Master", ikon: "server" },
+  { kode: "admin_pengguna",     label: "Pengguna & Akses",    href: "/admin/pengguna",     grup: "Master", ikon: "userCog" },
+  { kode: "admin_peran",        label: "Peran & Hak Akses",   href: "/admin/peran",        grup: "Master", ikon: "shield" },
 ];
 
 /** Urutan grup dropdown di navigasi. */

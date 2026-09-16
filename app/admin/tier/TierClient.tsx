@@ -5,6 +5,8 @@ import { useEffect, useMemo, useState } from "react";
 import Pilih from "@/components/Pilih";
 import InputAngka from "@/components/InputAngka";
 import KotakCari from "@/components/KotakCari";
+import Ikon from "@/components/Ikon";
+import JudulHalaman, { KartuMetrik, TitikStatus } from "@/components/JudulHalaman";
 
 type Baris = { alias: string; produk: string; tier: string; kelas: string; nominal: string };
 type Pasangan = { alias: string; produk: string };
@@ -33,6 +35,9 @@ export default function TierClient() {
   const [pesan, setPesan] = useState<string | null>(null);
   const [cari, setCari] = useState("");
   const [baru, setBaru] = useState<Baris | null>(null);
+  const [saringJabatan, setSaringJabatan] = useState("");
+  const [saringProduk, setSaringProduk] = useState("");
+  const [saringKelas, setSaringKelas] = useState("");
 
   async function segarkan() {
     const r = await fetch("/api/admin/tier", { cache: "no-store" });
@@ -63,9 +68,12 @@ export default function TierClient() {
 
   const tersaring = useMemo(() => {
     const k = cari.trim().toLowerCase();
-    return baris.filter((b) => !k ||
-      b.alias.toLowerCase().includes(k) || b.produk.toLowerCase().includes(k));
-  }, [baris, cari]);
+    return baris.filter((b) =>
+      (!k || b.alias.toLowerCase().includes(k) || b.produk.toLowerCase().includes(k)) &&
+      (!saringJabatan || b.alias === saringJabatan) &&
+      (!saringProduk || b.produk === saringProduk) &&
+      (!saringKelas || b.kelas === saringKelas));
+  }, [baris, cari, saringJabatan, saringProduk, saringKelas]);
 
   // Pasangan jabatan+produk yang mekanismenya "tier" di Pagu Insentif tapi
   // belum punya satu baris pun di sini — nominalnya akan selalu nol tanpa
@@ -73,156 +81,234 @@ export default function TierClient() {
   const belumTerisi = jabatan.filter(
     (j) => !baris.some((b) => b.alias === j.alias && b.produk === j.produk));
 
+  const perJabatan = useMemo(() => {
+    const m = new Map<string, number>();
+    for (const b of baris) m.set(b.alias, (m.get(b.alias) ?? 0) + 1);
+    return Array.from(m).sort((a, b) => a[0].localeCompare(b[0]));
+  }, [baris]);
+  const tertinggi = baris.reduce<Baris | null>((a, b) => (!a || Number(b.nominal) > Number(a.nominal) ? b : a), null);
+  const nol = baris.filter((b) => !Number(b.nominal)).length;
+  const adaSaring = !!(cari || saringJabatan || saringProduk || saringKelas);
+  const bawaanBaru = (): Baris => ({
+    alias: saringJabatan || jabatan[0]?.alias || "", produk: saringProduk || jabatan[0]?.produk || produk[0]?.kode || "",
+    tier: "1", kelas: saringKelas || "medium", nominal: "1000000",
+  });
+
+  async function hapus(b: Baris) {
+    if (!confirm(`Hapus ${b.alias} · ${b.produk} tier ${b.tier}/${b.kelas}?`)) return;
+    setSibuk(true);
+    try {
+      await fetch(
+        `/api/admin/tier?alias=${encodeURIComponent(b.alias)}&produk=${encodeURIComponent(b.produk)}&tier=${b.tier}&kelas=${b.kelas}`,
+        { method: "DELETE" });
+      await segarkan();
+    } finally { setSibuk(false); }
+  }
+
+  const duplikatBaru = !!baru && baris.some((b) =>
+    b.alias === baru.alias && b.produk === baru.produk && b.tier === baru.tier && b.kelas === baru.kelas);
+
   return (
     <>
-      <div className="sectionhead">
-        <div>
-          <h2>Tabel Tier Insentif</h2>
-          <p>
-            Nominal untuk jabatan+produk bermekanisme "tabel tier" — dicari
-            lewat kombinasi tier orang dan tier cabang, bukan rumus skor ÷ pembagi × pagu.
-          </p>
+      <JudulHalaman
+        eyebrow="Master data & formula"
+        meta={<><TitikStatus nada={belumTerisi.length ? "warn" : "good"} /> {belumTerisi.length ? `${belumTerisi.length} pasangan belum terisi` : "matriks lengkap"}</>}
+        judul="Tabel Tier Insentif"
+        deskripsi={<>Nominal untuk jabatan+produk bermekanisme “tabel tier” — dicari lewat kombinasi tier orang dan tier cabang
+          (Large/Medium/Small), bukan rumus skor ÷ pembagi × pagu.</>}
+        aksi={<>
+          <Link className="btn ghost" href="/admin/kelas-cabang"><Ikon nama="building" ukuran={16} /> Tier cabang</Link>
+          <button className="btn" onClick={() => setBaru(bawaanBaru())}>
+            <Ikon nama="plus" ukuran={16} tebal={2.2} /> Tambah baris tier
+          </button>
+        </>}
+      />
+
+      {pesan && (
+        <div className="alert-box bad tr-pesan" role="alert">
+          <span className="alert-ikon">!</span><span>{pesan}</span>
+          <button className="alert-tutup" onClick={() => setPesan(null)} aria-label="Tutup pesan">×</button>
         </div>
-        <button className="btn sm"
-                onClick={() => setBaru({
-                  alias: jabatan[0]?.alias ?? "", produk: jabatan[0]?.produk ?? produk[0]?.kode ?? "",
-                  tier: "1", kelas: "medium", nominal: "1000000",
-                })}>
-          + Tambah baris
-        </button>
+      )}
+
+      <div className="km-grid">
+        <KartuMetrik label="Total kombinasi tier" nilai={baris.length} satuan="baris"
+                     catatan={`Dari ${perJabatan.length} jabatan`}
+                     ikon={<Ikon nama="layers" ukuran={20} />} nada="accent" />
+        <KartuMetrik label="Pasangan bermekanisme tier" nilai={jabatan.length} satuan="jabatan·produk"
+                     catatan={belumTerisi.length ? `${belumTerisi.length} belum punya baris` : "Semua sudah punya baris"}
+                     ikon={<Ikon nama="wallet" ukuran={20} />} nada={belumTerisi.length ? "warn" : "good"}
+                     lencana={jabatan.length ? { teks: `${Math.round(((jabatan.length - belumTerisi.length) / jabatan.length) * 100)}%`, nada: belumTerisi.length ? "warn" : "good" } : undefined} />
+        <KartuMetrik label="Nominal tertinggi" nilai={<span className="km-teks num">{tertinggi ? rp(Number(tertinggi.nominal)) : "—"}</span>}
+                     catatan={tertinggi ? `${tertinggi.alias} · ${tertinggi.produk} · tier ${tertinggi.tier}/${tertinggi.kelas}` : "Belum ada baris"}
+                     ikon={<Ikon nama="chart" ukuran={20} />} nada="good" />
+        <KartuMetrik label="Nominal belum diisi" nilai={<span className={nol ? "teks-bad" : ""}>{nol}</span>} satuan="baris"
+                     catatan="Bernilai Rp 0 — belum diisi, bukan nol sengaja"
+                     ikon={<Ikon nama="alert" ukuran={20} />} nada={nol ? "bad" : "netral"} />
       </div>
 
-      {pesan && <div className="alert bad mb">{pesan}</div>}
-
-      {!jabatan.length && (
-        <div className="alert warn mb">
-          Belum ada jabatan+produk bermekanisme "tabel tier". Atur dulu di{" "}
-          <Link className="lnk" href="/admin/pagu">Pagu Insentif</Link>.
+      {!muat && !jabatan.length && (
+        <div className="alert-box warn tr-pesan">
+          <span className="alert-ikon">!</span>
+          <span>Belum ada jabatan+produk bermekanisme “tabel tier”. Atur dulu di <Link className="lnk" href="/admin/pagu">Pagu Insentif</Link>.</span>
         </div>
       )}
 
       {belumTerisi.length > 0 && (
-        <div className="alert warn mb">
-          <b>{belumTerisi.length} pasangan belum punya baris tier sama sekali.</b>{" "}
-          {belumTerisi.slice(0, 6).map((s) => `${s.alias}/${s.produk}`).join(", ")}
-          {belumTerisi.length > 6 && `, dan ${belumTerisi.length - 6} lainnya`}.
+        <div className="tr-info warn">
+          <span className="sd-ikon"><Ikon nama="alert" ukuran={18} /></span>
+          <div className="tr-info-teks">
+            <b>{belumTerisi.length} pasangan belum punya baris tier sama sekali</b>
+            <p>{belumTerisi.slice(0, 6).map((s) => `${s.alias}/${s.produk}`).join(", ")}
+              {belumTerisi.length > 6 && `, dan ${belumTerisi.length - 6} lainnya`}. Nominalnya akan selalu nol sampai barisnya diisi.</p>
+          </div>
+          <button className="btn sm" onClick={() => setBaru({ ...bawaanBaru(), alias: belumTerisi[0].alias, produk: belumTerisi[0].produk })}>
+            <Ikon nama="plus" ukuran={14} /> Isi {belumTerisi[0].alias}/{belumTerisi[0].produk}
+          </button>
         </div>
       )}
 
       {baru && (
-        <section className="panel-isi mb">
-          <div className="panel-kepala">
-            <b>Baris tier baru</b>
-            <button className="panel-x" onClick={() => setBaru(null)}>×</button>
+        <section className="card tr-form">
+          <div className="kt-form-kepala">
+            <span className="kt-titik" aria-hidden />
+            <h3>Baris matriks tier baru</h3>
+            <span className="kt-mode">nominal dicari dari tier orang × tier cabang</span>
+            <button className="pa-tutup" onClick={() => setBaru(null)} aria-label="Tutup formulir">×</button>
           </div>
-          <div className="panel-badan">
-            <div className="pagu-medan">
-              <label>
-                <span className="faint small">Jabatan</span>
+          <div className="tr-form-isi">
+            <div className="tr-medan">
+              <label className="field">
+                <span>Jabatan <em className="kt-wajib">*</em></span>
                 <Pilih nilai={baru.alias} bebas placeholder="Pilih jabatan"
                        onPilih={(v) => setBaru({ ...baru, alias: v.toUpperCase() })}
                        opsi={Array.from(new Set(jabatan.map((j) => j.alias)))
                          .map((a) => ({ nilai: a, label: a }))} />
               </label>
-              <label>
-                <span className="faint small">Produk</span>
+              <label className="field">
+                <span>Produk</span>
                 <Pilih nilai={baru.produk} cari={false}
                        onPilih={(v) => setBaru({ ...baru, produk: v })}
                        opsi={produk.map((p) => ({ nilai: p.kode, label: p.kode, ket: p.nama }))} />
               </label>
-              <label>
-                <span className="faint small">Tier</span>
+              <label className="field">
+                <span>Tier karyawan</span>
                 <input className="num" inputMode="numeric" value={baru.tier}
                        onChange={(e) => setBaru({ ...baru, tier: e.target.value })} />
               </label>
-              <label>
-                <span className="faint small">Tier cabang</span>
+              <label className="field">
+                <span>Tier cabang</span>
                 <Pilih nilai={baru.kelas} cari={false}
                        onPilih={(v) => setBaru({ ...baru, kelas: v })}
                        opsi={KELAS_OPSI} />
               </label>
-              <label>
-                <span className="faint small">Nominal (Rp)</span>
+              <label className="field">
+                <span>Nominal (Rp)</span>
                 <InputAngka className="num" value={baru.nominal}
                        onChange={(v) => setBaru({ ...baru, nominal: v })} />
               </label>
             </div>
-            <div className="formact">
-              <button className="btn sm" disabled={sibuk || !baru.alias || !baru.produk}
-                      onClick={async () => { if (await simpan(baru)) setBaru(null); }}>
-                Simpan
-              </button>
-              <button className="btn ghost sm" onClick={() => setBaru(null)}>Batal</button>
-            </div>
+            {duplikatBaru && (
+              <div className="alert-box warn"><span className="alert-ikon">!</span>
+                <span>Kombinasi ini sudah ada di tabel — menyimpan akan menimpa nominalnya.</span></div>
+            )}
+          </div>
+          <div className="sd-form-kaki">
+            <button className="btn ghost" onClick={() => setBaru(null)}>Batal</button>
+            <button className="btn" disabled={sibuk || !baru.alias || !baru.produk}
+                    onClick={async () => { if (await simpan(baru)) setBaru(null); }}>
+              <Ikon nama="check" ukuran={16} tebal={2.2} /> {sibuk ? "Menyimpan…" : "Simpan baris"}
+            </button>
           </div>
         </section>
       )}
 
-      <section className="card">
-        <div className="saring-bar-rapi">
-          <KotakCari nilai={cari} onUbah={setCari} lebar={280} placeholder="Cari jabatan atau produk" />
-          <span className="faint small" style={{ marginLeft: "auto" }}>
-            {baris.length} baris
-          </span>
+      <section className="card pa-tabel-kartu">
+        <div className="tr-pil" role="tablist" aria-label="Saring jabatan">
+          <button role="tab" aria-selected={!saringJabatan} className={!saringJabatan ? "on" : ""}
+                  onClick={() => setSaringJabatan("")}>Semua jabatan <span className="num">{baris.length}</span></button>
+          {perJabatan.map(([a, n]) => (
+            <button key={a} role="tab" aria-selected={saringJabatan === a} className={saringJabatan === a ? "on" : ""}
+                    onClick={() => setSaringJabatan(saringJabatan === a ? "" : a)}>{a} <span className="num">{n}</span></button>
+          ))}
+        </div>
+        <div className="pa-alat">
+          <div className="pa-alat-cari">
+            <KotakCari nilai={cari} onUbah={setCari} lebar={360} placeholder="Cari jabatan atau produk…" />
+          </div>
+          <div className="ri-saring">
+            <Pilih nilai={saringProduk} cari={false} onPilih={setSaringProduk}
+                   opsi={[{ nilai: "", label: "Semua produk" }, ...produk.map((p) => ({ nilai: p.kode, label: p.kode, ket: p.nama }))]} />
+            <Pilih nilai={saringKelas} cari={false} onPilih={setSaringKelas}
+                   opsi={[{ nilai: "", label: "Semua tier cabang" }, ...KELAS_OPSI]} />
+          </div>
+          <div className="ri-alat-kanan">
+            {adaSaring && (
+              <button className="btn polos sm" onClick={() => { setCari(""); setSaringJabatan(""); setSaringProduk(""); setSaringKelas(""); }}>
+                Bersihkan
+              </button>
+            )}
+            <span className="faint">{tersaring.length} dari {baris.length} baris</span>
+          </div>
         </div>
 
-        <table className="rapat tbl-pagu">
-          <colgroup>
-            <col /><col style={{ width: 88 }} /><col style={{ width: 72 }} />
-            <col style={{ width: 110 }} /><col style={{ width: 150 }} /><col style={{ width: 44 }} />
-          </colgroup>
-          <thead>
-            <tr>
-              <th>Jabatan</th><th>Produk</th><th className="r">Tier</th>
-              <th>Tier cabang</th><th className="r">Nominal</th><th></th>
-            </tr>
-          </thead>
-          <tbody>
-            {tersaring
-              .slice()
-              .sort((a, b) => a.alias.localeCompare(b.alias) || a.produk.localeCompare(b.produk)
-                || Number(a.tier) - Number(b.tier) || a.kelas.localeCompare(b.kelas))
-              .map((b) => (
-              <tr key={`${b.alias}/${b.produk}/${b.tier}/${b.kelas}`}>
-                <td><b>{b.alias}</b></td>
-                <td><span className="cip on">{b.produk}</span></td>
-                <td className="r num">{b.tier}</td>
-                <td>{KELAS_OPSI.find((k) => k.nilai === b.kelas)?.label ?? b.kelas}</td>
-                <td>
-                  <InputAngka className="num r" value={b.nominal}
-                         onChange={(v) => setBaris(baris.map((x) =>
-                           x === b ? { ...x, nominal: v } : x))}
-                         onBlur={() => simpan(b)} />
-                </td>
-                <td className="r">
-                  <button className="isyarat-x" title={`Hapus baris tier ${b.alias}`}
-                          disabled={sibuk}
-                          onClick={async () => {
-                            if (!confirm(`Hapus ${b.alias} · ${b.produk} tier ${b.tier}/${b.kelas}?`)) return;
-                            setSibuk(true);
-                            try {
-                              await fetch(
-                                `/api/admin/tier?alias=${encodeURIComponent(b.alias)}&produk=${encodeURIComponent(b.produk)}&tier=${b.tier}&kelas=${b.kelas}`,
-                                { method: "DELETE" });
-                              await segarkan();
-                            } finally { setSibuk(false); }
-                          }}>×</button>
-                </td>
+        <div className="tabel-scroll">
+          <table className="pa-tabel tr-tabel">
+            <thead>
+              <tr>
+                <th>Jabatan</th><th>Produk</th><th>Tier karyawan</th>
+                <th>Tier cabang</th><th className="r" style={{ width: 190 }}>Nominal insentif</th><th className="r" style={{ width: 96 }}>Aksi</th>
               </tr>
-            ))}
-            {!tersaring.length && (
-              <tr><td colSpan={6} className="empty">
-                {muat ? "Memuat…" : cari ? "Tidak ada yang cocok." : "Belum ada baris tier."}
-              </td></tr>
-            )}
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              {tersaring
+                .slice()
+                .sort((a, b) => a.alias.localeCompare(b.alias) || a.produk.localeCompare(b.produk)
+                  || Number(a.tier) - Number(b.tier) || a.kelas.localeCompare(b.kelas))
+                .map((b) => (
+                <tr key={`${b.alias}/${b.produk}/${b.tier}/${b.kelas}`} className={Number(b.nominal) ? undefined : "tr-nol"}>
+                  <td><span className="tr-jabatan"><i className="titik-status good" aria-hidden />{b.alias}</span></td>
+                  <td><span className="sp-produk">{b.produk}</span></td>
+                  <td><span className={"tr-tier t" + Math.min(Number(b.tier) || 0, 4)}>Tier {b.tier}</span></td>
+                  <td><span className={"tr-kelas " + b.kelas}><i aria-hidden />{KELAS_OPSI.find((k) => k.nilai === b.kelas)?.label ?? b.kelas}</span></td>
+                  <td className="r">
+                    <div className="tr-nominal">
+                      <span className="num">Rp</span>
+                      <InputAngka className="num r" value={b.nominal}
+                             onChange={(v) => setBaris(baris.map((x) => x === b ? { ...x, nominal: v } : x))}
+                             onBlur={() => simpan(b)} />
+                    </div>
+                  </td>
+                  <td className="r">
+                    <div className="pa-aksi">
+                      <button className="pa-ikon-btn" title="Duplikasi ke baris baru"
+                              onClick={() => { setBaru({ ...b }); window.scrollTo({ top: 0, behavior: "smooth" }); }}>
+                        <Ikon nama="copy" ukuran={15} />
+                      </button>
+                      <button className="pa-ikon-btn pr-mati" title={`Hapus baris tier ${b.alias}`} disabled={sibuk}
+                              onClick={() => hapus(b)}>
+                        <Ikon nama="trash" ukuran={15} />
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+              ))}
+              {!tersaring.length && (
+                <tr><td colSpan={6} className="empty">
+                  {muat ? "Memuat…" : adaSaring ? "Tidak ada yang cocok." : "Belum ada baris tier."}
+                </td></tr>
+              )}
+            </tbody>
+          </table>
+        </div>
       </section>
 
-      <p className="faint small mt">
-        {rp(0)} berarti kombinasi itu memang belum diisi — bukan dihitung nol
-        secara sengaja. Tier cabang diatur di{" "}
-        <Link className="lnk" href="/admin/kelas-cabang">Tier Cabang</Link>.
+      <p className="pa-catatan">
+        <Ikon nama="bulb" ukuran={16} />
+        <span>
+          Nominal diubah langsung di tabel dan tersimpan saat kotaknya ditinggalkan. {rp(0)} berarti kombinasi itu belum
+          diisi — bukan nol sengaja. Tier cabang diatur di <Link className="lnk" href="/admin/kelas-cabang">Tier Cabang</Link>.
+        </span>
       </p>
     </>
   );

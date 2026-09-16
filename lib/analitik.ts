@@ -15,9 +15,9 @@ import { q } from "./db";
 
 /** Ambang skor jadi label yang sama dipakai di seluruh aplikasi. */
 export const PITA_SKOR = [
-  { batas: 4, label: "KPI 4 ke atas", warna: "#1F8A5B" },
-  { batas: 3, label: "KPI 3", warna: "#2C5FE8" },
-  { batas: 0, label: "Di bawah KPI 3", warna: "#C2410C" },
+  { batas: 4, label: "KPI 4 ke atas", warna: "#059669" },
+  { batas: 3, label: "KPI 3", warna: "#4F46E5" },
+  { batas: 0, label: "Di bawah KPI 3", warna: "#DC2626" },
 ];
 
 export function labelPita(skor: number): string {
@@ -426,4 +426,67 @@ export async function biayaVsSkor(periode: string) {
     insentif: Number(r.insentif),
     perOrang: Number(r.per_orang ?? 0),
   }));
+}
+
+/**
+ * Seluruh cabang untuk layar Prioritas pemulihan.
+ *
+ * Berbeda dari ujungCabang yang hanya mengambil ujung atas-bawah dan
+ * membuang cabang kecil, di sini SEMUA cabang ikut — layar itu dipakai
+ * menyusun daftar kunjungan, dan cabang berisi dua orang yang dua-duanya
+ * di bawah KPI 3 tetap perlu terlihat. Cabang kecil ditandai `tipis`
+ * supaya pembaca tahu rata-ratanya mudah berayun.
+ *
+ * Area diambil dari data pegawai dengan cara yang sama seperti
+ * cabangPeriode di lib/kpi.ts.
+ */
+export async function semuaCabang(periode: string) {
+  const rows = await q<any>(
+    `WITH per_orang AS (
+       SELECT periode, norm_wilayah(cabang) AS cabang, nik,
+              SUM(skor_terbobot) AS skor
+         FROM v_kpi_aktif
+        WHERE periode IN ($1::date, ($1::date - INTERVAL '1 month')::date)
+        GROUP BY 1, 2, nik
+     ),
+     per_cabang AS (
+       SELECT periode, cabang, ROUND(AVG(skor), 2) AS skor_rata,
+              COUNT(*)::int AS orang,
+              COUNT(*) FILTER (WHERE skor < 3)::int AS bawah
+         FROM per_orang
+        WHERE cabang IS NOT NULL
+        GROUP BY periode, cabang
+     ),
+     area_cabang AS (
+       SELECT DISTINCT ON (norm_wilayah(cabang))
+              norm_wilayah(cabang) AS cabang, norm_wilayah(area) AS area
+         FROM app_user
+        WHERE cabang IS NOT NULL AND area IS NOT NULL
+        GROUP BY norm_wilayah(cabang), norm_wilayah(area)
+        ORDER BY norm_wilayah(cabang), COUNT(*) DESC
+     )
+     SELECT k.cabang, COALESCE(a.area, '(TANPA AREA)') AS area,
+            k.skor_rata, k.orang, k.bawah, l.skor_rata AS skor_lalu
+       FROM per_cabang k
+       LEFT JOIN per_cabang l
+              ON l.cabang = k.cabang
+             AND l.periode = ($1::date - INTERVAL '1 month')::date
+       LEFT JOIN area_cabang a ON a.cabang = k.cabang
+      WHERE k.periode = $1::date
+      ORDER BY k.skor_rata ASC, k.bawah DESC, k.cabang`, [periode]);
+
+  return rows.map((r) => {
+    const skor = Number(r.skor_rata);
+    const lalu = r.skor_lalu === null ? null : Number(r.skor_lalu);
+    return {
+      cabang: String(r.cabang),
+      area: String(r.area),
+      skorRata: skor,
+      orang: Number(r.orang),
+      bawah: Number(r.bawah),
+      skorLalu: lalu,
+      tren: lalu === null ? null : Math.round((skor - lalu) * 100) / 100,
+      tipis: Number(r.orang) < 3,
+    };
+  });
 }

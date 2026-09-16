@@ -3,7 +3,8 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import Pilih from "@/components/Pilih";
-import Pager from "@/components/Pager";
+import Ikon from "@/components/Ikon";
+import JudulHalaman, { KartuMetrik } from "@/components/JudulHalaman";
 import KotakCari from "@/components/KotakCari";
 
 type Baris = {
@@ -19,8 +20,28 @@ const PER = 50;
 const rp = (v: string | null) =>
   v === null ? "—" : Number(v).toLocaleString("id-ID", { maximumFractionDigits: 0 });
 
-const waktu = (s: string) =>
-  new Date(s).toLocaleString("id-ID", { dateStyle: "short", timeStyle: "short" });
+const tanggal = (s: string) =>
+  new Date(s).toLocaleDateString("id-ID", { day: "2-digit", month: "2-digit", year: "2-digit" });
+const jam = (s: string) =>
+  new Date(s).toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit" });
+
+/** Warna bucket: lancar hijau, sisanya kuning makin gelap bila makin jauh. */
+const nadaBucket = (b: string | null) => {
+  if (!b) return "netral";
+  const t = b.toLowerCase();
+  if (t.includes("current") || t === "0") return "good";
+  return /(^|\D)(9[1-9]|1\d\d|>|\+)/.test(t) ? "bad" : "warn";
+};
+
+/** Warna OD movement mengikuti arti hasilnya bagi collection. */
+const nadaOd = (v: string | null) => {
+  const t = (v ?? "").toLowerCase();
+  if (!t) return "netral";
+  if (t.includes("flow") || t.includes("roll")) return "bad";
+  if (t.includes("stay")) return "warn";
+  if (t.includes("btc") || t.includes("success") || t.includes("cure") || t.includes("lunas")) return "good";
+  return "netral";
+};
 
 /**
  * Sample Data API — contoh baris data mentah.
@@ -75,82 +96,95 @@ export default function SampelClient() {
   const totalHal = Math.max(1, Math.ceil(cocok / PER));
   const adaSaring = Boolean(cabang || terpakai.trim());
 
+  const nomorHal = Array.from(new Set([0, hal - 1, hal, hal + 1, totalHal - 1]))
+    .filter((i) => i >= 0 && i < totalHal).sort((a, b) => a - b);
+
   return (
     <>
-      <div className="sectionhead">
-        <div>
-          <h2>Sample Data API</h2>
-          <p>
-            Contoh baris dari tarikan terakhir, kolom terkurasi. Untuk
-            memeriksa status dan riwayat penarikannya, lihat{" "}
-            <Link className="lnk" href="/admin/data-api">Data API</Link>.
-          </p>
+      <JudulHalaman
+        eyebrow="Data & indikator"
+        meta={<span className="num">{PER} baris per halaman</span>}
+        judul="Sample Data API"
+        deskripsi={<>Contoh baris dari tarikan terakhir, kolom terkurasi. Untuk memeriksa status dan riwayat
+          penarikannya, lihat <Link className="lnk" href="/admin/data-api">Data API</Link>.</>}
+        aksi={
+          <Link className="btn ghost" href="/admin/data-api">
+            <Ikon nama="api" ukuran={16} /> Status penarikan
+          </Link>
+        }
+      />
+
+      {pesan && (
+        <div className="alert-box bad sp-pesan">
+          <span className="alert-ikon">!</span><span>{pesan}</span>
         </div>
+      )}
+
+      <div className="km-grid sp-metrik">
+        <KartuMetrik label="Total baris data mentah" nilai={total.toLocaleString("id-ID")} satuan="baris"
+                     catatan="Isi tabel data_mentah dari tarikan terakhir"
+                     ikon={<Ikon nama="database" ukuran={20} />} nada="accent" />
+        <KartuMetrik label="Cabang punya data" nilai={cabangList.length} satuan="cabang"
+                     catatan={adaSaring ? `${cocok.toLocaleString("id-ID")} baris cocok dengan penyaring` : "Seluruh cabang yang ikut tertarik"}
+                     ikon={<Ikon nama="building" ukuran={20} />} nada="good" />
       </div>
 
-      {pesan && <div className="alert bad mb">{pesan}</div>}
-
-      <div className="api-metrik mb" style={{ gridTemplateColumns: "repeat(2,1fr)" }}>
-        <div className="api-kotak">
-          <b>{total.toLocaleString("id-ID")}</b><span>total baris data mentah</span>
-        </div>
-        <div className="api-kotak">
-          <b>{cabangList.length}</b><span>cabang punya data</span>
-        </div>
-      </div>
-
-      <section className="card">
-        <div className="saring-bar-rapi">
-          <div style={{ width: 230 }}>
+      <section className="card pa-tabel-kartu">
+        <div className="pa-alat">
+          <div className="sp-cabang">
             <Pilih nilai={cabang} onPilih={gantiCabang} placeholder="Semua cabang"
                    opsi={[{ nilai: "", label: "Semua cabang" },
                      ...cabangList.map((c) => ({
                        nilai: c.branch_id, label: c.cabang, ket: `kode ${c.branch_id}`,
                      }))]} />
           </div>
-
-          <KotakCari nilai={cari} onUbah={setCari} onCari={cariSekarang} lebar={320}
-                     placeholder="Cari no. kontrak atau nama debitur, lalu Enter" />
-
-          <button className="btn ghost sm" onClick={cariSekarang}>Cari</button>
-
+          <div className="pa-alat-cari sp-cari">
+            <KotakCari nilai={cari} onUbah={setCari} onCari={cariSekarang} lebar={440}
+                       placeholder="Cari no. kontrak atau nama debitur, lalu Enter" />
+            <button className="btn ghost sm" onClick={cariSekarang}>
+              <Ikon nama="search" ukuran={14} /> Cari
+            </button>
+          </div>
           {adaSaring && (
-            <button className="saring-bersih"
+            <button className="btn polos sm"
                     onClick={() => { setCari(""); setTerpakai(""); setCabang(""); setHal(0); }}>
               Bersihkan penyaring
             </button>
           )}
-
-          <span className="faint small" style={{ marginLeft: "auto" }}>
-            {muat ? "memuat…" : `${cocok.toLocaleString("id-ID")} baris cocok`}
+          <span className="sp-cocok">
+            {muat ? "memuat…" : <><b className="num">{cocok.toLocaleString("id-ID")}</b> baris cocok</>}
           </span>
         </div>
 
         <div className="tabel-scroll">
-          <table className="rapat">
+          <table className="pa-tabel sp-tabel">
             <thead>
               <tr>
                 <th>Cabang</th><th>Kontrak</th><th>Debitur</th><th>Produk</th>
-                <th>Staf</th>
-                <th className="r">Outstanding</th>
-                <th>Bucket</th><th>OD Movement</th><th>Ditarik</th>
+                <th>Staf</th><th className="r">Outstanding</th>
+                <th>Bucket</th><th>OD movement</th><th>Ditarik</th>
               </tr>
             </thead>
-            <tbody>
+            <tbody className={muat ? "sp-muat" : undefined}>
               {baris.map((b) => (
                 <tr key={b.agreement_no + b.ditarik_pada}>
-                  <td>{b.branch_id}<div className="faint small">{b.branch_full_name ?? "—"}</div></td>
-                  <td className="num">{b.agreement_no}</td>
-                  <td>{b.full_name ?? "—"}</td>
-                  <td className="faint">{b.product_id ?? "—"}</td>
                   <td>
-                    {b.nama_staf ?? <span className="faint">akun tidak ditemukan</span>}
-                    <div className="faint small num">{b.nik_staff ?? "—"}</div>
+                    <span className="sp-kode num">{b.branch_id}</span>
+                    <div className="pa-sub">{b.branch_full_name ?? "—"}</div>
                   </td>
-                  <td className="r num">{rp(b.outstanding_principal)}</td>
-                  <td>{b.bucket_awal_bulan ?? "—"}</td>
-                  <td>{b.od_movement ?? "—"}</td>
-                  <td className="faint small">{waktu(b.ditarik_pada)}</td>
+                  <td className="num sp-kontrak">{b.agreement_no}</td>
+                  <td className="sp-debitur">{b.full_name ?? "—"}</td>
+                  <td>{b.product_id ? <span className="sp-produk">{b.product_id}</span> : <span className="faint">—</span>}</td>
+                  <td>
+                    {b.nama_staf
+                      ? <div className="sp-staf">{b.nama_staf}</div>
+                      : <div className="sp-yatim">akun tidak ditemukan</div>}
+                    <div className="pa-sub num">{b.nik_staff ?? "—"}</div>
+                  </td>
+                  <td className="r num sp-rp">{b.outstanding_principal === null ? "—" : "Rp " + rp(b.outstanding_principal)}</td>
+                  <td>{b.bucket_awal_bulan ? <span className={"sp-bucket " + nadaBucket(b.bucket_awal_bulan)}>{b.bucket_awal_bulan}</span> : "—"}</td>
+                  <td>{b.od_movement ? <span className={"sp-od " + nadaOd(b.od_movement)}>{b.od_movement}</span> : "—"}</td>
+                  <td className="num sp-ditarik">{tanggal(b.ditarik_pada)}<span>{jam(b.ditarik_pada)}</span></td>
                 </tr>
               ))}
               {!baris.length && (
@@ -164,12 +198,27 @@ export default function SampelClient() {
           </table>
         </div>
 
-        {cocok > 0 && (
-          <Pager hal={hal} totalHal={totalHal} totalBaris={cocok}
-                 dariBaris={hal * PER + 1}
-                 sampaiBaris={Math.min(hal * PER + PER, cocok)}
-                 onPindah={setHal} />
-        )}
+        <div className="pa-pager">
+          <span className="faint">
+            {cocok > 0
+              ? <>Menampilkan <b>{(hal * PER + 1).toLocaleString("id-ID")}–{Math.min(hal * PER + PER, cocok).toLocaleString("id-ID")}</b> dari <b>{cocok.toLocaleString("id-ID")}</b> baris</>
+              : "Tidak ada data"}
+          </span>
+          {totalHal > 1 && (
+            <div className="pa-pager-btn">
+              <button className="btn ghost sm" disabled={hal === 0 || muat} onClick={() => setHal((h) => h - 1)}>← Sebelumnya</button>
+              {nomorHal.map((i, idx) => (
+                <span key={i} className="pa-hal-wrap">
+                  {idx > 0 && i - nomorHal[idx - 1] > 1 && <span className="pa-elipsis">…</span>}
+                  <button className={"pa-hal num" + (i === hal ? " on" : "")} disabled={muat}
+                          aria-current={i === hal ? "page" : undefined}
+                          onClick={() => setHal(i)}>{(i + 1).toLocaleString("id-ID")}</button>
+                </span>
+              ))}
+              <button className="btn ghost sm" disabled={hal >= totalHal - 1 || muat} onClick={() => setHal((h) => h + 1)}>Berikutnya →</button>
+            </div>
+          )}
+        </div>
       </section>
     </>
   );

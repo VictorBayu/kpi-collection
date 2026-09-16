@@ -1,6 +1,9 @@
 import { redirect } from "next/navigation";
 import AppShell from "@/components/AppShell";
 import ImportWizard from "./ImportWizard";
+import Link from "next/link";
+import Ikon from "@/components/Ikon";
+import JudulHalaman from "@/components/JudulHalaman";
 import { readSession } from "@/lib/auth";
 
 export const metadata = { title: "Unggah data KPI" };
@@ -13,12 +16,13 @@ export default async function Page() {
   return (
     <AppShell>
       <main className="shell">
-        <div className="sectionhead">
-          <div>
-            <h2>Unggah data KPI</h2>
-            <p>Empat langkah. Data karyawan tidak berubah sampai langkah terakhir.</p>
-          </div>
-        </div>
+        <JudulHalaman
+          eyebrow="Impor Excel"
+          meta="4 langkah · aman sampai diterbitkan"
+          judul="Unggah data KPI"
+          deskripsi="Data karyawan tidak berubah sampai langkah terakhir. Batch sebelumnya tetap tersimpan dan bisa diaktifkan kembali."
+          aksi={<Link className="btn ghost" href="/admin/riwayat"><Ikon nama="history" ukuran={16} /> Riwayat impor</Link>}
+        />
         <ImportWizard />
       </main>
     </AppShell>

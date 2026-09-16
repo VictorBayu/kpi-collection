@@ -84,7 +84,21 @@ export default function AmChart({
         if (!am5) throw new Error("Pustaka grafik tidak tersedia.");
 
         root = am5.Root.new(wadah.current);
-        root.setThemes([(window as any).am5themes_Animated.new(root)]);
+        // Tema dasar mengikuti DESIGN.md: huruf Inter, tinta slate, garis
+        // kisi hairline. Pengaturan warna yang ditulis eksplisit di tiap
+        // grafik tetap menang atas aturan tema ini.
+        const tema = am5.Theme.new(root);
+        tema.rule("Label").setAll({
+          fontFamily: "Inter, system-ui, -apple-system, Segoe UI, sans-serif",
+          fontSize: 12, fill: am5.color(0x475569),
+        });
+        tema.rule("Grid").setAll({ stroke: am5.color(0xe2e8f0), strokeOpacity: 1 });
+        tema.rule("Tooltip").setAll({ getFillFromSprite: false });
+        tema.rule("PointedRectangle", ["tooltip", "background"]).setAll({
+          fill: am5.color(0x0f172a), fillOpacity: 0.96, stroke: am5.color(0x334155), strokeOpacity: 1,
+        });
+        tema.rule("Label", ["tooltip"]).setAll({ fill: am5.color(0xf8fafc), fontSize: 12 });
+        root.setThemes([(window as any).am5themes_Animated.new(root), tema]);
         // Tulisan "Chart by amCharts" dari lisensi gratis; disembunyikan
         // hanya bila memang berlisensi. Dibiarkan apa adanya di sini.
         gambar(root, am5);

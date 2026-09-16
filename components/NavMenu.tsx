@@ -4,19 +4,19 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import NavBadge from "./NavBadge";
+import Ikon from "./Ikon";
 
-export type Item = { href: string; label: string; lencana?: boolean };
+export type Item = { href: string; label: string; lencana?: boolean; ikon?: string };
 export type Entri = Item | { label: string; grup: Item[] };
 
 /**
  * Navigasi topbar dengan pengelompokan.
  *
- * Menu admin sudah berkembang jadi delapan tautan sejajar — pada lebar
- * layar biasa itu mulai berdesakan dan sulit dipindai sekilas. Yang benar-
- * benar dibuka tiap hari (Data KPI, Unggah data) tetap langsung terlihat;
- * yang sifatnya pengaturan sesekali (master, indikator, data API)
- * dikelompokkan ke belakang dropdown supaya topbar tidak terus memanjang
- * tiap kali ada menu admin baru.
+ * Yang dibuka tiap hari tetap tautan langsung; pengaturan sesekali
+ * dikelompokkan ke dropdown "Data & indikator" dan "Master". Tampilan
+ * dropdown mengikuti "Dropdown Menu Component Showcase": panel navy
+ * lebar 320px, kepala berlabel, ikon per menu, item aktif indigo solid
+ * dengan penanda "Terbuka ✓", dan kaki berisi petunjuk Esc.
  */
 export default function NavMenu({ entri }: { entri: Entri[] }) {
   const path = usePathname();
@@ -27,9 +27,17 @@ export default function NavMenu({ entri }: { entri: Entri[] }) {
     function tutup(e: MouseEvent) {
       if (ref.current && !ref.current.contains(e.target as Node)) setBuka(null);
     }
+    function esc(e: KeyboardEvent) { if (e.key === "Escape") setBuka(null); }
     document.addEventListener("mousedown", tutup);
-    return () => document.removeEventListener("mousedown", tutup);
+    document.addEventListener("keydown", esc);
+    return () => {
+      document.removeEventListener("mousedown", tutup);
+      document.removeEventListener("keydown", esc);
+    };
   }, []);
+
+  // Pindah halaman selalu menutup dropdown yang terbuka.
+  useEffect(() => { setBuka(null); }, [path]);
 
   /**
    * Menu yang sedang aktif = tautan dengan awalan TERPANJANG yang cocok.
@@ -55,37 +63,68 @@ export default function NavMenu({ entri }: { entri: Entri[] }) {
   const aktifDi = (list: Item[]) => list.some((it) => aktif(it.href));
 
   return (
-    <nav className="mainnav" ref={ref}>
-      {entri.map((e, i) =>
-        "grup" in e ? (
+    <nav className="mainnav" ref={ref} aria-label="Navigasi utama">
+      {entri.map((e, i) => {
+        if (!("grup" in e)) {
+          return (
+            <Link key={e.href} href={e.href} prefetch
+                  className={aktif(e.href) ? "on" : ""}
+                  aria-current={aktif(e.href) ? "page" : undefined}>
+              {e.label}
+              {e.lencana && <NavBadge />}
+            </Link>
+          );
+        }
+        const adaAktif = aktifDi(e.grup);
+        return (
           <div className="navgrup" key={e.label}>
             <button
-              className={"navgrup-tombol" + (aktifDi(e.grup) ? " on" : "")}
+              type="button"
+              className={"navgrup-tombol" + (adaAktif ? " on" : "") + (buka === i ? " buka" : "")}
+              aria-expanded={buka === i}
+              aria-haspopup="menu"
               onClick={() => setBuka(buka === i ? null : i)}
             >
-              {e.label} <span className="navgrup-panah">▾</span>
+              {e.label} <Ikon nama="chevronDown" ukuran={14} tebal={2.2} className="navgrup-panah" />
             </button>
             {buka === i && (
-              <div className="navgrup-isi">
-                {e.grup.map((it) => (
-                  <Link key={it.href} href={it.href} prefetch
-                        className={aktif(it.href) ? "on" : ""}
-                        onClick={() => setBuka(null)}>
-                    {it.label}
-                    {it.lencana && <NavBadge />}
-                  </Link>
-                ))}
+              <div className="navgrup-isi" role="menu">
+                <div className="navgrup-kepala">
+                  <span>Navigasi {e.label}</span>
+                  <span className={"num" + (adaAktif ? " aktif" : "")}>
+                    {adaAktif ? "1 Aktif" : `${e.grup.length} Menu`}
+                  </span>
+                </div>
+                <div className="navgrup-daftar">
+                  {e.grup.map((it) => {
+                    const on = aktif(it.href);
+                    return (
+                      <Link key={it.href} href={it.href} prefetch role="menuitem"
+                            className={"navitem" + (on ? " on" : "")}
+                            aria-current={on ? "page" : undefined}
+                            onClick={() => setBuka(null)}>
+                        <span className="navitem-ikon"><Ikon nama={it.ikon ?? "file"} ukuran={15} /></span>
+                        <span className="navitem-label">{it.label}</span>
+                        {it.lencana && <NavBadge />}
+                        {on && (
+                          <span className="navitem-status">
+                            Terbuka <Ikon nama="check" ukuran={14} tebal={2.4} />
+                          </span>
+                        )}
+                      </Link>
+                    );
+                  })}
+                </div>
+                <div className="navgrup-kaki">
+                  {adaAktif
+                    ? <span>Halaman yang sedang Anda buka</span>
+                    : <span>Tekan <kbd>Esc</kbd> untuk menutup</span>}
+                </div>
               </div>
             )}
           </div>
-        ) : (
-          <Link key={e.href} href={e.href} prefetch
-                className={aktif(e.href) ? "on" : ""}>
-            {e.label}
-            {e.lencana && <NavBadge />}
-          </Link>
-        ),
-      )}
+        );
+      })}
     </nav>
   );
 }

@@ -36,32 +36,33 @@ export default function StatusHarianBar({ s }: { s: StatusHarian }) {
   const basi = s.ditarik ? Date.now() - s.ditarik.getTime() > 26 * 3600 * 1000 : true;
 
   return (
-    <div className={"harian-status" + (basi ? " basi" : "")}>
-      <div className="harian-status-utama">
-        <span className="harian-titik" aria-hidden />
-        <div>
+    <section className={"hr-status" + (basi ? " basi" : "")} aria-label="Status data harian">
+      <div className="hr-status-utama">
+        <span className="hr-status-ikon" aria-hidden><i /></span>
+        <div className="hr-status-teks">
+          <span className="hr-status-lbl">{basi ? "Perlu tarikan ulang" : "Data berjalan"}</span>
           <b>
             {s.ditarik
               ? `Data per ${berapaLalu(s.ditarik)}`
               : "Belum ada tarikan data"}
           </b>
-          <span className="faint small">
+          <span className="hr-status-waktu num">
             {s.ditarik ? WAKTU.format(s.ditarik) + " WIB" : "Jalankan tarikan di menu Data API"}
             {s.tglData && ` · posisi ${TANGGAL.format(s.tglData)}`}
           </span>
         </div>
       </div>
 
-      <div className="harian-status-angka">
-        <span><b>{s.karyawan.toLocaleString("id-ID")}</b> karyawan</span>
-        <span><b>{s.indikator.toLocaleString("id-ID")}</b> indikator</span>
-        <span><b>{s.barisMentah.toLocaleString("id-ID")}</b> baris data</span>
-      </div>
-
-      <p className="harian-status-catatan">
-        Angka berjalan bulan ini, dihitung ulang tiap tarikan — belum final
-        sampai bulan ditutup.
+      <p className="hr-status-catatan">
+        <b>i</b>
+        Angka berjalan bulan ini, dihitung ulang tiap tarikan — belum final sampai bulan ditutup.
       </p>
-    </div>
+
+      <dl className="hr-status-angka">
+        <div><dt>Karyawan</dt><dd className="num">{s.karyawan.toLocaleString("id-ID")}</dd></div>
+        <div><dt>Indikator</dt><dd className="num">{s.indikator.toLocaleString("id-ID")}</dd></div>
+        <div><dt>Baris data</dt><dd className="num">{s.barisMentah.toLocaleString("id-ID")}</dd></div>
+      </dl>
+    </section>
   );
 }

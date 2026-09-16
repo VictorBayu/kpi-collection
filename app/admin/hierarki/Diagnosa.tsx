@@ -36,9 +36,9 @@ export default function Diagnosa() {
   }
 
   return (
-    <section className="card card-pad mb">
+    <section className="card card-pad mb mh-panel">
       <h3 className="formtitle">Uji visibilitas</h3>
-      <p className="faint small" style={{ marginTop: -8 }}>
+      <p className="faint small mh-panel-desk">
         Masukkan NIK atasan, lalu NIK orang yang seharusnya dia lihat.
         Kosongkan NIK kedua untuk melihat seluruh daftar beserta yang tersembunyi.
       </p>

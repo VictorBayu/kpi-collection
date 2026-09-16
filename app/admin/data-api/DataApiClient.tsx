@@ -1,7 +1,9 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { Fragment, useEffect, useState } from "react";
+import Ikon from "@/components/Ikon";
+import JudulHalaman, { KartuMetrik, TitikStatus } from "@/components/JudulHalaman";
 
 type Riwayat = {
   id: number; mulai: string; selesai: string | null; berhasil: boolean;
@@ -57,6 +59,9 @@ export default function DataApiClient() {
   const [cabangTotal, setCabangTotal] = useState(0);
   const [sibuk, setSibuk] = useState(false);
   const [pesan, setPesan] = useState<string | null>(null);
+  const [buka, setBuka] = useState<number | null>(null);
+  const [hal, setHal] = useState(0);
+  const [tersalin, setTersalin] = useState(false);
 
   async function segarkan() {
     const r = await fetch("/api/admin/data-api", { cache: "no-store" });
@@ -115,164 +120,268 @@ export default function DataApiClient() {
   const usia = selisih(ringkas?.terakhir ?? null);
   const terakhirGagal = riwayat[0] && !riwayat[0].berhasil;
 
+  const PER = 8;
+  const totalHal = Math.max(1, Math.ceil(riwayat.length / PER));
+  const halIni = Math.min(hal, totalHal - 1);
+  const potong = riwayat.slice(halIni * PER, halIni * PER + PER);
+  const berdurasi = riwayat.filter((r) => r.durasi_ms !== null);
+  const rataDurasi = berdurasi.length
+    ? berdurasi.reduce((a, r) => a + (r.durasi_ms ?? 0), 0) / berdurasi.length : null;
+  const durasiAkhir = riwayat.find((r) => r.durasi_ms !== null)?.durasi_ms ?? null;
+  const BATAS_MS = 300_000;
+  const porsi = durasiAkhir === null ? 0 : Math.min(100, (durasiAkhir / BATAS_MS) * 100);
+
+  // Nada pesan ditentukan dari awal kalimatnya, sama seperti sebelumnya.
+  const nadaPesan = !pesan ? "info"
+    : pesan.startsWith("Berhasil") || pesan.startsWith("Selesai") ? "good"
+    : pesan.startsWith("Menarik") || pesan.startsWith("Menghitung") ? "info" : "bad";
+
+  async function salin() {
+    try {
+      await navigator.clipboard.writeText("/api/cron/tarik?token=CRON_SECRET");
+      setTersalin(true); setTimeout(() => setTersalin(false), 2000);
+    } catch { /* clipboard ditolak browser — alamat tetap terlihat untuk disalin manual */ }
+  }
+
+  async function bersihkan() {
+    if (!confirm("Hapus riwayat penarikan? Yang terakhir tetap disimpan.")) return;
+    setSibuk(true);
+    try {
+      const r = await fetch("/api/admin/data-api?riwayat=1", { method: "DELETE" });
+      const j = await r.json();
+      setPesan(`Berhasil menghapus ${j.dihapus} catatan riwayat.`);
+      setHal(0);
+      await segarkan();
+    } finally { setSibuk(false); }
+  }
+
   return (
     <>
-      <div className="sectionhead">
-        <div>
-          <h2>Data API</h2>
-          <p>
-            Data mentah ditarik berkala dari API collection, lalu diolah jadi
-            angka KPI periode berjalan. Penimpaan bersifat semua-atau-tidak.
-          </p>
-        </div>
-        <div className="rowact">
+      <JudulHalaman
+        eyebrow="Engine collection sync"
+        meta={<><TitikStatus nada={!ringkas ? "netral" : terakhirGagal || usia.basi ? "bad" : "good"} />
+              {!ringkas ? "memuat status…" : terakhirGagal ? "tarikan terakhir gagal" : usia.basi ? "data basi" : "sinkron berjalan"}</>}
+        judul="Data API & riwayat penarikan"
+        deskripsi="Data mentah ditarik berkala dari API collection, lalu diolah jadi angka KPI periode berjalan. Penimpaan bersifat semua-atau-tidak."
+        aksi={<>
           {/* Hitung ulang tanpa menarik: untuk memunculkan indikator yang
               baru dibuat/diubah tanpa memaksa tarik ulang 87 ribu baris. */}
           <button className="btn ghost" disabled={sibuk} onClick={hitungUlang}
                   title="Menghitung ulang indikator dari data mentah yang sudah ada, tanpa menarik lagi">
-            {sibuk ? "Memproses…" : "Hitung ulang"}
+            <Ikon nama="refresh" ukuran={16} /> {sibuk ? "Memproses…" : "Hitung ulang"}
           </button>
           <button className="btn" disabled={sibuk} onClick={tarikSekarang}>
-            {sibuk ? "Menarik…" : "Tarik sekarang"}
+            <Ikon nama="download" ukuran={16} /> {sibuk ? "Menarik…" : "Tarik sekarang"}
           </button>
-        </div>
-      </div>
+        </>}
+      />
 
       {pesan && (
-        <div className={"alert mb " + (pesan.startsWith("Berhasil") ? "ok" : pesan.startsWith("Menarik") ? "" : "bad")}>
-          {pesan}
+        <div className={"alert-box da-pesan " + nadaPesan} role="status">
+          <span className="alert-ikon">{nadaPesan === "good" ? "✓" : nadaPesan === "bad" ? "!" : "i"}</span>
+          <span>{pesan}</span>
+          {!sibuk && <button className="alert-tutup" onClick={() => setPesan(null)} aria-label="Tutup pesan">×</button>}
         </div>
       )}
 
-      <div className="api-metrik mb">
-        <div className={"api-kotak" + (usia.basi ? " bahaya" : "")}>
-          <b>{usia.teks}</b>
-          <span>data terakhir masuk</span>
-          <em className="faint">{waktu(ringkas?.terakhir ?? null)}</em>
-        </div>
-        <div className="api-kotak">
-          <b>{(ringkas?.baris ?? 0).toLocaleString("id-ID")}</b>
-          <span>baris data mentah</span>
-          <em className="faint">{ringkas?.cabang_terisi ?? 0} cabang terisi</em>
-        </div>
-        <div className="api-kotak">
-          <b>{(ringkas?.baris_kpi ?? 0).toLocaleString("id-ID")}</b>
-          <span>baris KPI dari API</span>
-          <em className="faint">{selisih(ringkas?.kpi_terakhir ?? null).teks}</em>
-        </div>
-        <div className={"api-kotak" + (cabangAktif === 0 ? " bahaya" : "")}>
-          <b>{cabangAktif}</b>
-          <span>cabang aktif ditarik</span>
-          <em className="faint">dari {cabangTotal} terdaftar</em>
-        </div>
+      <div className="km-grid">
+        <KartuMetrik label="Sinkronisasi terakhir"
+                     nilai={<span className={"km-teks" + (usia.basi ? " teks-bad" : "")}>{ringkas ? usia.teks : "—"}</span>}
+                     catatan={<span className="num">{waktu(ringkas?.terakhir ?? null)}</span>}
+                     ikon={<Ikon nama="clock" ukuran={20} />} nada={usia.basi ? "bad" : "accent"}
+                     lencana={usia.basi && ringkas ? { teks: "basi", nada: "bad" } : undefined} />
+        <KartuMetrik label="Volume data mentah" nilai={(ringkas?.baris ?? 0).toLocaleString("id-ID")} satuan="baris"
+                     catatan={`${ringkas?.cabang_terisi ?? 0} cabang terisi`}
+                     ikon={<Ikon nama="database" ukuran={20} />} nada="accent" />
+        <KartuMetrik label="Hasil metrik KPI" nilai={(ringkas?.baris_kpi ?? 0).toLocaleString("id-ID")} satuan="baris KPI"
+                     catatan={`Dihitung ${selisih(ringkas?.kpi_terakhir ?? null).teks}`}
+                     ikon={<Ikon nama="chart" ukuran={20} />} nada="good" />
+        <KartuMetrik label="Cabang aktif ditarik" nilai={cabangAktif} satuan={`/ ${cabangTotal} terdaftar`}
+                     catatan={cabangTotal ? `${cabangTotal - cabangAktif} cabang dinonaktifkan` : "Belum ada cabang terdaftar"}
+                     ikon={<Ikon nama="building" ukuran={20} />} nada={cabangAktif === 0 ? "bad" : "netral"}
+                     lencana={cabangTotal ? {
+                       teks: `${Math.round((cabangAktif / cabangTotal) * 100)}%`,
+                       nada: cabangAktif === cabangTotal ? "good" : cabangAktif === 0 ? "bad" : "warn",
+                     } : undefined} />
       </div>
 
       {terakhirGagal && (
-        <div className="alert bad mb">
-          <b>Tarikan terakhir gagal.</b> Data lama masih dipakai dan tidak tertimpa.
-          {riwayat[0].pesan && <div className="small mt">{riwayat[0].pesan}</div>}
+        <div className="alert-box bad da-pesan">
+          <span className="alert-ikon">!</span>
+          <span>
+            <b>Tarikan terakhir gagal.</b> Data lama masih dipakai dan tidak tertimpa.
+            {riwayat[0].pesan && <span className="da-galat num">{riwayat[0].pesan}</span>}
+          </span>
         </div>
       )}
 
-      {cabangAktif === 0 && (
-        <div className="alert warn mb">
-          Belum ada kode cabang aktif, jadi penarikan tidak akan mengambil apa pun.
-          Atur di <Link className="lnk" href="/admin/cabang">Master Cabang API</Link>.
+      {ringkas && cabangAktif === 0 && (
+        <div className="alert-box warn da-pesan">
+          <span className="alert-ikon">!</span>
+          <span>
+            Belum ada kode cabang aktif, jadi penarikan tidak akan mengambil apa pun.
+            Atur di <Link className="lnk" href="/admin/cabang">Master Cabang API</Link>.
+          </span>
         </div>
       )}
 
-      <section className="card">
-        <div className="cardhead rowbetween">
-          <div>
-            <h3 style={{ fontSize: 14 }}>Riwayat penarikan</h3>
-            <p className="muted small">
-              20 percobaan terakhir. Riwayat lama dipangkas sendiri, hanya 50
-              terbaru yang disimpan.
-            </p>
+      <div className="da-grid">
+        <section className="card da-riwayat">
+          <div className="rk-kartu-kepala">
+            <span className="km-ikon accent"><Ikon nama="history" ukuran={20} /></span>
+            <div>
+              <h2>Riwayat penarikan API <span className="da-hitung num">{riwayat.length} sesi terakhir</span></h2>
+              <p className="faint small">Log penarikan terjadwal dan manual. Riwayat dipangkas sendiri, hanya 50 terbaru yang disimpan.</p>
+            </div>
+            {riwayat.length > 1 && (
+              <button className="btn ghost sm" disabled={sibuk} onClick={bersihkan}>
+                <Ikon nama="trash" ukuran={14} /> Bersihkan riwayat
+              </button>
+            )}
           </div>
-          {riwayat.length > 1 && (
-            <button className="btn ghost sm" disabled={sibuk}
-                    onClick={async () => {
-                      if (!confirm("Hapus riwayat penarikan? Yang terakhir tetap disimpan.")) return;
-                      setSibuk(true);
-                      try {
-                        const r = await fetch("/api/admin/data-api?riwayat=1", { method: "DELETE" });
-                        const j = await r.json();
-                        setPesan(`Berhasil menghapus ${j.dihapus} catatan riwayat.`);
-                        await segarkan();
-                      } finally { setSibuk(false); }
-                    }}>
-              Bersihkan riwayat
-            </button>
-          )}
-        </div>
-        <table className="rapat">
-          <thead>
-            <tr>
-              <th>Waktu</th><th style={{ width: 90 }}>Hasil</th>
-              <th className="r" style={{ width: 90 }}>Baris</th>
-              <th className="r" style={{ width: 90 }}>Durasi</th>
-            </tr>
-          </thead>
-          <tbody>
-            {riwayat.map((r) => (
-              <tr key={r.id} className={r.berhasil ? "" : "kurang"}>
-                <td>
-                  {waktu(r.mulai)}
-                  <div className="faint small">
-                    {r.dipicu_oleh === "manual" ? "manual" : "terjadwal"}
-                    {r.tanggal_loc && ` · ${r.tanggal_loc}`}
-                  </div>
-                </td>
-                <td>
-                  <span className={"tag " + (r.berhasil ? "ok" : "bad")}>
-                    {r.berhasil ? "berhasil" : "gagal"}
-                  </span>
-                  <div className="faint small">{r.cabang_sukses}/{r.cabang_diminta} cabang</div>
-                </td>
-                <td className="r num">{r.jumlah_baris.toLocaleString("id-ID")}</td>
-                <td className="r num faint">{durasi(r.durasi_ms)}</td>
-              </tr>
-            ))}
-            {riwayat.some((r) => r.pesan && !r.berhasil) && (
-              <tr>
-                <td colSpan={4} className="faint small">
-                  Galat terakhir: {riwayat.find((r) => !r.berhasil)?.pesan}
-                </td>
-              </tr>
-            )}
-            {!riwayat.length && (
-              <tr><td colSpan={4} className="empty">
-                Belum pernah menarik data.
-              </td></tr>
-            )}
-          </tbody>
-        </table>
 
-        <div className="api-catatan">
-          <b>Memasang jadwal jam-jaman</b>
-          <p className="faint small">
-            Paket Vercel Hobby hanya mengizinkan cron harian, jadi jadwalnya
-            dipasang di layanan luar. Arahkan cron-job.org ke alamat berikut
-            tiap jam, dengan <span className="num">CRON_SECRET</span> yang sama
-            seperti di Environment Variables:
-          </p>
-          <code className="api-url">/api/cron/tarik?token=CRON_SECRET</code>
-          <p className="faint small">
-            Ukur dulu durasinya lewat tombol "Tarik sekarang" di atas. Kalau
-            melebihi 300 detik, nyalakan Fluid Compute di pengaturan project
-            atau penarikannya perlu dipecah bertahap.
-          </p>
-          <p className="faint small">
-            Kode cabang diatur di{" "}
-            <Link className="lnk" href="/admin/cabang">Master Cabang API</Link>,
-            indikator yang dihitung dari data ini di{" "}
-            <Link className="lnk" href="/admin/indikator">Indikator</Link>, dan
-            contoh isi data mentahnya bisa diperiksa di{" "}
-            <Link className="lnk" href="/admin/sampel-data">Sampel data</Link>.
-          </p>
-        </div>
-      </section>
+          <div className="tabel-scroll">
+            <table className="rk-tabel da-tabel">
+              <thead>
+                <tr>
+                  <th>Waktu penarikan</th><th>Status & cabang</th>
+                  <th className="r">Baris data</th><th className="r">Durasi</th>
+                  <th className="r" style={{ width: 56 }}>Audit</th>
+                </tr>
+              </thead>
+              <tbody>
+                {potong.map((r) => {
+                  const terbuka = buka === r.id;
+                  const adaDetail = !!(r.pesan || r.cabang_gagal?.length || r.selesai || r.tanggal_loc);
+                  return (
+                    <Fragment key={r.id}>
+                      <tr className={"rk-baris" + (r.berhasil ? "" : " bad")}>
+                        <td>
+                          <div className="da-waktu num">{waktu(r.mulai)}</div>
+                          <div className="da-pemicu">
+                            <Ikon nama={r.dipicu_oleh === "manual" ? "userCog" : "clock"} ukuran={13} />
+                            {r.dipicu_oleh === "manual" ? "manual" : "terjadwal"}
+                            {r.tanggal_loc && <><span className="sd-sep">·</span><span className="num">{r.tanggal_loc}</span></>}
+                          </div>
+                        </td>
+                        <td>
+                          <span className={"pa-status " + (r.berhasil ? "good" : "bad")}>{r.berhasil ? "berhasil" : "gagal"}</span>
+                          <div className="pa-sub num">{r.cabang_sukses}/{r.cabang_diminta} cabang</div>
+                        </td>
+                        <td className="r num da-baris">{r.jumlah_baris.toLocaleString("id-ID")}</td>
+                        <td className="r num faint">{durasi(r.durasi_ms)}</td>
+                        <td className="r">
+                          {adaDetail && (
+                            <button className={"pa-ikon-btn da-audit" + (terbuka ? " on" : "")}
+                                    aria-expanded={terbuka} title="Lihat detail penarikan"
+                                    onClick={() => setBuka(terbuka ? null : r.id)}>
+                              <Ikon nama={terbuka ? "chevronDown" : "code"} ukuran={16} />
+                            </button>
+                          )}
+                        </td>
+                      </tr>
+                      {terbuka && (
+                        <tr className="da-detail">
+                          <td colSpan={5}>
+                            <dl>
+                              <div><dt>Mulai</dt><dd className="num">{waktu(r.mulai)}</dd></div>
+                              <div><dt>Selesai</dt><dd className="num">{waktu(r.selesai)}</dd></div>
+                              <div><dt>Tanggal LOC</dt><dd className="num">{r.tanggal_loc ?? "—"}</dd></div>
+                              <div><dt>Cabang gagal</dt><dd className="num">{r.cabang_gagal?.length ? r.cabang_gagal.join(", ") : "—"}</dd></div>
+                            </dl>
+                            {r.pesan && <pre className="da-log">{r.pesan}</pre>}
+                          </td>
+                        </tr>
+                      )}
+                    </Fragment>
+                  );
+                })}
+                {!riwayat.length && (
+                  <tr><td colSpan={5} className="empty">{ringkas ? "Belum pernah menarik data." : "Memuat riwayat…"}</td></tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+
+          <div className="pa-pager">
+            <span className="faint">
+              {riwayat.length
+                ? <>Menampilkan <b>{halIni * PER + 1}–{Math.min(halIni * PER + PER, riwayat.length)}</b> dari <b>{riwayat.length}</b> riwayat
+                    {rataDurasi !== null && <> <span className="sd-sep">•</span> rata-rata durasi <b className="num">{durasi(Math.round(rataDurasi))}</b></>}</>
+                : "Tidak ada data"}
+            </span>
+            {totalHal > 1 && (
+              <div className="pa-pager-btn">
+                <button className="btn ghost sm" disabled={halIni === 0} onClick={() => setHal(halIni - 1)}>← Sebelumnya</button>
+                <button className="btn ghost sm" disabled={halIni >= totalHal - 1} onClick={() => setHal(halIni + 1)}>Berikutnya →</button>
+              </div>
+            )}
+          </div>
+        </section>
+
+        <aside className="da-samping">
+          <section className="card da-panel">
+            <div className="da-panel-kepala">
+              <span className="km-ikon accent"><Ikon nama="clock" ukuran={18} /></span>
+              <div>
+                <h3>Memasang jadwal jam-jaman</h3>
+                <span className="eyebrow">VERCEL CRON & WEBHOOK SECRET</span>
+              </div>
+            </div>
+            <p className="da-teks">
+              Paket Vercel Hobby hanya mengizinkan cron harian, jadi jadwalnya dipasang di layanan luar.
+              Arahkan <b>cron-job.org</b> ke alamat berikut tiap jam, dengan <code className="da-kode">CRON_SECRET</code> yang
+              sama seperti di Environment Variables:
+            </p>
+            <div className="da-endpoint">
+              <div className="da-endpoint-atas">
+                <span className="eyebrow">ENDPOINT WEBHOOK</span>
+                <span className="num faint">GET</span>
+              </div>
+              <div className="da-endpoint-isi">
+                <code className="num">/api/cron/tarik?token=CRON_SECRET</code>
+                <button className="pa-ikon-btn" onClick={salin} title="Salin alamat">
+                  <Ikon nama={tersalin ? "check" : "copy"} ukuran={15} />
+                </button>
+              </div>
+              {tersalin && <span className="da-tersalin">Tersalin ke clipboard</span>}
+            </div>
+            <div className="alert-box warn da-ambang">
+              <span className="alert-ikon"><Ikon nama="clock" ukuran={15} /></span>
+              <span>
+                <b>Perhatikan ambang durasi.</b> Ukur dulu lewat tombol “Tarik sekarang”. Kalau melebihi 300 detik,
+                nyalakan <em>Fluid Compute</em> di pengaturan project atau pecah penarikan bertahap.
+              </span>
+            </div>
+            <div>
+              <span className="eyebrow">REFERENSI TERKAIT</span>
+              <div className="da-tautan">
+                <Link href="/admin/cabang"><Ikon nama="server" ukuran={14} /> Master Cabang API</Link>
+                <Link href="/admin/indikator"><Ikon nama="formula" ukuran={14} /> Indikator KPI</Link>
+                <Link href="/admin/sampel-data"><Ikon nama="code" ukuran={14} /> Sampel data mentah</Link>
+              </div>
+            </div>
+          </section>
+
+          <section className="card da-panel">
+            <div className="da-panel-baris">
+              <span className="eyebrow da-ikon-teks"><Ikon nama="server" ukuran={14} /> DURASI VS BATAS WAKTU</span>
+              <span className={"da-siap " + (porsi >= 80 ? "bad" : porsi >= 50 ? "warn" : "good")}>
+                <i /> {durasiAkhir === null ? "belum diukur" : porsi >= 80 ? "mendekati batas" : porsi >= 50 ? "perlu dipantau" : "aman"}
+              </span>
+            </div>
+            <div className="da-panel-baris small">
+              <span className="muted">Tarikan terakhir</span>
+              <span className="num">{durasi(durasiAkhir)} / 300 dtk ({porsi.toFixed(1).replace(".", ",")}%)</span>
+            </div>
+            <div className="rk-m-bar"><i className={porsi >= 80 ? "bad" : porsi >= 50 ? "" : "good"} style={{ width: porsi + "%" }} /></div>
+            <div className="da-panel-baris small">
+              <span className="muted">Rata-rata: <b className="num">{durasi(rataDurasi === null ? null : Math.round(rataDurasi))}</b></span>
+              <span className="muted">Batas fungsi: <b className="num">300 dtk</b></span>
+            </div>
+          </section>
+        </aside>
+      </div>
     </>
   );
 }

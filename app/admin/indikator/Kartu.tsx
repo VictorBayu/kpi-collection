@@ -60,8 +60,10 @@ export function operatorUntuk(jenis: string) {
  */
 export default function Kartu({
   k, indeks, kolom, sibuk, nilaiUnik, onUbah, onHapus,
-  onSeretMulai, onSeretLewat, onJatuh, diangkat, sasaran,
+  onSeretMulai, onSeretLewat, onJatuh, diangkat, sasaran, peranLabel,
 }: {
+  /** "Pembilang"/"Penyebut" bila kartu ini bagian dari pembagian. */
+  peranLabel?: string;
   k: Komponen;
   indeks: number;
   kolom: Kolom[];
@@ -130,8 +132,9 @@ export default function Kartu({
           <span className="ikartu-no">
             <span className="ikartu-huruf" aria-hidden>{String.fromCharCode(65 + indeks)}</span>
             Komponen {String.fromCharCode(65 + indeks)}
+            {peranLabel && <span className="ikartu-peran">{peranLabel}</span>}
           </span>
-          <button className="ikartu-x" title="Hapus komponen" onClick={onHapus}>×</button>
+          <button className="ikartu-x" title="Hapus komponen" aria-label="Hapus komponen" onClick={onHapus}>×</button>
         </div>
 
         <div className="ikartu-rumus">

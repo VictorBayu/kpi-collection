@@ -3,6 +3,8 @@
 import { useEffect, useMemo, useState } from "react";
 import KotakCari from "@/components/KotakCari";
 import Pilih from "@/components/Pilih";
+import Ikon from "@/components/Ikon";
+import JudulHalaman, { TitikStatus } from "@/components/JudulHalaman";
 
 type Kolom = {
   kolom: string; label: string; jenis: string; agregat: boolean;
@@ -109,227 +111,276 @@ export default function KolomApiClient() {
     if (ok) { setSunting(null); setPesan(`Kolom "${k.label}" dihapus.`); }
   }
 
+  // Esc menutup formulir — kebiasaan yang diharapkan dari sebuah modal.
+  useEffect(() => {
+    if (!sunting) return;
+    const tutup = (e: KeyboardEvent) => { if (e.key === "Escape" && !sibuk) setSunting(null); };
+    window.addEventListener("keydown", tutup);
+    return () => window.removeEventListener("keydown", tutup);
+  }, [sunting, sibuk]);
+
+  const nonaktif = daftar.filter((k) => !k.aktif).length;
+  const olahan = daftar.filter((k) => k.turunan).length;
+  const pesanOk = !!pesan && /dihapus|Tersimpan|dibuat/.test(pesan);
+
   return (
     <>
-      <div className="sectionhead rowbetween">
-        <div>
-          <h2>CRUD Kolom API</h2>
-          <p>
-            Menentukan kolom mana yang <b>diambil</b> saat cron menarik data dari API,
-            dan mana yang <b>ditawarkan</b> saat menyusun rumus indikator.
-          </p>
-        </div>
-        <button className="btn" onClick={() => setSunting({ ...KOSONG, baru: true })}>
-          + Tambah kolom
-        </button>
-      </div>
+      <JudulHalaman
+        eyebrow="Data & indikator"
+        meta={<><TitikStatus nada={muat ? "netral" : "good"} /> {daftar.length} kolom terdaftar</>}
+        judul="CRUD Kolom API"
+        deskripsi={<>Menentukan kolom mana yang <b>diambil</b> saat cron menarik data dari API,
+          dan mana yang <b>ditawarkan</b> saat menyusun rumus indikator.</>}
+        aksi={
+          <button className="btn" onClick={() => { setPesan(null); setSunting({ ...KOSONG, baru: true }); }}>
+            <Ikon nama="plus" ukuran={16} tebal={2.2} /> Tambah kolom
+          </button>
+        }
+      />
 
-      {pesan && (
-        <div className={"alert mb " + (/dihapus|Tersimpan|dibuat/.test(pesan) ? "ok" : "bad")}>
-          {pesan}
+      {pesan && !sunting && (
+        <div className={"alert-box ka-pesan " + (pesanOk ? "good" : "bad")} role="status">
+          <span className="alert-ikon">{pesanOk ? "✓" : "!"}</span>
+          <span>{pesan}</span>
+          <button className="alert-tutup" onClick={() => setPesan(null)} aria-label="Tutup pesan">×</button>
         </div>
       )}
+
+      <section className="card pa-tabel-kartu">
+        <div className="pa-alat ka-alat">
+          <div className="ka-ringkas">
+            <div className="ka-hitung">
+              <b className="num">{daftar.length}</b> kolom
+              <span className="ka-lencana good"><i />{ditarikJml} ditarik dari API</span>
+              <span className="ka-lencana accent"><i />{kustom} kustom</span>
+              {olahan > 0 && <span className="ka-lencana info"><i />{olahan} olahan</span>}
+              {nonaktif > 0 && <span className="ka-lencana netral"><i />{nonaktif} nonaktif</span>}
+            </div>
+            <p className="pa-sub">
+              Kolom inti dibuat bersama sistem dan tidak bisa dihapus. Hanya kolom bertanda
+              “Ditarik: ya” yang diambil saat cron berjalan.
+            </p>
+          </div>
+          <div className="ka-cari">
+            <KotakCari nilai={cari} onUbah={setCari} lebar={320} placeholder="Cari kolom, label, atau field API…" />
+          </div>
+        </div>
+
+        <div className="tabel-scroll">
+          <table className="pa-tabel ka-tabel">
+            <thead>
+              <tr>
+                <th>Kolom</th><th>Sumber</th><th>Field API</th><th>Jenis</th>
+                <th>Ditarik</th><th className="r">Dipakai</th><th className="r">Aksi</th>
+              </tr>
+            </thead>
+            <tbody>
+              {tampil.map((k) => {
+                const sb = sumber.find((s) => s.kode === k.sumber);
+                return (
+                  <tr key={k.kolom} className={k.aktif ? "" : "mati"}>
+                    <td>
+                      <div className="ka-label">
+                        {k.label}
+                        {!k.bawaan && <span className="rk-tag ka-kustom">kustom</span>}
+                        {!k.aktif && <span className="rk-tag ka-mati">nonaktif</span>}
+                      </div>
+                      <div className="pa-sub num">{k.kolom}</div>
+                    </td>
+                    <td>
+                      <span className="ka-sumber">{sb?.nama ?? k.sumber}</span>
+                      {sb?.jenis === "utama" && <span className="faint small"> (utama)</span>}
+                    </td>
+                    <td>{k.field_api ? <code className="ka-field">{k.field_api}</code> : <span className="faint">—</span>}</td>
+                    <td>
+                      <span className={"ka-jenis " + k.jenis}>{k.jenis}</span>
+                      {k.agregat && <span className="faint small"> · dapat dijumlah</span>}
+                    </td>
+                    <td>
+                      {k.turunan
+                        ? <span className="ri-status netral">olahan</span>
+                        : k.ditarik
+                        ? <span className="pa-status good">ya</span>
+                        : <span className="pa-status warn">tidak</span>}
+                    </td>
+                    <td className="r">
+                      {k.dipakai ? <span className="ka-dipakai num">{k.dipakai}</span> : <span className="faint num">0</span>}
+                    </td>
+                    <td className="r">
+                      <button className="btn ghost sm" onClick={() => { setPesan(null); setSunting({ ...k, baru: false }); }}>
+                        <Ikon nama="pencil" ukuran={14} /> Ubah
+                      </button>
+                    </td>
+                  </tr>
+                );
+              })}
+              {!tampil.length && (
+                <tr><td colSpan={7} className="empty">
+                  {muat ? "Memuat…" : "Tidak ada kolom yang cocok."}
+                </td></tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+
+        <div className="pa-pager">
+          <span className="faint">
+            {cocok.length
+              ? <>Halaman <b>{halAman + 1}</b> dari <b>{halTotal}</b> <span className="sd-sep">|</span> total <b>{cocok.length}</b> kolom</>
+              : "Tidak ada data"}
+          </span>
+          {halTotal > 1 && (
+            <div className="pa-pager-btn">
+              <button className="btn ghost sm" disabled={halAman === 0} onClick={() => setHal(halAman - 1)}>← Sebelumnya</button>
+              <button className="btn ghost sm" disabled={halAman >= halTotal - 1} onClick={() => setHal(halAman + 1)}>Berikutnya →</button>
+            </div>
+          )}
+        </div>
+      </section>
 
       {sunting && (
-        <section className="card card-pad mb">
-          <h3 style={{ fontSize: 15, marginBottom: 10 }}>
-            {sunting.baru ? "Kolom baru" : `Ubah: ${sunting.label}`}
-          </h3>
+        <div className="modal-latar" onMouseDown={(e) => { if (e.target === e.currentTarget && !sibuk) setSunting(null); }}>
+          <div className="modal ka-modal" role="dialog" aria-modal="true" aria-labelledby="ka-judul">
+            <div className="modal-kepala">
+              <span className="sd-ikon accent"><Ikon nama={sunting.baru ? "columns" : "pencil"} ukuran={20} /></span>
+              <div className="modal-judul">
+                <h2 id="ka-judul">
+                  {sunting.baru ? "Kolom baru" : sunting.label}
+                  {!sunting.baru && sunting.bawaan && <span className="rk-tag ka-inti">kolom inti</span>}
+                  {!sunting.baru && sunting.turunan && <span className="rk-tag ka-olahan">olahan</span>}
+                </h2>
+                <p>{sunting.baru
+                  ? "Kolom baru mulai terisi pada tarikan API berikutnya, bukan seketika."
+                  : <>Mengubah pengaturan <code className="ka-field">{sunting.kolom}</code></>}</p>
+              </div>
+              <button className="pa-tutup" onClick={() => setSunting(null)} disabled={sibuk} aria-label="Tutup">×</button>
+            </div>
 
-          <div className="kolom-form">
-            <label className="field">
-              <span>Nama kolom</span>
-              <input value={sunting.kolom} disabled={!sunting.baru}
-                     placeholder="contract_prepaid"
-                     onChange={(e) => setSunting({ ...sunting, kolom: e.target.value })} />
-            </label>
-            <label className="field">
-              <span>Label tampilan</span>
-              <input value={sunting.label} placeholder="Contract Prepaid"
-                     onChange={(e) => setSunting({ ...sunting, label: e.target.value })} />
-            </label>
-            <label className="field">
-              <span>Field di API</span>
-              <input value={sunting.field_api ?? ""} placeholder="ContractPrepaid"
-                     onChange={(e) => setSunting({ ...sunting, field_api: e.target.value })} />
-            </label>
-            <label className="field">
-              <span>Sumber data</span>
-              {/* Sumber dikunci setelah tersimpan: memindahkan kolom antar
-                  tabel berarti memindahkan datanya juga, dan itu bukan
-                  sesuatu yang boleh terjadi karena satu klik. */}
-              {sunting.baru ? (
-                <Pilih nilai={sunting.sumber} cari={sumber.length > 7}
-                       onPilih={(v) => setSunting({ ...sunting, sumber: v })}
-                       opsi={sumber.map((s) => ({
-                         nilai: s.kode, label: s.nama,
-                         ket: s.jenis === "utama" ? "tabel utama" : `digabung lewat nomor kontrak · ${s.tabel}`,
-                       }))} />
-              ) : (
-                <input value={sumber.find((s) => s.kode === sunting.sumber)?.nama ?? sunting.sumber}
-                       disabled />
+            <div className="modal-isi">
+              {pesan && (
+                <div className="alert-box bad"><span className="alert-ikon">!</span><span>{pesan}</span></div>
               )}
-            </label>
-            <label className="field">
-              <span>Jenis</span>
-              <Pilih nilai={sunting.jenis} cari={false}
-                     onPilih={(v) => setSunting({ ...sunting, jenis: v })}
-                     opsi={[
-                       { nilai: "teks", label: "Teks" },
-                       { nilai: "angka", label: "Angka" },
-                       { nilai: "tanggal", label: "Tanggal" },
-                     ]} />
-            </label>
-            <label className="field">
-              <span>Kelompok</span>
-              <input value={sunting.kelompok ?? ""} placeholder="Nilai"
-                     onChange={(e) => setSunting({ ...sunting, kelompok: e.target.value })} />
-            </label>
-            <label className="field">
-              <span>Urutan</span>
-              <input type="number" value={sunting.urutan}
-                     onChange={(e) =>
-                       setSunting({ ...sunting, urutan: Number(e.target.value) || 0 })} />
-            </label>
+
+              <div className="pa-form-grid">
+                <label className="field">
+                  <span>Nama kolom</span>
+                  <input value={sunting.kolom} disabled={!sunting.baru} className="num"
+                         placeholder="contract_prepaid"
+                         onChange={(e) => setSunting({ ...sunting, kolom: e.target.value })} />
+                </label>
+                <label className="field">
+                  <span>Label tampilan</span>
+                  <input value={sunting.label} placeholder="Contract Prepaid"
+                         onChange={(e) => setSunting({ ...sunting, label: e.target.value })} />
+                </label>
+                <label className="field">
+                  <span>Field di API</span>
+                  <input value={sunting.field_api ?? ""} placeholder="ContractPrepaid" className="num"
+                         onChange={(e) => setSunting({ ...sunting, field_api: e.target.value })} />
+                </label>
+                <label className="field">
+                  <span>Sumber data</span>
+                  {/* Sumber dikunci setelah tersimpan: memindahkan kolom antar
+                      tabel berarti memindahkan datanya juga, dan itu bukan
+                      sesuatu yang boleh terjadi karena satu klik. */}
+                  {sunting.baru ? (
+                    <Pilih nilai={sunting.sumber} cari={sumber.length > 7}
+                           onPilih={(v) => setSunting({ ...sunting, sumber: v })}
+                           opsi={sumber.map((s) => ({
+                             nilai: s.kode, label: s.nama,
+                             ket: s.jenis === "utama" ? "tabel utama" : `digabung lewat nomor kontrak · ${s.tabel}`,
+                           }))} />
+                  ) : (
+                    <input value={sumber.find((s) => s.kode === sunting.sumber)?.nama ?? sunting.sumber} disabled />
+                  )}
+                </label>
+                <label className="field">
+                  <span>Jenis</span>
+                  <Pilih nilai={sunting.jenis} cari={false}
+                         onPilih={(v) => setSunting({ ...sunting, jenis: v })}
+                         opsi={[
+                           { nilai: "teks", label: "Teks" },
+                           { nilai: "angka", label: "Angka" },
+                           { nilai: "tanggal", label: "Tanggal" },
+                         ]} />
+                </label>
+                <div className="ka-dua">
+                  <label className="field">
+                    <span>Kelompok</span>
+                    <input value={sunting.kelompok ?? ""} placeholder="Nilai"
+                           onChange={(e) => setSunting({ ...sunting, kelompok: e.target.value })} />
+                  </label>
+                  <label className="field">
+                    <span>Urutan</span>
+                    <input type="number" value={sunting.urutan} className="num"
+                           onChange={(e) => setSunting({ ...sunting, urutan: Number(e.target.value) || 0 })} />
+                  </label>
+                </div>
+              </div>
+
+              <label className="field">
+                <span>Keterangan (opsional)</span>
+                <input value={sunting.keterangan ?? ""} placeholder="Dipakai untuk perhitungan prepaid"
+                       onChange={(e) => setSunting({ ...sunting, keterangan: e.target.value })} />
+              </label>
+
+              <div className="ka-opsi">
+                <label className={"ka-opsi-item" + (sunting.agregat ? " on" : "")}>
+                  <input type="checkbox" checked={sunting.agregat}
+                         onChange={(e) => setSunting({ ...sunting, agregat: e.target.checked })} />
+                  <span><b>Boleh dijumlahkan</b><small>Bisa dipakai sebagai SUM/AVG di rumus</small></span>
+                </label>
+                <label className={"ka-opsi-item" + (sunting.aktif ? " on" : "")}>
+                  <input type="checkbox" checked={sunting.aktif}
+                         onChange={(e) => setSunting({ ...sunting, aktif: e.target.checked })} />
+                  <span><b>Aktif</b><small>Muncul saat menyusun rumus</small></span>
+                </label>
+                <label className={"ka-opsi-item" + (sunting.ditarik && !sunting.turunan ? " on" : "") + (sunting.turunan ? " kunci" : "")}>
+                  <input type="checkbox" checked={sunting.ditarik} disabled={sunting.turunan}
+                         onChange={(e) => setSunting({ ...sunting, ditarik: e.target.checked })} />
+                  <span><b>Ditarik dari API</b><small>Diambil tiap cron berjalan</small></span>
+                </label>
+              </div>
+
+              {sunting.bawaan && (
+                <div className="alert-box info"><span className="alert-ikon">i</span><span>
+                  Kolom inti: nama dan jenisnya dikunci, dan tidak bisa dihapus. Bila tidak dipakai lagi,
+                  hilangkan centang Aktif (sembunyikan dari rumus) atau Ditarik (berhenti diambil dari API).
+                </span></div>
+              )}
+              {sunting.turunan && (
+                <div className="alert-box info"><span className="alert-ikon">i</span><span>
+                  Kolom turunan tidak pernah diambil dari API — nilainya dihitung sesudah data masuk, lewat menu Kolom Turunan.
+                </span></div>
+              )}
+              {!sunting.ditarik && !sunting.turunan && (
+                <div className="alert-box warn"><span className="alert-ikon">!</span><span>
+                  Kolom ini <b>tidak akan diisi</b> pada tarikan berikutnya. Data lama tetap tersimpan, tapi nilainya berhenti diperbarui.
+                </span></div>
+              )}
+              {sunting.jenis === "angka" && !sunting.agregat && (
+                <div className="alert-box warn"><span className="alert-ikon">!</span><span>
+                  Kolom angka biasanya perlu dicentang “boleh dijumlahkan” agar bisa dipilih sebagai sumber SUM di rumus.
+                </span></div>
+              )}
+            </div>
+
+            <div className="modal-kaki ka-kaki">
+              {!sunting.baru && !sunting.bawaan && (
+                <button className="btn danger" disabled={sibuk}
+                        onClick={() => { if (confirm(`Hapus kolom "${sunting.label}"? Datanya ikut hilang.`)) hapus(sunting); }}>
+                  <Ikon nama="trash" ukuran={15} /> Hapus kolom
+                </button>
+              )}
+              <span className="ka-spasi" />
+              <button className="btn ghost" disabled={sibuk} onClick={() => { setSunting(null); setPesan(null); }}>Batal</button>
+              <button className="btn" disabled={sibuk} onClick={simpan}>
+                <Ikon nama="check" ukuran={16} tebal={2.2} /> {sibuk ? "Menyimpan…" : "Simpan"}
+              </button>
+            </div>
           </div>
-
-          <label className="field mt">
-            <span>Keterangan (opsional)</span>
-            <input value={sunting.keterangan ?? ""}
-                   placeholder="Dipakai untuk perhitungan prepaid"
-                   onChange={(e) => setSunting({ ...sunting, keterangan: e.target.value })} />
-          </label>
-
-          <div className="kolom-cek">
-            <label className="ind-cek">
-              <input type="checkbox" checked={sunting.agregat}
-                     onChange={(e) => setSunting({ ...sunting, agregat: e.target.checked })} />
-              Boleh dijumlahkan (SUM/AVG)
-            </label>
-            <label className="ind-cek">
-              <input type="checkbox" checked={sunting.aktif}
-                     onChange={(e) => setSunting({ ...sunting, aktif: e.target.checked })} />
-              Aktif — muncul saat menyusun rumus
-            </label>
-            <label className="ind-cek">
-              <input type="checkbox" checked={sunting.ditarik} disabled={sunting.turunan}
-                     onChange={(e) => setSunting({ ...sunting, ditarik: e.target.checked })} />
-              Ditarik dari API — diambil tiap cron berjalan
-            </label>
-          </div>
-
-          {sunting.bawaan && (
-            <p className="muted small mt">
-              Kolom inti: nama dan jenisnya dikunci, dan tidak bisa dihapus.
-              Bila tidak dipakai lagi, hilangkan centang Aktif (sembunyikan dari rumus)
-              atau Ditarik (berhenti diambil dari API).
-            </p>
-          )}
-          {sunting.turunan && (
-            <p className="muted small mt">
-              Kolom turunan tidak pernah diambil dari API — nilainya dihitung
-              sesudah data masuk, lewat menu Kolom Turunan.
-            </p>
-          )}
-          {!sunting.ditarik && !sunting.turunan && (
-            <p className="muted small mt">
-              Kolom ini <b>tidak akan diisi</b> pada tarikan berikutnya. Data lama tetap
-              tersimpan, tapi nilainya berhenti diperbarui.
-            </p>
-          )}
-          {sunting.jenis === "angka" && !sunting.agregat && (
-            <p className="muted small mt">
-              Kolom angka biasanya perlu dicentang &quot;boleh dijumlahkan&quot; agar
-              bisa dipilih sebagai sumber SUM di rumus.
-            </p>
-          )}
-
-          <div className="mt" style={{ display: "flex", gap: 8 }}>
-            <button className="btn" disabled={sibuk} onClick={simpan}>Simpan</button>
-            <button className="btn ghost" disabled={sibuk}
-                    onClick={() => { setSunting(null); setPesan(null); }}>Batal</button>
-            {!sunting.baru && !sunting.bawaan && (
-              <button className="btn ghost bahaya" disabled={sibuk}
-                      onClick={() => hapus(sunting)}>Hapus kolom</button>
-            )}
-          </div>
-        </section>
-      )}
-
-      <section className="card">
-        <div className="cardhead rowbetween">
-          <div>
-            <h3 style={{ fontSize: 14 }}>
-              {daftar.length} kolom · {ditarikJml} ditarik dari API · {kustom} kustom
-            </h3>
-            <p className="muted small">
-              Kolom inti dibuat bersama sistem dan tidak bisa dihapus.
-              Hanya kolom bertanda &quot;Ditarik: ya&quot; yang diambil saat cron berjalan.
-            </p>
-          </div>
-          <KotakCari nilai={cari} onUbah={setCari} placeholder="Cari kolom…" />
         </div>
-
-        <table>
-          <thead>
-            <tr>
-              <th>Kolom</th><th>Sumber</th><th>Field API</th><th>Jenis</th>
-              <th>Ditarik</th><th className="r">Dipakai</th><th></th>
-            </tr>
-          </thead>
-          <tbody>
-            {tampil.map((k) => (
-              <tr key={k.kolom} className={k.aktif ? "" : "kurang"}>
-                <td>
-                  <b>{k.label}</b>
-                  {!k.bawaan && <span className="tag-warn">kustom</span>}
-                  {!k.aktif && <span className="tag-warn">nonaktif</span>}
-                  <div className="faint num">{k.kolom}</div>
-                </td>
-                <td className={k.sumber === "api" ? "faint" : ""}>
-                  {sumber.find((s) => s.kode === k.sumber)?.nama ?? k.sumber}
-                </td>
-                <td className={k.field_api ? "num" : "faint"}>{k.field_api ?? "—"}</td>
-                <td>
-                  {k.jenis}
-                  {k.agregat && <span className="faint"> · dapat dijumlah</span>}
-                </td>
-                <td>
-                  {k.turunan
-                    ? <span className="faint">olahan</span>
-                    : k.ditarik
-                    ? <span className="tag-ok">ya</span>
-                    : <span className="tag-warn">tidak</span>}
-                </td>
-                <td className="r num">
-                  {k.dipakai ? <b>{k.dipakai}</b> : <span className="faint">0</span>}
-                </td>
-                <td className="r">
-                  <button className="btn ghost sm"
-                          onClick={() => setSunting({ ...k, baru: false })}>Ubah</button>
-                </td>
-              </tr>
-            ))}
-            {!tampil.length && (
-              <tr><td colSpan={7} className="empty">
-                {muat ? "Memuat…" : "Tidak ada kolom yang cocok."}
-              </td></tr>
-            )}
-          </tbody>
-        </table>
-
-        {cocok.length > PER_HAL && (
-          <div className="paging">
-            <button className="btn ghost sm" disabled={halAman === 0}
-                    onClick={() => setHal(halAman - 1)}>← Sebelumnya</button>
-            <span className="faint small">
-              Halaman {halAman + 1} dari {halTotal} · {cocok.length} kolom
-            </span>
-            <button className="btn ghost sm" disabled={halAman >= halTotal - 1}
-                    onClick={() => setHal(halAman + 1)}>Berikutnya →</button>
-          </div>
-        )}
-      </section>
+      )}
     </>
   );
 }

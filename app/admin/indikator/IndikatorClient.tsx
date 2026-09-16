@@ -1,9 +1,12 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import Link from "next/link";
 import Pilih from "@/components/Pilih";
 import InputAngka from "@/components/InputAngka";
 import Kartu, { type Komponen, type Kolom } from "./Kartu";
+import Ikon from "@/components/Ikon";
+import JudulHalaman, { TitikStatus } from "@/components/JudulHalaman";
 
 type Ringkas = {
   id: string; nama: string; satuan: string; kali_seratus: boolean;
@@ -445,6 +448,8 @@ export default function IndikatorClient() {
   const [lewat, setLewat] = useState<number | null>(null);
   /** Indeks baris pendaftaran yang detailnya sedang terbuka, atau null. */
   const [detailBuka, setDetailBuka] = useState<number | null>(null);
+  const [cariInd, setCariInd] = useState("");
+  const [tersalin, setTersalin] = useState(false);
 
   /**
    * Indikator lain, bahan isian gerbang dan pemilih pita nominal.
@@ -671,333 +676,458 @@ export default function IndikatorClient() {
     return (i === 0 ? "" : ` ${k.operator_sebelum ?? "?"} `) + inti + s;
   }).join("") + (kaliSeratus ? " × 100%" : "");
 
+  const daftarTampil = useMemo(() => {
+    const c = cariInd.trim().toLowerCase();
+    return c ? daftar.filter((d) => d.nama.toLowerCase().includes(c)) : daftar;
+  }, [daftar, cariInd]);
+  const jmlAktif = daftar.filter((d) => d.aktif).length;
+  const jmlDaftar = daftar.reduce((a, d) => a + Number(d.terdaftar || 0), 0);
+  const pesanOk = !!pesan && (pesan === "Tersimpan." || pesan.startsWith("Hitung ulang selesai"));
+  const indikatorIni = daftar.find((d) => d.id === pilihId);
+
+  function tambahTarget() {
+    setTarget([...target, {
+      alias: "", produk: produk[0]?.kode ?? "",
+      peran: "kpi", jenis_nilai: "nominal", nilai_efek: "",
+      bobot_kpi: "", bobot_insentif: "",
+      target_kpi3: "", target_kpi4: "", target_kpi5: "",
+      pita: [], pemilih_id: "", nominal: [], gerbang: [],
+      aktif: true,
+    }]);
+    setDetailBuka(target.length);
+  }
+
+  async function salinRumus() {
+    try {
+      await navigator.clipboard.writeText(ringkasRumus);
+      setTersalin(true); setTimeout(() => setTersalin(false), 1800);
+    } catch { /* clipboard ditolak browser — rumus tetap terlihat */ }
+  }
+
+  async function hapusIndikator() {
+    if (!pilihId) return;
+    if (!confirm(`Hapus indikator "${nama || "tanpa nama"}" beserta seluruh pendaftarannya?`)) return;
+    setSibuk(true);
+    try {
+      await fetch(`/api/admin/indikator?id=${pilihId}`, { method: "DELETE" });
+      kosongkan(); await muatDaftar();
+    } finally { setSibuk(false); }
+  }
+
   return (
-    <div className="ind-tata">
-      {/* --- daftar indikator --- */}
-      <aside className="card ind-samping">
-        <div className="cardhead rowbetween">
-          <h3 style={{ fontSize: 14 }}>Indikator</h3>
-          <button className="btn sm" onClick={kosongkan}>+ Baru</button>
-        </div>
-        <div className="ind-daftar">
-          {daftar.map((d) => (
-            <button key={d.id}
-                    className={"ind-item" + (d.id === pilihId ? " on" : "")}
-                    onClick={() => buka(d.id)}>
-              <span className="ind-item-atas">
-                <b>{d.nama}</b>
-                <span className={"ind-item-satuan s-" + d.satuan}>
-                  {d.satuan === "persen" ? "%" : d.satuan === "rupiah" ? "Rp" : "#"}
-                </span>
-              </span>
-              <span className="faint">
-                {d.komponen} komponen · {d.terdaftar} pendaftaran
-                {!d.aktif && " · nonaktif"}
-              </span>
-            </button>
-          ))}
-          {!daftar.length && <p className="empty">Belum ada indikator.</p>}
-        </div>
-      </aside>
+    <div className="fb">
+      <JudulHalaman
+        eyebrow="Data & indikator"
+        meta={<><TitikStatus nada={jmlAktif ? "good" : "netral"} /> {jmlAktif} dari {daftar.length} indikator aktif</>}
+        judul="Create Indicator"
+        deskripsi="Susun rumus indikator dari kolom data API, uji atas data mentah sungguhan, lalu daftarkan ke jabatan dan produk yang dinilai."
+      />
 
-      {/* --- perakit --- */}
-      <section className="ind-utama">
-        <div className="ind-kepala">
-          <input className="ind-nama" value={nama} placeholder="Nama indikator"
-                 onChange={(e) => setNama(e.target.value)} />
-          <div className="ind-aksi">
-            <button className="btn ghost sm" disabled={sibuk} onClick={jalankanUji}>Uji rumus</button>
-            <button className="btn sm" disabled={sibuk || !nama.trim()} onClick={simpan}>Simpan</button>
-            <button className="btn ghost sm" disabled={sibuk} onClick={hitungUlang}
-                    title="Hitung ulang semua indikator dari data mentah yang sudah ada — tanpa menarik data baru">
-              Hitung ulang
-            </button>
-            {pilihId && (
-              <button className="btn ghost sm bahaya" disabled={sibuk}
-                      onClick={async () => {
-                        await fetch(`/api/admin/indikator?id=${pilihId}`, { method: "DELETE" });
-                        kosongkan(); await muatDaftar();
-                      }}>Hapus</button>
-            )}
-          </div>
-        </div>
-
-        <input className="ind-desk" value={deskripsi} placeholder="Keterangan singkat (opsional)"
-               onChange={(e) => setDeskripsi(e.target.value)} />
-
-        {pesan && <div className={"alert mb " + (pesan === "Tersimpan." ? "ok" : "bad")}>{pesan}</div>}
-
-        <div className="ind-atur">
-          <label>
-            <span className="faint small">Dihitung untuk</span>
-            <Pilih nilai={peranPic} cari={false} onPilih={setPeranPic}
-                   opsi={[
-                     { nilai: "staff", label: "Staf pelaksana", ket: "kolom staff_pic" },
-                     { nilai: "spv", label: "Supervisor", ket: "kolom spv_pic" },
-                     { nilai: "bch", label: "Kepala cabang", ket: "kolom bch_pic" },
-                   ]} />
-          </label>
-          <label>
-            <span className="faint small">Satuan</span>
-            <Pilih nilai={satuan} cari={false} onPilih={setSatuan}
-                   opsi={[
-                     { nilai: "persen", label: "Persen" },
-                     { nilai: "rupiah", label: "Rupiah" },
-                     { nilai: "unit", label: "Unit" },
-                   ]} />
-          </label>
-          <label>
-            <span className="faint small">Sumber data tambahan</span>
-            <Pilih nilai={sumberKode} cari={sumber.length > 7}
-                   onPilih={setSumberKode}
-                   opsi={[
-                     { nilai: "", label: "Hanya data utama",
-                       ket: "kolom dari API utama saja" },
-                     ...sumber
-                       .filter((s) => s.jenis !== "utama" && s.kode !== kodeUtama)
-                       .map((s) => ({
-                         nilai: s.kode, label: s.nama,
-                         ket: s.jenis === "api" ? "API, digabung lewat nomor kontrak"
-                                                : "unggahan, digabung lewat nomor kontrak",
-                       })),
-                   ]} />
-          </label>
-          <label className="ind-cek">
-            <input type="checkbox" checked={kaliSeratus}
-                   onChange={(e) => setKaliSeratus(e.target.checked)} />
-            Kalikan 100 (rasio jadi persen)
-          </label>
-        </div>
-
-        {/* Kolom data utama tidak pernah disembunyikan: di sanalah NIK PIC,
-            cabang, dan produk berada, dan tanpa ketiganya tidak ada
-            indikator yang bisa dihitung untuk siapa pun. Yang dipilih di
-            atas adalah sumber KEDUA yang ikut digabung. */}
-        {kolomAsing.length > 0 && (
-          <div className="alert warn mb">
-            Rumus ini masih memakai kolom dari sumber lain:{" "}
-            <b>{kolomAsing.join(", ")}</b>. Ganti kolomnya atau pilih kembali
-            sumber yang sesuai — kalau disimpan begini, perhitungannya akan
-            gagal karena tabelnya tidak ikut digabung.
-          </div>
-        )}
-
-        {/* --- kartu komponen --- */}
-        {komponen.map((k, i) => (
-          <div key={i}>
-            {i > 0 && (
-              /* Operator penghubung, ditaruh di tengah antara dua kartu.
-                 Tombol berdampingan, bukan dropdown: dengan hanya empat
-                 pilihan, satu klik lebih cepat daripada buka-pilih-tutup,
-                 dan keempatnya terlihat sekaligus sehingga jelas bahwa
-                 pembagian memang tersedia. */
-              <div className="ind-operator">
-                <span className="ind-op-garis" />
-                <div className="ind-op-pilih">
-                  {[["+", "+", "tambah"], ["-", "−", "kurang"],
-                    ["*", "×", "kali"], ["/", "÷", "bagi"]].map(([v, simbol, nama]) => (
-                    <button key={v} title={nama}
-                            className={"ind-op-btn" + ((k.operator_sebelum ?? "+") === v ? " on" : "")}
-                            onClick={() => setKomponen(komponen.map((x, y) =>
-                              y === i ? { ...x, operator_sebelum: v } : x))}>
-                      {simbol}
-                    </button>
-                  ))}
-                </div>
-                <span className="ind-op-garis" />
-              </div>
-            )}
-            <Kartu
-              k={k} indeks={i} kolom={kolomTerpakai} sibuk={sibuk} nilaiUnik={nilaiUnik}
-              diangkat={seret === i} sasaran={lewat === i && seret !== null && seret !== i}
-              onSeretMulai={() => setSeret(i)}
-              onSeretLewat={() => setLewat(i)}
-              onJatuh={() => jatuhkan(i)}
-              onUbah={(patch) => setKomponen(komponen.map((x, y) => (y === i ? { ...x, ...patch } : x)))}
-              onHapus={() => {
-                const baru = komponen.filter((_, y) => y !== i);
-                if (baru.length) baru[0].operator_sebelum = null;
-                setKomponen(baru.length ? baru : [kartuKosong(true)]);
-              }} />
-          </div>
-        ))}
-
-        <div className="ind-tambah">
-          <button className="btn ghost sm"
-                  onClick={() => setKomponen([...komponen, kartuKosong(false)])}>
-            + Tambah komponen
-          </button>
-          {komponen.length === 1 && (
-            /* Petunjuk khusus saat baru satu kartu: rasio adalah bentuk
-               indikator paling umum di sini, dan tanpa kartu kedua tidak
-               ada tempat operator pembagian muncul — mudah disangka
-               fiturnya tidak ada. */
-            <span className="faint small">
-              Tambahkan komponen kedua untuk membuat pembagian — mis. Success
-              Rate = komponen A ÷ komponen B.
-            </span>
-          )}
-        </div>
-
-        <div className="ind-ringkas">
-          <span className="ind-ringkas-label">Rumus</span>
-          <code>{ringkasRumus}</code>
-        </div>
-
-        {/* --- hasil uji --- */}
-        {uji && (
-          <section className="card mt">
-            <div className="cardhead">
-              <h3 style={{ fontSize: 14 }}>Hasil uji atas data mentah</h3>
-              <p className="muted num small">{uji.rumus}</p>
+      <div className="ind-tata fb-tata">
+        {/* --- daftar indikator --- */}
+        <aside className="fb-samping">
+          <section className="card fb-panel">
+            <div className="fb-panel-kepala">
+              <h2><Ikon nama="formula" ukuran={18} /> Indikator</h2>
+              <button className="btn sm" onClick={kosongkan}><Ikon nama="plus" ukuran={14} tebal={2.2} /> Baru</button>
             </div>
-            <table className="rapat">
-              <thead>
-                <tr><th>NIK</th><th>Nama</th><th className="r">Baris</th><th className="r">Nilai</th></tr>
-              </thead>
-              <tbody>
-                {uji.contoh.map((c) => (
-                  <tr key={c.nik}>
-                    <td className="num faint">{c.nik}</td>
-                    <td>{c.nama}<div className="faint small">{c.cabang ?? "—"}</div></td>
-                    <td className="r num faint">{c.baris}</td>
-                    <td className="r num"><b>
-                      {c.nilai === null ? "—" : c.nilai.toLocaleString("id-ID", { maximumFractionDigits: 2 })}
-                    </b></td>
-                  </tr>
-                ))}
-                {!uji.contoh.length && (
-                  <tr><td colSpan={4} className="empty">
-                    Tidak ada baris data mentah yang cocok. Pastikan data API sudah ditarik.
-                  </td></tr>
-                )}
-              </tbody>
-            </table>
+            <label className="fb-cari">
+              <Ikon nama="search" ukuran={15} />
+              <input value={cariInd} placeholder="Cari indikator…" onChange={(e) => setCariInd(e.target.value)} />
+            </label>
+            <div className="ind-daftar fb-daftar">
+              {!pilihId && (
+                <div className="ind-item fb-item on fb-draf">
+                  <span className="ind-item-atas">
+                    <b>{nama.trim() || "Indikator baru"}</b>
+                    <span className="fb-lencana draf">draf</span>
+                  </span>
+                  <span className="faint">belum disimpan</span>
+                </div>
+              )}
+              {daftarTampil.map((d) => (
+                <button key={d.id}
+                        className={"ind-item fb-item" + (d.id === pilihId ? " on" : "") + (d.aktif ? "" : " mati")}
+                        onClick={() => buka(d.id)} disabled={sibuk && d.id !== pilihId}>
+                  <span className="ind-item-atas">
+                    <b title={d.nama}>{d.nama}</b>
+                    {!d.aktif && <span className="fb-lencana mati">nonaktif</span>}
+                    <span className={"ind-item-satuan s-" + d.satuan}>
+                      {d.satuan === "persen" ? "%" : d.satuan === "rupiah" ? "Rp" : "#"}
+                    </span>
+                  </span>
+                  <span className="fb-item-meta num">
+                    {d.komponen} komponen <i aria-hidden /> {d.terdaftar} pendaftaran
+                  </span>
+                </button>
+              ))}
+              {!daftar.length && <p className="empty">Belum ada indikator.</p>}
+              {!!daftar.length && !daftarTampil.length && <p className="empty">Tidak ada yang cocok.</p>}
+            </div>
           </section>
-        )}
 
-        {/* --- pendaftaran ke jabatan + produk --- */}
-        <section className="card mt">
-          <div className="cardhead rowbetween">
-            <div>
-              <h3 style={{ fontSize: 14 }}>Didaftarkan ke jabatan · produk</h3>
-              <p className="muted small">
-                Indikator hanya dihitung untuk pasangan yang terdaftar di sini.
-                Bobot KPI dan bobot insentif berdiri sendiri — kosongkan salah
-                satu bila indikator ini tidak ikut skema tersebut.
-              </p>
+          <section className="card fb-panel fb-statistik">
+            <span className="eyebrow">STATISTIK PENGGUNAAN</span>
+            <div className="fb-stat-grid">
+              <div><b className="num">{jmlAktif}</b><span>indikator aktif</span></div>
+              <div><b className="num">{jmlDaftar}</b><span>pendaftaran</span></div>
             </div>
-            <button className="btn ghost sm"
-                    onClick={() => {
-                      setTarget([...target, {
-                        alias: "", produk: produk[0]?.kode ?? "",
-                        peran: "kpi", jenis_nilai: "nominal", nilai_efek: "",
-                        bobot_kpi: "", bobot_insentif: "",
-                        target_kpi3: "", target_kpi4: "", target_kpi5: "",
-                        pita: [], pemilih_id: "", nominal: [], gerbang: [],
-                        aktif: true,
-                      }]);
-                      setDetailBuka(target.length);
-                    }}>
-              + Daftarkan
-            </button>
+          </section>
+        </aside>
+
+        {/* --- perakit --- */}
+        <section className="ind-utama fb-utama">
+          <div className="card fb-editor">
+            <div className="fb-editor-kepala">
+              <div className="fb-identitas">
+                <div className="fb-status">
+                  {pilihId
+                    ? <span className={"pa-status " + (indikatorIni?.aktif === false ? "warn" : "good")}>{indikatorIni?.aktif === false ? "nonaktif" : "tersimpan"}</span>
+                    : <span className="ri-status accent">indikator baru</span>}
+                </div>
+                <input className="ind-nama fb-nama" value={nama} placeholder="Nama indikator…"
+                       onChange={(e) => setNama(e.target.value)} />
+                <input className="ind-desk fb-desk" value={deskripsi} placeholder="Keterangan singkat (opsional)"
+                       onChange={(e) => setDeskripsi(e.target.value)} />
+              </div>
+              <div className="ind-aksi fb-aksi">
+                <button className="btn ghost" disabled={sibuk} onClick={jalankanUji}>
+                  <Ikon nama="target" ukuran={16} /> Uji rumus
+                </button>
+                <button className="btn" disabled={sibuk || !nama.trim()} onClick={simpan}>
+                  <Ikon nama="check" ukuran={16} tebal={2.2} /> {sibuk ? "Memproses…" : "Simpan"}
+                </button>
+                <button className="btn polos" disabled={sibuk} onClick={hitungUlang}
+                        title="Hitung ulang semua indikator dari data mentah yang sudah ada — tanpa menarik data baru">
+                  <Ikon nama="refresh" ukuran={16} /> Hitung ulang
+                </button>
+                {pilihId && (
+                  <button className="btn tint-bad" disabled={sibuk} onClick={hapusIndikator} title="Hapus indikator">
+                    <Ikon nama="trash" ukuran={16} />
+                  </button>
+                )}
+              </div>
+            </div>
+
+            <div className="fb-editor-isi">
+              {pesan && (
+                <div className={"alert-box " + (pesanOk ? "good" : "bad")} role="status">
+                  <span className="alert-ikon">{pesanOk ? "✓" : "!"}</span>
+                  <span>{pesan}</span>
+                  <button className="alert-tutup" onClick={() => setPesan(null)} aria-label="Tutup pesan">×</button>
+                </div>
+              )}
+
+              <div className="fb-atribut">
+                <span className="eyebrow">KONFIGURASI ATRIBUT INDIKATOR</span>
+                <div className="ind-atur fb-atur">
+                  <label className="field">
+                    <span>Dihitung untuk</span>
+                    <Pilih nilai={peranPic} cari={false} onPilih={setPeranPic}
+                           opsi={[
+                             { nilai: "staff", label: "Staf pelaksana", ket: "kolom staff_pic" },
+                             { nilai: "spv", label: "Supervisor", ket: "kolom spv_pic" },
+                             { nilai: "bch", label: "Kepala cabang", ket: "kolom bch_pic" },
+                           ]} />
+                  </label>
+                  <label className="field">
+                    <span>Satuan</span>
+                    <Pilih nilai={satuan} cari={false} onPilih={setSatuan}
+                           opsi={[
+                             { nilai: "persen", label: "Persen" },
+                             { nilai: "rupiah", label: "Rupiah" },
+                             { nilai: "unit", label: "Unit" },
+                           ]} />
+                  </label>
+                  <label className="field">
+                    <span>Sumber data tambahan</span>
+                    <Pilih nilai={sumberKode} cari={sumber.length > 7}
+                           onPilih={setSumberKode}
+                           opsi={[
+                             { nilai: "", label: "Hanya data utama", ket: "kolom dari API utama saja" },
+                             ...sumber
+                               .filter((s) => s.jenis !== "utama" && s.kode !== kodeUtama)
+                               .map((s) => ({
+                                 nilai: s.kode, label: s.nama,
+                                 ket: s.jenis === "api" ? "API, digabung lewat nomor kontrak"
+                                                        : "unggahan, digabung lewat nomor kontrak",
+                               })),
+                           ]} />
+                  </label>
+                </div>
+                <label className="fb-kali">
+                  <input type="checkbox" checked={kaliSeratus}
+                         onChange={(e) => setKaliSeratus(e.target.checked)} />
+                  Kalikan 100 <span className="faint">(rasio otomatis jadi persen)</span>
+                </label>
+              </div>
+
+              {/* Kolom data utama tidak pernah disembunyikan: di sanalah NIK PIC,
+                  cabang, dan produk berada, dan tanpa ketiganya tidak ada
+                  indikator yang bisa dihitung untuk siapa pun. Yang dipilih di
+                  atas adalah sumber KEDUA yang ikut digabung. */}
+              {kolomAsing.length > 0 && (
+                <div className="alert-box warn">
+                  <span className="alert-ikon">!</span>
+                  <span>
+                    Rumus ini masih memakai kolom dari sumber lain: <b>{kolomAsing.join(", ")}</b>. Ganti kolomnya atau
+                    pilih kembali sumber yang sesuai — kalau disimpan begini, perhitungannya akan gagal karena tabelnya
+                    tidak ikut digabung.
+                  </span>
+                </div>
+              )}
+
+              {/* --- kartu komponen --- */}
+              <div className="fb-komponen">
+                {komponen.map((k, i) => (
+                  <div key={i}>
+                    {i > 0 && (
+                      /* Operator penghubung, ditaruh di tengah antara dua kartu.
+                         Tombol berdampingan, bukan dropdown: dengan hanya empat
+                         pilihan, satu klik lebih cepat daripada buka-pilih-tutup,
+                         dan keempatnya terlihat sekaligus sehingga jelas bahwa
+                         pembagian memang tersedia. */
+                      <div className="ind-operator">
+                        <span className="ind-op-garis" />
+                        <div className="ind-op-pilih">
+                          {[["+", "+", "tambah"], ["-", "−", "kurang"],
+                            ["*", "×", "kali"], ["/", "÷", "bagi"]].map(([v, simbol, namaOp]) => (
+                            <button key={v} title={namaOp}
+                                    className={"ind-op-btn" + ((k.operator_sebelum ?? "+") === v ? " on" : "")}
+                                    onClick={() => setKomponen(komponen.map((x, y) =>
+                                      y === i ? { ...x, operator_sebelum: v } : x))}>
+                              {simbol}
+                            </button>
+                          ))}
+                        </div>
+                        <span className="ind-op-garis" />
+                      </div>
+                    )}
+                    <Kartu
+                      k={k} indeks={i} kolom={kolomTerpakai} sibuk={sibuk} nilaiUnik={nilaiUnik}
+                      peranLabel={komponen[i + 1]?.operator_sebelum === "/" ? "Pembilang"
+                        : k.operator_sebelum === "/" ? "Penyebut" : undefined}
+                      diangkat={seret === i} sasaran={lewat === i && seret !== null && seret !== i}
+                      onSeretMulai={() => setSeret(i)}
+                      onSeretLewat={() => setLewat(i)}
+                      onJatuh={() => jatuhkan(i)}
+                      onUbah={(patch) => setKomponen(komponen.map((x, y) => (y === i ? { ...x, ...patch } : x)))}
+                      onHapus={() => {
+                        const baru = komponen.filter((_, y) => y !== i);
+                        if (baru.length) baru[0].operator_sebelum = null;
+                        setKomponen(baru.length ? baru : [kartuKosong(true)]);
+                      }} />
+                  </div>
+                ))}
+              </div>
+
+              <div className="ind-tambah fb-tambah">
+                <button className="btn ghost sm" onClick={() => setKomponen([...komponen, kartuKosong(false)])}>
+                  <Ikon nama="plus" ukuran={14} /> Tambah komponen
+                </button>
+                {komponen.length === 1 && (
+                  /* Petunjuk khusus saat baru satu kartu: rasio adalah bentuk
+                     indikator paling umum di sini, dan tanpa kartu kedua tidak
+                     ada tempat operator pembagian muncul — mudah disangka
+                     fiturnya tidak ada. */
+                  <span className="fb-petunjuk">
+                    <Ikon nama="bulb" ukuran={14} />
+                    Tambahkan komponen kedua untuk membuat pembagian — mis. <code>Success Rate = A ÷ B</code>
+                  </span>
+                )}
+              </div>
+
+              <div className="fb-rumus">
+                <div className="fb-rumus-atas">
+                  <span className="eyebrow">RUMUS YANG DIJALANKAN</span>
+                  <span className="faint small">dihitung dari atas ke bawah, persis seperti terbaca</span>
+                </div>
+                <div className="ind-ringkas fb-ringkas">
+                  <span className="fb-f" aria-hidden>ƒ</span>
+                  <code>{ringkasRumus}</code>
+                  <button className="pa-ikon-btn" onClick={salinRumus} title="Salin rumus">
+                    <Ikon nama={tersalin ? "check" : "copy"} ukuran={15} />
+                  </button>
+                </div>
+              </div>
+            </div>
           </div>
 
-          {/* Tiap pendaftaran adalah kartu baris sendiri, bukan baris tabel.
-              Empat kotak pilih berdampingan dulu terasa seperti formulir
-              yang dipaksa masuk ke tabel — lebar kolom kaku, dan baris yang
-              mekar jadi panel tidak terasa menyambung ke baris pemicunya.
-              Sebagai kartu, panel detail bisa menempel langsung di bawah
-              kepala kartu yang sama alih-alih jadi tempelan terpisah. */}
-          <div className="daftar-target">
-            {target.map((t, i) => {
-              const ubah = (patch: Partial<Target>) =>
-                setTarget(target.map((x, y) => (y === i ? { ...x, ...patch } : x)));
-              const adaPita = t.pita.length > 0;
-              const ringkasan =
-                t.peran === "reward" || t.peran === "penalty"
-                  ? (t.nilai_efek
-                      ? `${t.jenis_nilai === "persen" ? t.nilai_efek + "%" : "Rp" + Number(t.nilai_efek).toLocaleString("id-ID")} per satuan hasil hitung`
-                      : "Belum diisi nilai efeknya")
-                  : t.peran === "tier"
-                  ? (adaPita ? `${t.pita.length} pita tier` : "Belum ada pita")
-                  : t.peran === "pendukung"
-                  ? "Bahan syarat, tidak dinilai"
-                  : t.peran === "nominal"
-                  ? [
-                      t.gerbang.length
-                        ? `${t.gerbang.length} syarat`
-                        : "Tanpa syarat",
-                      t.nominal.length
-                        ? `${t.nominal.length} pita nominal`
-                        : "belum ada pita nominal",
-                    ].join(" · ")
-                  : [
-                      t.bobot_kpi && `KPI ${t.bobot_kpi}%`,
-                      t.bobot_insentif && `Insentif ${t.bobot_insentif}%`,
-                      adaPita && `${t.pita.length} pita`,
-                    ].filter(Boolean).join(" · ") || "Belum diisi";
-              const buka = detailBuka === i;
-              return (
-                <div className={"trow" + (buka ? " buka" : "")} key={i}>
-                  <div className="trow-atas">
-                    <div className="trow-field trow-jabatan">
-                      <span className="trow-label">Jabatan</span>
-                      <Pilih nilai={t.alias} bebas placeholder="Pilih jabatan"
-                             onPilih={(v) => ubah({ alias: v.toUpperCase() })}
-                             opsi={jabatan.map((a) => ({ nilai: a, label: a }))} />
-                    </div>
-                    <div className="trow-field trow-produk">
-                      <span className="trow-label">Produk</span>
-                      <Pilih nilai={t.produk} cari={false} onPilih={(v) => ubah({ produk: v })}
-                             opsi={produk.map((p) => ({ nilai: p.kode, label: p.kode, ket: p.nama }))} />
-                    </div>
-                    <div className="trow-field trow-peran">
-                      <span className="trow-label">Peran</span>
-                      <Pilih nilai={t.peran} cari={false} onPilih={(v) => ubah({ peran: v })}
-                             opsi={PERAN_OPSI} />
-                    </div>
-                    <div className={"trow-ringkas warna-" + (PERAN_WARNA[t.peran] ?? "netral")}>
-                      <span className="trow-label">Ringkasan</span>
-                      <span className="trow-ringkas-teks">
-                        <i className="trow-dot" aria-hidden />
-                        {ringkasan}
-                      </span>
-                    </div>
-                    <div className="trow-aksi">
-                      <button className="btn ghost sm" onClick={() => setDetailBuka(buka ? null : i)}>
-                        {buka ? "Tutup" : "Atur"}
-                      </button>
-                      <button className="isyarat-x" title={`Lepaskan ${t.alias || "baris ini"}`}
-                              onClick={() => {
-                                setTarget(target.filter((_, y) => y !== i));
-                                if (buka) setDetailBuka(null);
-                              }}>×</button>
-                    </div>
-                  </div>
-                  {buka && (
-                    <div className="trow-detail">
-                      <DetailTarget t={t} ubah={ubah} lain={lain} namaSendiri={nama} />
-                    </div>
-                  )}
+          {/* --- hasil uji --- */}
+          {uji && (
+            <section className="card fb-uji">
+              <div className="rk-kartu-kepala">
+                <span className="km-ikon good"><Ikon nama="target" ukuran={20} /></span>
+                <div>
+                  <h2>Hasil uji atas data mentah</h2>
+                  <p className="faint small num fb-uji-rumus">{uji.rumus}</p>
                 </div>
-              );
-            })}
-            {!target.length && (
-              <div className="trow-kosong">
-                Belum didaftarkan ke jabatan mana pun, jadi belum akan dihitung.
+                <button className="pa-tutup" onClick={() => setUji(null)} aria-label="Tutup hasil uji">×</button>
+              </div>
+              <div className="tabel-scroll">
+                <table className="rk-tabel">
+                  <thead>
+                    <tr><th>NIK</th><th>Nama</th><th className="r">Baris</th><th className="r">Nilai</th></tr>
+                  </thead>
+                  <tbody>
+                    {uji.contoh.map((c) => (
+                      <tr key={c.nik}>
+                        <td className="num faint">{c.nik}</td>
+                        <td><div className="pa-nama">{c.nama}</div><div className="pa-sub">{c.cabang ?? "—"}</div></td>
+                        <td className="r num faint">{c.baris.toLocaleString("id-ID")}</td>
+                        <td className="r num"><b>
+                          {c.nilai === null ? "—" : c.nilai.toLocaleString("id-ID", { maximumFractionDigits: 2 })}
+                        </b></td>
+                      </tr>
+                    ))}
+                    {!uji.contoh.length && (
+                      <tr><td colSpan={4} className="empty">
+                        Tidak ada baris data mentah yang cocok. Pastikan data API sudah ditarik.
+                      </td></tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </section>
+          )}
+
+          {/* --- pendaftaran ke jabatan + produk --- */}
+          <section className="card fb-daftarkan">
+            <div className="rk-kartu-kepala">
+              <span className="km-ikon accent"><Ikon nama="badge" ukuran={20} /></span>
+              <div>
+                <h2>Didaftarkan ke jabatan · produk <span className="da-hitung num">{target.length}</span></h2>
+                <p className="faint small">
+                  Indikator hanya dihitung untuk pasangan yang terdaftar di sini. Bobot KPI dan bobot insentif berdiri
+                  sendiri — kosongkan salah satu bila indikator ini tidak ikut skema tersebut.
+                </p>
+              </div>
+              {!!target.length && (
+                <button className="btn sm" onClick={tambahTarget}>
+                  <Ikon nama="plus" ukuran={14} tebal={2.2} /> Daftarkan
+                </button>
+              )}
+            </div>
+
+            {/* Tiap pendaftaran adalah kartu baris sendiri, bukan baris tabel.
+                Empat kotak pilih berdampingan dulu terasa seperti formulir
+                yang dipaksa masuk ke tabel — lebar kolom kaku, dan baris yang
+                mekar jadi panel tidak terasa menyambung ke baris pemicunya.
+                Sebagai kartu, panel detail bisa menempel langsung di bawah
+                kepala kartu yang sama alih-alih jadi tempelan terpisah. */}
+            <div className="daftar-target fb-target">
+              {target.map((t, i) => {
+                const ubah = (patch: Partial<Target>) =>
+                  setTarget(target.map((x, y) => (y === i ? { ...x, ...patch } : x)));
+                const adaPita = t.pita.length > 0;
+                const ringkasan =
+                  t.peran === "reward" || t.peran === "penalty"
+                    ? (t.nilai_efek
+                        ? `${t.jenis_nilai === "persen" ? t.nilai_efek + "%" : "Rp" + Number(t.nilai_efek).toLocaleString("id-ID")} per satuan hasil hitung`
+                        : "Belum diisi nilai efeknya")
+                    : t.peran === "tier"
+                    ? (adaPita ? `${t.pita.length} pita tier` : "Belum ada pita")
+                    : t.peran === "pendukung"
+                    ? "Bahan syarat, tidak dinilai"
+                    : t.peran === "nominal"
+                    ? [
+                        t.gerbang.length ? `${t.gerbang.length} syarat` : "Tanpa syarat",
+                        t.nominal.length ? `${t.nominal.length} pita nominal` : "belum ada pita nominal",
+                      ].join(" · ")
+                    : [
+                        t.bobot_kpi && `KPI ${t.bobot_kpi}%`,
+                        t.bobot_insentif && `Insentif ${t.bobot_insentif}%`,
+                        adaPita && `${t.pita.length} pita`,
+                      ].filter(Boolean).join(" · ") || "Belum diisi";
+                const terbuka = detailBuka === i;
+                return (
+                  <div className={"trow" + (terbuka ? " buka" : "")} key={i}>
+                    <div className="trow-atas">
+                      <div className="trow-field trow-jabatan">
+                        <span className="trow-label">Jabatan</span>
+                        <Pilih nilai={t.alias} bebas placeholder="Pilih jabatan"
+                               onPilih={(v) => ubah({ alias: v.toUpperCase() })}
+                               opsi={jabatan.map((a) => ({ nilai: a, label: a }))} />
+                      </div>
+                      <div className="trow-field trow-produk">
+                        <span className="trow-label">Produk</span>
+                        <Pilih nilai={t.produk} cari={false} onPilih={(v) => ubah({ produk: v })}
+                               opsi={produk.map((p) => ({ nilai: p.kode, label: p.kode, ket: p.nama }))} />
+                      </div>
+                      <div className="trow-field trow-peran">
+                        <span className="trow-label">Peran</span>
+                        <Pilih nilai={t.peran} cari={false} onPilih={(v) => ubah({ peran: v })}
+                               opsi={PERAN_OPSI} />
+                      </div>
+                      <div className={"trow-ringkas warna-" + (PERAN_WARNA[t.peran] ?? "netral")}>
+                        <span className="trow-label">Ringkasan</span>
+                        <span className="trow-ringkas-teks">
+                          <i className="trow-dot" aria-hidden />
+                          {ringkasan}
+                        </span>
+                      </div>
+                      <div className="trow-aksi">
+                        <button className={"btn sm " + (terbuka ? "tint" : "ghost")} onClick={() => setDetailBuka(terbuka ? null : i)}>
+                          <Ikon nama={terbuka ? "chevronDown" : "pencil"} ukuran={14} /> {terbuka ? "Tutup" : "Atur"}
+                        </button>
+                        <button className="pa-ikon-btn fb-lepas" title={`Lepaskan ${t.alias || "baris ini"}`}
+                                onClick={() => {
+                                  setTarget(target.filter((_, y) => y !== i));
+                                  if (terbuka) setDetailBuka(null);
+                                }}>×</button>
+                      </div>
+                    </div>
+                    {terbuka && (
+                      <div className="trow-detail">
+                        <DetailTarget t={t} ubah={ubah} lain={lain} namaSendiri={nama} />
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+              {!target.length && (
+                <div className="fb-kosong">
+                  <span className="fb-kosong-ikon"><Ikon nama="badge" ukuran={24} /></span>
+                  <b>Belum didaftarkan</b>
+                  <p>Belum didaftarkan ke jabatan mana pun, jadi rumus ini belum akan dihitung untuk skor KPI maupun insentif.</p>
+                  <button className="btn tint sm" onClick={tambahTarget}>
+                    <Ikon nama="plus" ukuran={14} /> Daftarkan sekarang
+                  </button>
+                </div>
+              )}
+            </div>
+
+            {target.some((t) => t.alias && !jabatan.includes(t.alias)) && (
+              <div className="alert-box warn fb-peringatan">
+                <span className="alert-ikon">!</span>
+                <span>
+                  Ada jabatan yang belum punya pemetaan produk di Master Produk. Indikator tidak akan dihitung untuk
+                  jabatan itu sampai dipetakan.
+                </span>
               </div>
             )}
-          </div>
+          </section>
 
-          {target.some((t) => t.alias && !jabatan.includes(t.alias)) && (
-            <p className="alert warn">
-              Ada jabatan yang belum punya pemetaan produk di Master Produk.
-              Indikator tidak akan dihitung untuk jabatan itu sampai dipetakan.
-            </p>
-          )}
+          <div className="fb-info">
+            <div className="card fb-info-kartu">
+              <span className="km-ikon"><Ikon nama="columns" ukuran={18} /></span>
+              <div>
+                <b>Kolom yang bisa dipakai</b>
+                <p>Kolom rumus berasal dari <Link href="/admin/kolom-api">CRUD Kolom API</Link> dan{" "}
+                  <Link href="/admin/turunan">Kolom Turunan</Link>. Kolom baru terisi pada tarikan berikutnya.</p>
+              </div>
+            </div>
+            <div className="card fb-info-kartu">
+              <span className="km-ikon"><Ikon nama="api" ukuran={18} /></span>
+              <div>
+                <b>Angka yang dipakai uji</b>
+                <p>“Uji rumus” membaca data mentah hasil tarikan terakhir — periksa isinya di{" "}
+                  <Link href="/admin/sampel-data">Sample Data API</Link> atau status tarikan di <Link href="/admin/data-api">Data API</Link>.</p>
+              </div>
+            </div>
+          </div>
         </section>
-      </section>
+      </div>
     </div>
   );
 }
