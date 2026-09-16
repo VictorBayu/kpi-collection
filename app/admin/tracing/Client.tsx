@@ -352,7 +352,9 @@ function BarisJejak({ j, berjalan }: { j: any; berjalan: boolean }) {
               </p>
               <ContohBahan berjalan={berjalan} nik={j.nik} produk={j.produk}
                             indikatorId={j.indikator_id} jumlahKomponen={j.komponen.length}
-                            kaliSeratus={kaliSeratus} />
+                            kaliSeratus={kaliSeratus}
+                            rasio={j.komponen.length === 2 && kaliSeratus &&
+                                   j.komponen[1]?.operator_sebelum === "/"} />
             </div>
           </div>
 
@@ -559,10 +561,13 @@ function KartuInsentif({ ins, tier }: { ins: any; tier: any[] }) {
  * "15 baris tersaring" akan terbaca sebagai "semua tersaring".
  */
 function ContohBahan({
-  berjalan, nik, produk, indikatorId, jumlahKomponen, kaliSeratus,
+  berjalan, nik, produk, indikatorId, jumlahKomponen, kaliSeratus, rasio,
 }: {
   berjalan: boolean; nik: string; produk: string;
   indikatorId: string; jumlahKomponen: number; kaliSeratus: boolean;
+  // Rumus pembilang/penyebut x100% (2 komponen, kali_seratus) — hanya
+  // bentuk ini yang punya makna Achievement/Workload yang konsisten.
+  rasio: boolean;
 }) {
   const [buka, setBuka] = useState(false);
   const [komponen, setKomponen] = useState(0);
@@ -610,7 +615,7 @@ function ContohBahan({
             <button key={i} type="button"
                     className={"btn sm " + (i === komponen ? "" : "ghost")}
                     onClick={() => { setKomponen(i); setHal(1); }}>
-              Komponen {i + 1}
+              {rasio ? (i === 0 ? "Achievement" : "Workload") : `Komponen ${i + 1}`}
             </button>
           ))}
         </div>
