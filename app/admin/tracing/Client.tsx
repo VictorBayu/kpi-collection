@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import Pilih from "@/components/Pilih";
-import { rp, angka, nilai, namaPeriode, toISODate } from "@/lib/format";
+import { rp, angka, nilai, namaPeriode, toISODate, tebakSatuan } from "@/lib/format";
 
 /**
  * Tracing KPI — membongkar perhitungan satu NIK dari data mentah sampai
@@ -177,7 +177,13 @@ function BarisJejak({ j, berjalan }: { j: any; berjalan: boolean }) {
   const [buka, setBuka] = useState(false);
   const skor = j.skor_kpi === null || j.skor_kpi === undefined ? null : Number(j.skor_kpi);
   const nada = skor === null ? "" : skor < 3 ? "bad" : skor >= 4 ? "good" : "mid";
-  const sat = j.satuan ?? "unit";
+  // Ditebak ulang dari nama indikator + nilainya — sama seperti layar
+  // Data KPI — bukan dipercaya mentah dari kolom `satuan`. Kolom itu
+  // sering diisi "persen" untuk indikator yang pencapaiannya ternyata
+  // tersimpan sebagai angka 0-100 (bukan rasio 0-1), dan nilai()
+  // mengalikannya lagi dengan 100 -- itulah sumber "1082%".
+  const pencapaianNum = j.pencapaian === null || j.pencapaian === undefined ? null : Number(j.pencapaian);
+  const sat = tebakSatuan(j.indikator, pencapaianNum);
 
   const gerbangLulus = (g: any) => {
     const u = g.ukur === null || g.ukur === undefined ? null : Number(g.ukur);
@@ -242,6 +248,7 @@ function BarisJejak({ j, berjalan }: { j: any; berjalan: boolean }) {
                   untuk periode lampau — data mentah hanya menyimpan tarikan terkini.</>
                 )}
               </p>
+              <ContohBahan c={j.contoh_bahan} berjalan={berjalan} />
             </div>
           </div>
 
@@ -429,5 +436,53 @@ function KartuInsentif({ ins, tier }: { ins: any; tier: any[] }) {
       </div>
       {ins.keterangan && <p className="muted small trc-ket">Catatan mesin: {ins.keterangan}</p>}
     </div>
+  );
+}
+
+/**
+ * Contoh baris data_mentah di balik komponen pertama satu indikator.
+ *
+ * Menjawab langsung "bahan apa yang masuk" — bukan cuma kalimat rumus,
+ * tapi kontrak sungguhan: nomor, nilai kolomnya, dan apakah baris itu
+ * lolos syarat komponen. Baris yang GAGAL syarat sengaja tetap
+ * ditampilkan (dicoret), supaya kelihatan mana yang tersaring dan
+ * kenapa — bukan cuma mana yang lolos.
+ */
+function ContohBahan({ c, berjalan }: { c: any; berjalan: boolean }) {
+  if (!berjalan) return null;
+  if (!c || !c.baris?.length) {
+    return (
+      <p className="muted small">
+        Tidak ada contoh baris untuk ditampilkan — kolom komponennya tanpa nama (COUNT baris) atau tidak ada baris yang cocok.
+      </p>
+    );
+  }
+
+  const kolomLain = [...new Set([c.kolom, ...(c.syarat_kolom ?? [])].filter(Boolean))] as string[];
+
+  return (
+    <details className="trc-contoh">
+      <summary>Lihat {c.baris.length} contoh baris data mentah (komponen pertama)</summary>
+      <div className="trc-contoh-scroll">
+        <table className="trc-pita">
+          <thead>
+            <tr>
+              <th>Kontrak</th>
+              {kolomLain.map((k) => <th key={k}>{k}</th>)}
+              <th className="r">Syarat</th>
+            </tr>
+          </thead>
+          <tbody>
+            {c.baris.map((r: any, i: number) => (
+              <tr key={i} className={r.lulus_syarat ? "" : "trc-gagal-row"}>
+                <td className="num">{r.agreement_no ?? "—"}</td>
+                {kolomLain.map((k) => <td key={k} className="num">{r[k] === null || r[k] === undefined ? "—" : String(r[k])}</td>)}
+                <td className="r">{r.lulus_syarat ? <span className="trc-chip">lolos</span> : <span className="trc-chip">tersaring</span>}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </details>
   );
 }
