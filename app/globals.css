@@ -2299,6 +2299,24 @@ select:disabled{background-image:var(--panah-select-mati);
 .trc-yatim li{display:flex;gap:9px;align-items:center;flex-wrap:wrap;font-size:13px;
   padding:9px 12px;border-radius:10px;background:var(--bad-soft);border:1px solid var(--bad)}
 
+.trc-total{margin:14px 16px 0;padding:13px 15px;border-radius:12px;border:1px solid var(--line);
+  background:var(--line-soft);display:flex;flex-direction:column;gap:8px}
+.trc-total-baris{display:flex;align-items:center;gap:10px;flex-wrap:wrap;font-size:13px}
+.trc-total-label{font-weight:700;color:var(--ink);min-width:150px}
+.trc-total-angka{margin-left:auto;font-size:19px;font-weight:700;color:var(--accent)}
+.trc-total-angka.kosong{color:var(--ink-faint)}
+.trc-total p{margin:2px 0 0}
+
+.trc-komponen-pilih{display:flex;gap:7px;flex-wrap:wrap;margin-bottom:9px}
+.trc-bahan-total{display:flex;gap:18px;flex-wrap:wrap;align-items:center;font-size:12.5px;
+  color:var(--ink-faint);padding:10px 12px;border-radius:10px;background:var(--line-soft);
+  margin-bottom:9px}
+.trc-bahan-total > span{display:flex;flex-direction:column;gap:1px}
+.trc-bahan-total b{font-size:15px;color:var(--ink)}
+.trc-bahan-total b.good{color:var(--good)}
+.trc-bahan-pakai{margin-left:auto;text-align:right}
+.trc-hal{display:flex;align-items:center;justify-content:center;gap:12px;margin-top:10px}
+
 .trc-contoh{margin-top:4px}
 .trc-contoh summary{cursor:pointer;font-size:12.5px;color:var(--accent);font-weight:600}
 .trc-contoh[open] summary{margin-bottom:8px}

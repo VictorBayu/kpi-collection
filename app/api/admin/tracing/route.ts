@@ -34,7 +34,7 @@ type Baris = any;
 
 /** Membaca target aktif satu alias+produk, termasuk yang belum terhitung. */
 const SQL_BARIS = `
-  SELECT k.id, k.indikator_id, k.indikator, k.produk, k.satuan, k.catatan,
+  SELECT k.id, k.nik, k.indikator_id, k.indikator, k.produk, k.satuan, k.catatan,
          k.pencapaian, k.skor_kpi, k.bobot, k.skor_terbobot,
          k.bobot_insentif, k.skor_terbobot_ins,
          k.target_kpi3, k.target_kpi4, k.target_kpi5,
@@ -254,7 +254,7 @@ export const GET = handler(async (req) => {
   // sebagai bukti dan menuntun ke kesimpulan yang salah.
   const berjalan = periode === periodeBerjalan();
 
-  const jejak = await Promise.all(baris.map(async (b) => {
+  const jejak = baris.map((b) => {
     const pic = KOLOM_PIC[b.peran_pic] ?? "staff";
     const m = petaMentah.get(String(b.produk ?? "").toUpperCase());
     const komponenIndikator = petaKomponen.get(b.indikator_id) ?? [];
@@ -267,12 +267,8 @@ export const GET = handler(async (req) => {
       // Baris mentah yang bisa terbaca rumus ini: dari kolom NIK sesuai
       // peran pemegang indikator, bukan sembarang baris milik orangnya.
       baris_mentah: m ? Number(m[pic] ?? 0) : 0,
-      // Hanya untuk periode berjalan — lihat alasan `berjalan` di atas.
-      contoh_bahan: berjalan
-        ? await contohBahan(pic, nik, String(b.produk ?? ""), komponenIndikator[0])
-        : null,
     };
-  }));
+  });
 
   return Response.json({
     periodeList, periode, orang, periode_berjalan: berjalan,
@@ -281,91 +277,6 @@ export const GET = handler(async (req) => {
     temuan: temuan(jejak, yatim, insentif, tierTabel, berjalan),
   });
 });
-
-/** Nama kolom lolos pola ini SEBELUM ditempel ke SQL — lihat lib/rumus.ts. */
-const POLA_KOLOM = /^[a-z][a-z0-9_]{0,50}$/;
-
-/**
- * Contoh baris data_mentah yang menjadi bahan satu komponen rumus.
- *
- * "Bahan yang masuk kategori" tidak terlihat dari kalimat rumus saja —
- * admin perlu melihat baris sungguhan untuk memastikan penyaringannya
- * (jabatan -> kolom nik_staff/spv/bch, dan syarat komponen) benar-benar
- * mengenai kontrak yang seharusnya. Karena itu potongan WHERE di sini
- * SENGAJA ditulis dengan pola yang sama seperti `potonganSyarat` di
- * lib/rumus.ts (operator, placeholder, ANY(...) untuk larik) — bukan
- * versi tersendiri yang berisiko diam-diam berbeda hasil dari mesin
- * hitung yang sesungguhnya.
- *
- * Hanya komponen PERTAMA yang ditelusuri. Untuk formula bersusun
- * (A - B, dst.) ini cukup mewakili kasus paling umum tanpa membuat
- * satu halaman menelusuri semua sisi rumus sekaligus.
- */
-async function contohBahan(
-  pic: "staff" | "spv" | "bch", nik: string, produk: string, komponen: any,
-): Promise<{ kolom_label: string | null; kolom: string | null; baris: any[]; syarat_kolom: string[] } | null> {
-  if (!komponen) return null;
-  const kolomNik = `nik_${pic}`;
-
-  const kolomUtama: string | null = komponen.kolom;
-  if (kolomUtama && !POLA_KOLOM.test(kolomUtama)) return null;
-
-  const syaratList: { kolom: string; label: string; operator: string; nilai: string[] }[] =
-    komponen.syarat ?? [];
-  for (const s of syaratList) {
-    if (!POLA_KOLOM.test(s.kolom)) return null;
-  }
-
-  const params: any[] = [nik, produk];
-  const kolomTampil = [
-    "agreement_no",
-    ...(kolomUtama ? [kolomUtama] : []),
-    ...syaratList.map((s) => s.kolom),
-  ];
-  const unik = [...new Set(kolomTampil)];
-  const select = unik.map((k) => `"${k}"`).join(", ");
-
-  const potongan = (s: { kolom: string; operator: string; nilai: string[] }) => {
-    const kolomSql = `"${s.kolom}"`;
-    const p = (v: any) => { params.push(v); return `$${params.length}`; };
-    const satu = () => s.nilai[0] ?? "";
-    switch (s.operator) {
-      case "kosong": return `(${kolomSql} IS NULL OR ${kolomSql}::text = '')`;
-      case "terisi": return `(${kolomSql} IS NOT NULL AND ${kolomSql}::text <> '')`;
-      case "sama": return `${kolomSql}::text = ${p(satu())}`;
-      case "tidak_sama": return `(${kolomSql} IS NULL OR ${kolomSql}::text <> ${p(satu())})`;
-      case "termasuk": return `${kolomSql}::text = ANY(${p(s.nilai)}::text[])`;
-      case "tidak_termasuk": return `(${kolomSql} IS NULL OR NOT (${kolomSql}::text = ANY(${p(s.nilai)}::text[])))`;
-      case "mengandung": return `${kolomSql}::text ILIKE ${p("%" + satu() + "%")}`;
-      case "lebih": return `${kolomSql} > ${p(satu())}`;
-      case "lebih_sama": return `${kolomSql} >= ${p(satu())}`;
-      case "kurang": return `${kolomSql} < ${p(satu())}`;
-      case "kurang_sama": return `${kolomSql} <= ${p(satu())}`;
-      case "antara": return `${kolomSql} BETWEEN ${p(s.nilai[0] ?? "")} AND ${p(s.nilai[1] ?? "")}`;
-      default: return "true";
-    }
-  };
-
-  const lulusExpr = syaratList.length
-    ? `(${syaratList.map(potongan).join(komponen.gabung_syarat === "atau" ? " OR " : " AND ")})`
-    : "true";
-
-  const sql = `
-    SELECT ${select}, (${lulusExpr}) AS lulus_syarat
-      FROM data_mentah
-     WHERE "${kolomNik}" = $1
-       AND upper(btrim(COALESCE(product,''))) = upper($2)
-     ORDER BY id DESC
-     LIMIT 15`;
-
-  const rows = await q<any>(sql, params);
-  return {
-    kolom_label: kolomUtama ?? null,
-    kolom: kolomUtama,
-    syarat_kolom: syaratList.map((s) => s.kolom),
-    baris: rows,
-  };
-}
 
 /**
  * Pemeriksaan kewajaran susunan indikator.

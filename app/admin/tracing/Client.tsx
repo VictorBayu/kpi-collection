@@ -18,6 +18,7 @@ import { rp, angka, nilai, namaPeriode, toISODate, tebakSatuan } from "@/lib/for
  */
 
 const NF2 = new Intl.NumberFormat("id-ID", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+const NF0 = new Intl.NumberFormat("id-ID", { maximumFractionDigits: 0 });
 
 /**
  * Angka polos, apa adanya -- dipakai KHUSUS untuk batas pita nominal.
@@ -45,6 +46,7 @@ export default function Client() {
   const [data, setData] = useState<any>(null);
   const [sibuk, setSibuk] = useState(false);
   const [pesan, setPesan] = useState<string | null>(null);
+  const [dimuat, setDimuat] = useState<{ nik: string; periode: string }>({ nik: "", periode: "" });
 
   useEffect(() => { void ambil("", ""); }, []);
 
@@ -59,6 +61,9 @@ export default function Client() {
       if (!r.ok) { setPesan(j.error ?? "Gagal memuat."); setData(null); return; }
       if (!periode && j.periode) setPeriode(toISODate(j.periode));
       setData(j.kosong ? { ...j, jejak: null } : j);
+      // Yang tampil sekarang berasal dari NIK+periode ini; dipakai untuk
+      // menandai bila isian di atas sudah diubah tapi belum ditelusuri.
+      setDimuat({ nik: n, periode: p || (j.periode ? toISODate(j.periode) : "") });
     } finally { setSibuk(false); }
   }
 
@@ -67,6 +72,11 @@ export default function Client() {
     if (!nik.trim()) { setPesan("Isi NIK dulu."); return; }
     void ambil(nik.trim(), periode);
   }
+
+  // Isian sudah berubah dari yang sedang tampil. Tanpa penanda ini, data
+  // periode lama terbaca sebagai data periode yang baru dipilih.
+  const basi = !!data?.orang &&
+    (dimuat.nik !== nik.trim() || dimuat.periode !== periode);
 
   const opsiPeriode = (data?.periodeList ?? []).map((p: any) => {
     const iso = toISODate(p.periode);
@@ -98,13 +108,22 @@ export default function Client() {
         <div className="field">
           <span>Periode</span>
           <Pilih opsi={opsiPeriode} nilai={periode}
-                 onPilih={(v) => { setPeriode(v); if (nik.trim()) void ambil(nik.trim(), v); }}
+                 onPilih={(v) => setPeriode(v)}
                  placeholder="Periode…" />
         </div>
         <button className="btn" disabled={sibuk}>{sibuk ? "Menelusuri…" : "Telusuri"}</button>
       </form>
 
       {pesan && <div className="card card-pad narrow"><p className="muted">{pesan}</p></div>}
+
+      {basi && (
+        <div className="card card-pad narrow">
+          <p className="muted">
+            Isian di atas sudah diubah. Yang tampil di bawah masih hasil penelusuran
+            sebelumnya — tekan <b>Telusuri</b> untuk memuat yang baru.
+          </p>
+        </div>
+      )}
 
       {data?.orang && (
         <div className="card card-pad trc-orang">
@@ -161,6 +180,7 @@ export default function Client() {
                 <BarisJejak key={j.id} j={j} berjalan={!!data.periode_berjalan} />
               ))}
             </div>
+            <TotalSkor rows={rows} />
             {ins ? <KartuInsentif ins={ins} tier={tierProduk} /> : (
               <div className="card card-pad narrow trc-ins-kosong">
                 <p className="muted">Tidak ada baris insentif untuk produk {produk} — biasanya karena jabatan ini belum punya baris di Pagu Insentif.</p>
@@ -184,6 +204,65 @@ export default function Client() {
         </div>
       )}
     </>
+  );
+}
+
+/**
+ * Penjumlahan skor indikator -- jembatan antara skor dan rupiah.
+ *
+ * Tanpa baris ini, hubungan antara "Repeat Roll 5,00" di atas dan
+ * "Skor insentif 0,00" di kartu insentif di bawah tidak kelihatan sama
+ * sekali. Yang menjembataninya adalah penjumlahan skor TERBOBOT, dan
+ * justru di situ kesalahan susunan paling sering bersembunyi: bobot
+ * insentif yang kosong membuat indikator berskor 5 tetap menyumbang nol
+ * rupiah, dan itu tidak terlihat dari mana pun kecuali dijumlahkan.
+ */
+function TotalSkor({ rows }: { rows: any[] }) {
+  const num = (v: any) => (v === null || v === undefined ? null : Number(v));
+  const ikut = rows.filter((r) => r.peran === "kpi" || r.peran === "reguler");
+  if (!ikut.length) return null;
+
+  const jumlah = (kol: string) => {
+    const ada = ikut.filter((r) => num(r[kol]) !== null);
+    return { ada: ada.length, nilai: ada.reduce((a, r) => a + Number(r[kol]), 0) };
+  };
+  const kpi = jumlah("skor_terbobot");
+  const ins = jumlah("skor_terbobot_ins");
+  const bobotKpi = jumlah("bobot");
+  const bobotIns = jumlah("bobot_insentif");
+
+  const barisTotal = (
+    label: string, hasil: { ada: number; nilai: number },
+    bobot: { ada: number; nilai: number }, keterangan: string,
+  ) => (
+    <div className="trc-total-baris">
+      <span className="trc-total-label">{label}</span>
+      <span className="faint">
+        {hasil.ada} dari {ikut.length} indikator · total bobot{" "}
+        <b className={"num " + (Math.abs(bobot.nilai - 100) > 0.01 ? "bad" : "")}>
+          {angka(bobot.nilai)}%
+        </b>
+      </span>
+      <b className={"num trc-total-angka" + (hasil.ada ? "" : " kosong")}>
+        {hasil.ada ? angka(hasil.nilai) : "—"}
+      </b>
+      {hasil.ada < ikut.length && <span className="trc-chip">{keterangan}</span>}
+    </div>
+  );
+
+  return (
+    <div className="trc-total">
+      <span className="faint">Penjumlahan skor indikator produk ini</span>
+      {barisTotal("Total skor KPI", kpi, bobotKpi,
+        `${ikut.length - kpi.ada} tanpa bobot KPI`)}
+      {barisTotal("Total skor insentif", ins, bobotIns,
+        `${ikut.length - ins.ada} tanpa bobot insentif`)}
+      <p className="muted small">
+        Angka <b>total skor insentif</b> inilah yang dipakai kartu insentif di bawah —
+        bukan skor KPI. Kalau bobot insentif kosong, indikator itu tidak menyumbang
+        rupiah sama sekali betapapun tinggi skornya.
+      </p>
+    </div>
   );
 }
 
@@ -271,7 +350,9 @@ function BarisJejak({ j, berjalan }: { j: any; berjalan: boolean }) {
                   untuk periode lampau — data mentah hanya menyimpan tarikan terkini.</>
                 )}
               </p>
-              <ContohBahan c={j.contoh_bahan} berjalan={berjalan} />
+              <ContohBahan berjalan={berjalan} nik={j.nik} produk={j.produk}
+                            indikatorId={j.indikator_id} jumlahKomponen={j.komponen.length}
+                            kaliSeratus={kaliSeratus} />
             </div>
           </div>
 
@@ -469,49 +550,145 @@ function KartuInsentif({ ins, tier }: { ins: any; tier: any[] }) {
 }
 
 /**
- * Contoh baris data_mentah di balik komponen pertama satu indikator.
+ * Baris data mentah di balik satu komponen rumus -- dimuat saat dibuka.
  *
- * Menjawab langsung "bahan apa yang masuk" — bukan cuma kalimat rumus,
- * tapi kontrak sungguhan: nomor, nilai kolomnya, dan apakah baris itu
- * lolos syarat komponen. Baris yang GAGAL syarat sengaja tetap
- * ditampilkan (dicoret), supaya kelihatan mana yang tersaring dan
- * kenapa — bukan cuma mana yang lolos.
+ * Tidak ikut muatan jejak utama: seorang BCH bisa memegang ribuan
+ * kontrak, dan memuatnya untuk setiap indikator sekaligus membuat layar
+ * menunggu data yang belum tentu dibuka. Totalnya tetap dihitung dari
+ * SELURUH baris di server -- kalau dihitung dari halaman yang tampil,
+ * "15 baris tersaring" akan terbaca sebagai "semua tersaring".
  */
-function ContohBahan({ c, berjalan }: { c: any; berjalan: boolean }) {
-  if (!berjalan) return null;
-  if (!c || !c.baris?.length) {
-    return (
-      <p className="muted small">
-        Tidak ada contoh baris untuk ditampilkan — kolom komponennya tanpa nama (COUNT baris) atau tidak ada baris yang cocok.
-      </p>
-    );
-  }
+function ContohBahan({
+  berjalan, nik, produk, indikatorId, jumlahKomponen, kaliSeratus,
+}: {
+  berjalan: boolean; nik: string; produk: string;
+  indikatorId: string; jumlahKomponen: number; kaliSeratus: boolean;
+}) {
+  const [buka, setBuka] = useState(false);
+  const [komponen, setKomponen] = useState(0);
+  const [hal, setHal] = useState(1);
+  const [data, setData] = useState<any>(null);
+  const [sibuk, setSibuk] = useState(false);
+  const [galat, setGalat] = useState<string | null>(null);
 
-  const kolomLain = [...new Set([c.kolom, ...(c.syarat_kolom ?? [])].filter(Boolean))] as string[];
+  useEffect(() => {
+    if (!buka) return;
+    let batal = false;
+    (async () => {
+      setSibuk(true); setGalat(null);
+      try {
+        const u = new URL("/api/admin/tracing/bahan", location.origin);
+        u.searchParams.set("nik", nik);
+        u.searchParams.set("produk", produk);
+        u.searchParams.set("indikator_id", indikatorId);
+        u.searchParams.set("komponen", String(komponen));
+        u.searchParams.set("hal", String(hal));
+        const r = await fetch(u, { cache: "no-store" });
+        const j = await r.json().catch(() => ({}));
+        if (batal) return;
+        if (!r.ok) { setGalat(j.error ?? "Gagal memuat baris."); setData(null); return; }
+        setData(j);
+      } finally { if (!batal) setSibuk(false); }
+    })();
+    return () => { batal = true; };
+  }, [buka, nik, produk, indikatorId, komponen, hal]);
+
+  if (!berjalan) return null;
+
+  const totalHal = data ? Math.max(1, Math.ceil(data.jumlah / data.per_hal)) : 1;
+  const kolomLain: string[] = data
+    ? [...new Set([data.kolom, ...(data.syarat_kolom ?? [])].filter(Boolean))] as string[]
+    : [];
 
   return (
-    <details className="trc-contoh">
-      <summary>Lihat {c.baris.length} contoh baris data mentah (komponen pertama)</summary>
-      <div className="trc-contoh-scroll">
-        <table className="trc-pita">
-          <thead>
-            <tr>
-              <th>Kontrak</th>
-              {kolomLain.map((k) => <th key={k}>{k}</th>)}
-              <th className="r">Syarat</th>
-            </tr>
-          </thead>
-          <tbody>
-            {c.baris.map((r: any, i: number) => (
-              <tr key={i} className={r.lulus_syarat ? "" : "trc-gagal-row"}>
-                <td className="num">{r.agreement_no ?? "—"}</td>
-                {kolomLain.map((k) => <td key={k} className="num">{r[k] === null || r[k] === undefined ? "—" : String(r[k])}</td>)}
-                <td className="r">{r.lulus_syarat ? <span className="trc-chip">lolos</span> : <span className="trc-chip">tersaring</span>}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
+    <details className="trc-contoh" onToggle={(e) => setBuka((e.target as HTMLDetailsElement).open)}>
+      <summary>Lihat baris data mentah yang dipegang NIK ini</summary>
+
+      {jumlahKomponen > 1 && (
+        <div className="trc-komponen-pilih">
+          {Array.from({ length: jumlahKomponen }, (_, i) => (
+            <button key={i} type="button"
+                    className={"btn sm " + (i === komponen ? "" : "ghost")}
+                    onClick={() => { setKomponen(i); setHal(1); }}>
+              Komponen {i + 1}
+            </button>
+          ))}
+        </div>
+      )}
+
+      {galat && <p className="muted small">{galat}</p>}
+      {sibuk && !data && <p className="muted small">Memuat…</p>}
+
+      {data && !data.kosong && (
+        <>
+          <div className="trc-bahan-total">
+            <span>
+              Baris dipegang NIK ini
+              <b className="num">{NF0.format(data.jumlah)}</b>
+            </span>
+            <span>
+              Lolos syarat
+              <b className="num good">{NF0.format(data.jumlah_lolos)}</b>
+            </span>
+            {data.kolom && (
+              <>
+                <span>
+                  Total {data.kolom_label ?? data.kolom}
+                  <b className="num">{angkaPolos(data.total)}</b>
+                </span>
+                <span className="trc-bahan-pakai">
+                  Yang terpakai rumus ({data.agregat})
+                  <b className="num good">{angkaPolos(data.total_lolos)}</b>
+                </span>
+              </>
+            )}
+          </div>
+
+          <div className="trc-contoh-scroll">
+            <table className="trc-pita">
+              <thead>
+                <tr>
+                  <th>Kontrak</th>
+                  {kolomLain.map((k) => <th key={k}>{k}</th>)}
+                  <th className="r">Syarat</th>
+                </tr>
+              </thead>
+              <tbody>
+                {data.baris.map((r: any, i: number) => (
+                  <tr key={i} className={r.lulus_syarat ? "" : "trc-gagal-row"}>
+                    <td className="num">{r.agreement_no ?? "—"}</td>
+                    {kolomLain.map((k) => (
+                      <td key={k} className="num">
+                        {r[k] === null || r[k] === undefined ? "—" : String(r[k])}
+                      </td>
+                    ))}
+                    <td className="r">
+                      <span className="trc-chip">{r.lulus_syarat ? "lolos" : "tersaring"}</span>
+                    </td>
+                  </tr>
+                ))}
+                {!data.baris.length && (
+                  <tr><td colSpan={kolomLain.length + 2} className="muted">
+                    Tidak ada baris data mentah produk {produk} atas nama NIK ini.
+                  </td></tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+
+          {totalHal > 1 && (
+            <div className="trc-hal">
+              <button type="button" className="btn ghost sm" disabled={hal <= 1 || sibuk}
+                      onClick={() => setHal((h) => Math.max(1, h - 1))}>← Sebelumnya</button>
+              <span className="muted small">Halaman {hal} dari {totalHal}</span>
+              <button type="button" className="btn ghost sm" disabled={hal >= totalHal || sibuk}
+                      onClick={() => setHal((h) => Math.min(totalHal, h + 1))}>Berikutnya →</button>
+            </div>
+          )}
+        </>
+      )}
+
+      {data?.kosong && <p className="muted small">{data.pesan}</p>}
     </details>
   );
 }
