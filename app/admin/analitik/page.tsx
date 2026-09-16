@@ -6,11 +6,12 @@ import { periodeTersedia } from "@/lib/kpi";
 import {
   radarIndikator, jabatanBerdata, ringkasNasional, perArea,
   rincianInsentif, komposisiJabatan, trenPeriode, sebaranSkor,
-  ujungCabang, biayaVsSkor,
+  ujungCabang, biayaVsSkor, semuaCabang,
 } from "@/lib/analitik";
 import { angka, rp, toISODate } from "@/lib/format";
 import PilihPeriode from "@/components/PilihPeriode";
 import AnalitikClient from "./AnalitikClient";
+import TombolCetak from "./TombolCetak";
 import Ikon from "@/components/Ikon";
 import JudulHalaman, { KartuMetrik } from "@/components/JudulHalaman";
 import { namaPeriode } from "@/lib/format";
@@ -50,7 +51,7 @@ export default async function Page({
   // Dijalankan berbarengan; tidak ada yang bergantung hasil yang lain, dan
   // berurutan berarti pembaca menunggu penjumlahan lima kali lebih lama.
   const [komposisi, radar, jabatan, ringkas, area,
-         rincian, tren, sebaran, ujung, biaya] = await Promise.all([
+         rincian, tren, sebaran, ujung, biaya, cabangSemua] = await Promise.all([
     komposisiJabatan(periode),
     radarIndikator(periode),
     jabatanBerdata(periode),
@@ -61,6 +62,7 @@ export default async function Page({
     sebaranSkor(periode),
     ujungCabang(periode),
     biayaVsSkor(periode),
+    semuaCabang(periode),
   ]);
 
   // Radar per jabatan disiapkan di server sekaligus, bukan diambil ulang
@@ -75,38 +77,57 @@ export default async function Page({
   const persen = (n: number) =>
     ringkas.karyawan ? Math.round((n / ringkas.karyawan) * 100) : 0;
 
+  // Prioritas pemulihan: cabang dengan data cukup (≥ 3 orang), skor
+  // terendah dulu — aturan yang sama dengan halaman /admin/analitik/cabang,
+  // supaya lima baris ringkas di sini tidak berbeda urutan dari daftar
+  // lengkapnya.
+  const prioritas = cabangSemua.filter((c) => !c.tipis).slice(0, 5);
+  const jumlahAreaCakupan = new Set(cabangSemua.map((c) => c.area)).size;
+
   return (
     <AppShell>
       <main className="shell">
         <JudulHalaman
           eyebrow="Modul eksekutif · analisis mendalam"
           nada="tegas"
-          meta={`Periode ${namaPeriode(periode)}`}
-          judul="Diagnostik kinerja & sebaran portofolio"
-          deskripsi="Pola menyeluruh dari data KPI — untuk melihat apa yang tidak terlihat saat memeriksa cabang satu per satu."
-          aksi={<PilihPeriode daftar={daftar.map((p) => toISODate(p.periode))} aktif={periode} />}
+          meta={<span className="an-meta">
+            <span>{aktif === daftar[0] ? "Periode terbaru" : "Periode lampau"}</span>
+            <span className="an-meta-chip"><Ikon nama="building" ukuran={13} /> Cakupan: {cabangSemua.length} cabang · {jumlahAreaCakupan} area</span>
+          </span>}
+          judul="Dashboard Analitik"
+          deskripsi="Pola menyeluruh dari data KPI — mendeteksi deviasi dan disparitas kinerja sebelum berdampak pada cabang."
+          aksi={<div className="an-aksi-kepala">
+            <PilihPeriode daftar={daftar.map((p) => toISODate(p.periode))} aktif={periode} />
+            <TombolCetak />
+          </div>}
         />
 
         <div className="km-grid lima">
           <KartuMetrik label="Karyawan dinilai" nilai={ringkas.karyawan.toLocaleString("id-ID")} satuan="orang"
                        catatan={`Periode ${namaPeriode(periode)}`}
-                       ikon={<Ikon nama="users" ukuran={20} />} nada="accent" />
+                       ikon={<Ikon nama="users" ukuran={20} />} nada="accent"
+                       progres={{ persen: 100, nada: "accent" }} />
           <KartuMetrik label="Skor rata-rata"
                        nilai={ringkas.skorRata === null ? "—" : angka(ringkas.skorRata)}
                        lencana={ringkas.skorRata === null ? undefined
                          : ringkas.skorRata >= 3 ? { teks: "≥ KPI 3", nada: "good" } : { teks: "< KPI 3", nada: "bad" }}
                        catatan="Rata-rata nasional"
                        ikon={<Ikon nama={ringkas.skorRata !== null && ringkas.skorRata < 3 ? "trendDown" : "chart"} ukuran={20} />}
-                       nada={ringkas.skorRata !== null && ringkas.skorRata < 3 ? "bad" : "good"} />
+                       nada={ringkas.skorRata !== null && ringkas.skorRata < 3 ? "bad" : "good"}
+                       progres={{ persen: ((ringkas.skorRata ?? 0) / 5) * 100,
+                                  nada: ringkas.skorRata !== null && ringkas.skorRata < 3 ? "bad" : "good" }} />
           <KartuMetrik label="KPI 4 ke atas" nilai={ringkas.jumlahKpi4.toLocaleString("id-ID")} satuan="orang"
                        catatan={`${persen(ringkas.jumlahKpi4)}% dari total`}
-                       ikon={<Ikon nama="checkCircle" ukuran={20} />} nada="good" />
+                       ikon={<Ikon nama="checkCircle" ukuran={20} />} nada="good"
+                       progres={{ persen: persen(ringkas.jumlahKpi4), nada: "good" }} />
           <KartuMetrik label="Di bawah KPI 3" nilai={ringkas.jumlahBawah.toLocaleString("id-ID")} satuan="orang"
                        catatan={`${persen(ringkas.jumlahBawah)}% dari total`}
-                       ikon={<Ikon nama="alert" ukuran={20} />} nada="bad" />
+                       ikon={<Ikon nama="alert" ukuran={20} />} nada="bad"
+                       progres={{ persen: persen(ringkas.jumlahBawah), nada: "bad" }} />
           <KartuMetrik label="Total insentif" nilai={rp(ringkas.insentif)}
                        catatan={`${rincian.penerima.toLocaleString("id-ID")} penerima`}
-                       ikon={<Ikon nama="wallet" ukuran={20} />} />
+                       ikon={<Ikon nama="wallet" ukuran={20} />}
+                       progres={{ persen: ringkas.karyawan ? (rincian.penerima / ringkas.karyawan) * 100 : 0, nada: "netral" }} />
         </div>
 
         {/* Rincian insentif: total saja menyembunyikan hal yang justru paling
@@ -124,23 +145,27 @@ export default async function Page({
           </div>
           <div className="an-rincian">
             <div className="an-pos">
-              <span>Insentif reguler</span>
+              <span><Ikon nama="wallet" ukuran={15} />Insentif reguler</span>
               <b className="num">{rp(rincian.dasar)}</b>
+              <small>Pencapaian pokok</small>
             </div>
             <span className="an-tanda" aria-hidden>+</span>
             <div className="an-pos naik">
-              <span>Reward</span>
+              <span><Ikon nama="target" ukuran={15} />Reward</span>
               <b className="num">{rp(rincian.reward)}</b>
+              <small>Bonus</small>
             </div>
             <span className="an-tanda" aria-hidden>−</span>
             <div className="an-pos turun">
-              <span>Penalty</span>
+              <span><Ikon nama="alert" ukuran={15} />Penalty</span>
               <b className="num">{rp(rincian.penalty)}</b>
+              <small>Potongan</small>
             </div>
             <span className="an-tanda" aria-hidden>=</span>
             <div className="an-pos total">
-              <span>Dibayarkan</span>
+              <span><Ikon nama="checkCircle" ukuran={15} />Dibayarkan</span>
               <b className="num">{rp(rincian.total)}</b>
+              <small>{rincian.penerima.toLocaleString("id-ID")} penerima · net</small>
             </div>
           </div>
           {rincian.tanpaRincian > 0 && (
@@ -157,7 +182,10 @@ export default async function Page({
         <AnalitikClient komposisi={komposisi} radar={radar}
                         radarPerJabatan={radarPerJabatan}
                         jabatan={jabatan} area={area} tren={tren}
-                        sebaran={sebaran} ujung={ujung} biaya={biaya} periode={periode} />
+                        sebaran={sebaran} ujung={ujung} biaya={biaya} periode={periode}
+                        prioritas={prioritas} jumlahCabangSemua={cabangSemua.length}
+                        ringkas={{ karyawan: ringkas.karyawan, bawah: ringkas.jumlahBawah,
+                                   persenBawah: persen(ringkas.jumlahBawah) }} />
       </main>
     </AppShell>
   );

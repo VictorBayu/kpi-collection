@@ -46,7 +46,7 @@ export function TitikStatus({ nada = "good" }: { nada?: "good" | "bad" | "warn" 
  * Kartu metrik ringkas dengan ikon di kanan — pola "Key Metrics Ribbon".
  */
 export function KartuMetrik({
-  label, nilai, satuan, catatan, ikon, nada = "netral", lencana,
+  label, nilai, satuan, catatan, ikon, nada = "netral", lencana, progres,
 }: {
   label: string;
   nilai: React.ReactNode;
@@ -55,9 +55,11 @@ export function KartuMetrik({
   ikon?: React.ReactNode;
   nada?: "netral" | "accent" | "good" | "warn" | "bad";
   lencana?: { teks: string; nada?: "good" | "warn" | "bad" | "netral" };
+  /** Bilah tipis di kaki kartu (0–100), mis. porsi dari total. */
+  progres?: { persen: number; nada?: "accent" | "good" | "warn" | "bad" | "netral" };
 }) {
   return (
-    <div className="km">
+    <div className={"km" + (progres ? " berbilah" : "")}>
       <div className="km-isi">
         <span className="km-label">{label}</span>
         <div className="km-nilai">
@@ -68,6 +70,11 @@ export function KartuMetrik({
         {catatan && <span className="km-catatan">{catatan}</span>}
       </div>
       {ikon && <span className={"km-ikon " + nada}>{ikon}</span>}
+      {progres && (
+        <span className={"km-bilah " + (progres.nada ?? "accent")} aria-hidden>
+          <i style={{ width: `${Math.max(0, Math.min(100, progres.persen))}%` }} />
+        </span>
+      )}
     </div>
   );
 }
