@@ -3629,7 +3629,7 @@ tfoot td{background:var(--page);border-top:1px solid var(--line)}
 .hr-tabel-rinci .rh-kpi{min-height:30px;padding:0 10px;border-radius:8px;font-family:var(--font-mono);font-weight:700;font-size:13.5px;background:#fff;border-color:var(--line-strong)}
 .hr-tabel-rinci .rh-kpi:hover{border-color:var(--accent)}
 .hr-tabel-rinci .rh-kpi.on{background:var(--accent-soft);border-color:var(--accent)}
-.hr-tabel-rinci .rh-max{display:inline-flex;align-items:center;gap:4px;font-size:12px;font-weight:600;padding:2px 8px;border-radius:999px;background:var(--good-soft);color:var(--good-ink)}
+.hr-tabel-rinci .rh-max{display:inline-flex;align-items:center;gap:4px;font-size:12px;font-weight:600;padding:2px 8px;border-radius:999px;background:var(--good-soft);color:var(--good-ink);white-space:nowrap}
 .hr-tabel-rinci .rh-chase{font-size:13.5px}
 .hr-tabel-rinci .rh-banded > td{background:var(--page)}
 .rh-pita{padding:12px 20px 14px}

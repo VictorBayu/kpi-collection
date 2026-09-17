@@ -165,7 +165,11 @@ export default function RincianHarian({
         </div>
       </div>
 
-      {URUT.filter((p) => kelompok.has(p)).map((peran) => (
+      {/* Indikator berperan "pendukung" hanya bahan syarat — tidak dinilai,
+          tidak dibayar, dan sengaja tidak dimunculkan di KPI Harian supaya
+          tidak dikira angka yang perlu dikejar. Auditnya tetap tersedia di
+          Tracing KPI, yang memang dibuat untuk itu. */}
+      {URUT.filter((p) => p !== "pendukung" && kelompok.has(p)).map((peran) => (
         <KelompokPeran key={peran} peran={peran} isi={kelompok.get(peran)!} />
       ))}
 
