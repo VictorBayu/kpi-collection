@@ -5,6 +5,7 @@ import LogoutButton from "./LogoutButton";
 import AccessBeacon from "./AccessBeacon";
 import NavLoading from "./NavLoading";
 import NavBadge from "./NavBadge";
+import PilTarikan from "./PilTarikan";
 import Ikon from "./Ikon";
 import Remah from "./Remah";
 import NavMenu, { type Entri } from "./NavMenu";
@@ -80,6 +81,7 @@ export default async function AppShell({ children }: { children: React.ReactNode
               <span className="tb-dot" aria-hidden />
               <span>Peran: <strong>{LABEL_PERAN[s?.peran ?? ""] ?? s?.peran ?? "-"}</strong></span>
             </span>
+            <PilTarikan />
           </div>
 
           <NavMenu entri={entri} />
