@@ -282,7 +282,11 @@ export const POST = handler(async (req) => {
     // ulang berikutnya. Definisi, target, dan riwayat pendaftarannya tetap
     // utuh — hanya angka hasil hitung yang dibersihkan, dan akan terisi
     // lagi begitu diaktifkan dan dihitung ulang.
-    if (ada.aktif !== false && !aktifBaru) {
+    // Tanpa syarat "baru saja berubah": kalau ada baris tersisa dari
+    // sebelum perbaikan ini ada (indikator yang sempat dinonaktifkan lewat
+    // versi lama), klik Simpan sekali di sini akan ikut membersihkannya —
+    // bukan cuma transisi aktif->nonaktif yang baru terjadi.
+    if (!aktifBaru) {
       await q(`DELETE FROM kpi_row WHERE indikator_id = $1 AND sumber = 'api'`, [id]);
     }
   } else {
