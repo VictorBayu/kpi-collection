@@ -265,15 +265,26 @@ export const POST = handler(async (req) => {
   let id: string = b.id ?? "";
 
   if (id) {
-    const [ada] = await q<any>(`SELECT 1 FROM indikator_def WHERE id = $1`, [id]);
+    const [ada] = await q<any>(`SELECT aktif FROM indikator_def WHERE id = $1`, [id]);
     if (!ada) throw new HttpError(404, "Indikator tidak ditemukan.");
+    const aktifBaru = b.aktif !== false;
     await q(
       `UPDATE indikator_def
           SET nama=$2, deskripsi=$3, satuan=$4, kali_seratus=$5,
               peran_pic=$6, aktif=$7, sumber_kode=$8, diubah_pada=now()
         WHERE id=$1`,
       [id, nama, b.deskripsi ?? null, satuan, !!b.kali_seratus, peran,
-       b.aktif !== false, sumberKode]);
+       aktifBaru, sumberKode]);
+
+    // Sama seperti saat dihapus: baris KPI yang sudah terlanjur dihitung
+    // ikut dibuang begitu dinonaktifkan, supaya KPI Harian dan Tracing KPI
+    // langsung berhenti menampilkannya alih-alih menunggu tarikan/hitung
+    // ulang berikutnya. Definisi, target, dan riwayat pendaftarannya tetap
+    // utuh — hanya angka hasil hitung yang dibersihkan, dan akan terisi
+    // lagi begitu diaktifkan dan dihitung ulang.
+    if (ada.aktif !== false && !aktifBaru) {
+      await q(`DELETE FROM kpi_row WHERE indikator_id = $1 AND sumber = 'api'`, [id]);
+    }
   } else {
     const [baru] = await q<any>(
       `INSERT INTO indikator_def
