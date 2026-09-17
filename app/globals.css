@@ -2459,6 +2459,8 @@ tfoot td{background:var(--page);border-top:1px solid var(--line)}
   white-space:nowrap}
 .tb-pill strong{color:#34D399;font-weight:600}
 .tb-dot{width:8px;height:8px;border-radius:50%;background:#10B981;box-shadow:0 0 0 3px rgba(16,185,129,.18)}
+.tb-dot-mati{background:#94A3B8;box-shadow:0 0 0 3px rgba(148,163,184,.18)}
+.tb-pill-tarikan strong{color:#CBD5E1}
 
 .mainnav{display:flex;align-items:center;justify-content:center;gap:2px;flex:1 1 auto;min-width:0}
 .mainnav > a,.navgrup-tombol{display:inline-flex;align-items:center;gap:4px;height:36px;padding:0 12px;
