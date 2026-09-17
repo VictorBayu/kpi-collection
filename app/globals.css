@@ -2693,6 +2693,8 @@ tfoot td{background:var(--page);border-top:1px solid var(--line)}
 .btn.tint:hover{background:#E0E7FF;color:var(--accent-hover);box-shadow:none}
 .btn.tint-bad{background:var(--bad-soft);color:var(--bad);border-color:transparent}
 .btn.tint-bad:hover{background:var(--bad);color:#fff;box-shadow:none}
+.btn.tint-good{background:var(--good-soft);color:var(--good-ink);border-color:transparent}
+.btn.tint-good:hover{background:var(--good);color:#fff;box-shadow:none}
 .btn.sekunder{background:#DAE2FD;color:#3525CD;border-color:transparent}
 .btn.sekunder:hover{background:#C7D2FE;color:var(--accent-hover)}
 .teks-bad{color:var(--bad);font-weight:600}

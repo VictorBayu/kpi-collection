@@ -436,6 +436,7 @@ export default function IndikatorClient() {
   const [satuan, setSatuan] = useState("persen");
   const [kaliSeratus, setKaliSeratus] = useState(true);
   const [peranPic, setPeranPic] = useState("staff");
+  const [aktif, setAktif] = useState(true);
   /** Sumber TAMBAHAN yang dipakai indikator ini. Kosong = hanya data utama. */
   const [sumberKode, setSumberKode] = useState("");
   const [komponen, setKomponen] = useState<Komponen[]>([kartuKosong(true)]);
@@ -540,7 +541,7 @@ export default function IndikatorClient() {
 
   function kosongkan() {
     setPilihId(null); setNama(""); setDeskripsi("");
-    setSatuan("persen"); setKaliSeratus(true); setPeranPic("staff");
+    setSatuan("persen"); setKaliSeratus(true); setPeranPic("staff"); setAktif(true);
     setSumberKode("");
     setKomponen([kartuKosong(true)]); setTarget([]); setUji(null); setPesan(null);
     setDetailBuka(null);
@@ -556,6 +557,7 @@ export default function IndikatorClient() {
       setNama(j.def.nama); setDeskripsi(j.def.deskripsi ?? "");
       setSatuan(j.def.satuan); setKaliSeratus(j.def.kali_seratus);
       setPeranPic(j.def.peran_pic);
+      setAktif(j.def.aktif !== false);
       setSumberKode(j.def.sumber_kode ?? "");
       setKomponen((j.komponen ?? []).map((k: any) => ({
         agregat: k.agregat, kolom: k.kolom,
@@ -600,7 +602,7 @@ export default function IndikatorClient() {
 
   const badan = () => ({
     id: pilihId, nama, deskripsi, satuan,
-    kali_seratus: kaliSeratus, peran_pic: peranPic,
+    kali_seratus: kaliSeratus, peran_pic: peranPic, aktif,
     sumber_kode: sumberKode || null,
     komponen, target,
   });
@@ -682,7 +684,8 @@ export default function IndikatorClient() {
   }, [daftar, cariInd]);
   const jmlAktif = daftar.filter((d) => d.aktif).length;
   const jmlDaftar = daftar.reduce((a, d) => a + Number(d.terdaftar || 0), 0);
-  const pesanOk = !!pesan && (pesan === "Tersimpan." || pesan.startsWith("Hitung ulang selesai"));
+  const pesanOk = !!pesan && (pesan === "Tersimpan." || pesan.startsWith("Hitung ulang selesai") ||
+    pesan === "Indikator diaktifkan kembali." || pesan === "Indikator dinonaktifkan.");
   const indikatorIni = daftar.find((d) => d.id === pilihId);
 
   function tambahTarget() {
@@ -711,6 +714,31 @@ export default function IndikatorClient() {
     try {
       await fetch(`/api/admin/indikator?id=${pilihId}`, { method: "DELETE" });
       kosongkan(); await muatDaftar();
+    } finally { setSibuk(false); }
+  }
+
+  /**
+   * Nonaktifkan/aktifkan tanpa menghapus apa pun — komponen, target, dan
+   * riwayat pendaftarannya tetap utuh, hanya berhenti ikut dihitung ulang.
+   * Memakai jalur simpan yang sama supaya rumus yang sedang diedit di
+   * layar tidak diam-diam tertimpa oleh versi lama dari server.
+   */
+  async function ubahAktif() {
+    if (!pilihId) return;
+    const nilaiBaru = !aktif;
+    const label = nilaiBaru ? "mengaktifkan" : "menonaktifkan";
+    if (!nilaiBaru && !confirm(`Nonaktifkan indikator "${nama || "tanpa nama"}"? Indikator ini akan berhenti ikut dihitung sampai diaktifkan kembali.`)) return;
+    setSibuk(true); setPesan(null);
+    try {
+      const r = await fetch("/api/admin/indikator", {
+        method: "POST", headers: { "content-type": "application/json" },
+        body: JSON.stringify({ ...badan(), aktif: nilaiBaru }),
+      });
+      const j = await r.json();
+      if (!r.ok) { setPesan(j.error ?? `Gagal ${label} indikator.`); return; }
+      setAktif(nilaiBaru);
+      await muatDaftar();
+      setPesan(nilaiBaru ? "Indikator diaktifkan kembali." : "Indikator dinonaktifkan.");
     } finally { setSibuk(false); }
   }
 
@@ -782,7 +810,7 @@ export default function IndikatorClient() {
               <div className="fb-identitas">
                 <div className="fb-status">
                   {pilihId
-                    ? <span className={"pa-status " + (indikatorIni?.aktif === false ? "warn" : "good")}>{indikatorIni?.aktif === false ? "nonaktif" : "tersimpan"}</span>
+                    ? <span className={"pa-status " + (aktif ? "good" : "warn")}>{aktif ? "tersimpan" : "nonaktif"}</span>
                     : <span className="ri-status accent">indikator baru</span>}
                 </div>
                 <input className="ind-nama fb-nama" value={nama} placeholder="Nama indikator…"
@@ -801,6 +829,14 @@ export default function IndikatorClient() {
                         title="Hitung ulang semua indikator dari data mentah yang sudah ada — tanpa menarik data baru">
                   <Ikon nama="refresh" ukuran={16} /> Hitung ulang
                 </button>
+                {pilihId && (
+                  <button className={"btn " + (aktif ? "tint-bad" : "tint-good")} disabled={sibuk} onClick={ubahAktif}
+                          title={aktif
+                            ? "Nonaktifkan — berhenti ikut dihitung tanpa menghapus rumus atau pendaftarannya"
+                            : "Aktifkan kembali indikator ini"}>
+                    <Ikon nama="eye" ukuran={16} /> {aktif ? "Nonaktifkan" : "Aktifkan"}
+                  </button>
+                )}
                 {pilihId && (
                   <button className="btn tint-bad" disabled={sibuk} onClick={hapusIndikator} title="Hapus indikator">
                     <Ikon nama="trash" ukuran={16} />
