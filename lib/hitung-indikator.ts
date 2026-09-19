@@ -444,11 +444,14 @@ async function nilaiGerbang(periode: string): Promise<number> {
  *
  * Untuk mekanisme 'pagu', jabatan yang menghandle lebih dari satu produk
  * sekaligus (mis. MBS MIX menghandle R2 & R4) TIDAK dinilai per produk
- * sendiri-sendiri. Skor, pembagi, dan pagu dari seluruh produk pagu milik
- * jabatan itu digabung dulu (lihat CTE gabung_pagu) — ambang minimal dicek
- * dari skor gabungan, dan nominal dihitung sekali untuk seluruh jabatan,
- * baru dibagi kembali ke tiap produk sesuai porsi sumbangan skornya.
- * Jabatan satu produk tidak berubah: gabungannya ya cuma dirinya sendiri.
+ * sendiri-sendiri. SKOR seluruh produknya dijumlahkan dulu (lihat CTE
+ * gabung_pagu), lalu: ambang minimal dicek dari skor gabungan itu, dan
+ * nominalnya dihitung sekali untuk seluruh jabatan dengan pembagi dan pagu
+ * jabatan — bukan pembagi/pagu yang ikut dijumlahkan, karena satu orang
+ * hanya punya satu pagu meski baris paguya tercatat per produk. Hasilnya
+ * baru dibagi kembali ke tiap produk sesuai porsi sumbangan skornya, agar
+ * jumlah seluruh baris insentif orang itu tepat sama dengan nominal
+ * jabatannya. Jabatan satu produk tidak berubah sama sekali.
  *
  * Reward dan penalty lalu menambah/mengurangi nominal dasar itu. Efeknya
  * mengikuti hasil hitungan indikator masing-masing (bukan nilai tetap):
@@ -492,23 +495,28 @@ async function hitungInsentif(periode: string): Promise<number> {
        SELECT d.*, kelas_cabang(d.cabang, d.produk, $1::date) AS kelas
          FROM dasar d
      ),
-     -- Skor+pagu digabung per (nik, jabatan) untuk SELURUH produk yang
-     -- memakai mekanisme 'pagu' -- supaya jabatan yang menghandle lebih
-     -- dari satu produk (mis. MBS MIX menghandle R2 & R4) dinilai dari
-     -- HASIL AKHIR gabungan, bukan tiap produk harus sendiri-sendiri
-     -- menembus ambang minimal. Pagu dan pembagi ikut dijumlahkan supaya
-     -- satu nominal dihitung untuk seluruh jabatan, lalu dibagi kembali
-     -- ke tiap produk sesuai porsi skornya masing-masing -- bukan dua
-     -- nominal penuh yang kalau dijumlah jadi dobel.
+     -- Skor seluruh produk 'pagu' milik satu jabatan dijumlahkan per
+     -- (nik, jabatan) -- supaya jabatan yang menghandle lebih dari satu
+     -- produk (mis. MBS MIX menghandle R2 & R4) dinilai dari HASIL AKHIR
+     -- gabungan, bukan tiap produk harus sendiri-sendiri menembus ambang
+     -- minimal.
+     --
+     -- Yang DIJUMLAHKAN hanya skornya. Pembagi dan pagu TIDAK: keduanya
+     -- milik jabatan, bukan milik produk -- satu orang MBS MIX punya satu
+     -- pagu, walau baris paguya tercatat dua kali (sekali untuk R2,
+     -- sekali untuk R4) karena tabelnya memang berkunci jabatan+produk.
+     -- Menjumlahkannya akan melipatgandakan pagu jabatan. Dipakai MAX
+     -- supaya kalau baris pagu antarproduk kebetulan tidak seragam,
+     -- yang terpakai tetap satu angka yang jelas (dan Tracing memberi
+     -- peringatan kalau nilainya berbeda-beda).
      --
      -- Jabatan yang cuma menghandle satu produk tidak berubah sama
-     -- sekali: gabungannya ya cuma dirinya sendiri (pembagi/pagu/skor
-     -- gabungan = pembagi/pagu/skor produk itu, porsinya 100%).
+     -- sekali: gabungannya ya cuma dirinya sendiri, porsinya 100%.
      gabung_pagu AS (
        SELECT l.nik, norm_jabatan(l.jabatan) AS alias,
               SUM(l.total_skor)   AS skor_gabungan,
-              SUM(g.pembagi)      AS pembagi_gabungan,
-              SUM(g.nominal)      AS pagu_gabungan,
+              MAX(g.pembagi)      AS pembagi_gabungan,
+              MAX(g.nominal)      AS pagu_gabungan,
               MAX(g.skor_minimal) AS ambang_gabungan,
               COUNT(*)::int       AS jml_produk_gabungan
          FROM lengkap l
@@ -532,13 +540,15 @@ async function hitungInsentif(periode: string): Promise<number> {
                   CASE
                     WHEN gp.skor_gabungan IS NULL
                       OR gp.skor_gabungan < gp.ambang_gabungan THEN 0
-                    ELSE ROUND(
-                      -- Nominal utuh jabatan ini (seluruh produk pagu
-                      -- digabung), lalu diambil bagian yang proporsional
-                      -- dengan sumbangan skor produk ini ke skor gabungan.
+                    ELSE COALESCE(ROUND(
+                      -- Nominal utuh jabatan ini: skor gabungan seluruh
+                      -- produknya dibagi pembagi jabatan dikali pagu
+                      -- jabatan. Lalu diambil bagian yang sebanding dengan
+                      -- sumbangan skor produk ini terhadap skor gabungan,
+                      -- supaya jumlah seluruh barisnya persis nominal itu.
                       (gp.skor_gabungan / NULLIF(gp.pembagi_gabungan, 0) * gp.pagu_gabungan)
                       * (l.total_skor / NULLIF(gp.skor_gabungan, 0))
-                    , 0)
+                    , 0), 0)
                   END
                 ELSE 0
               END AS nominal_dasar

@@ -734,11 +734,14 @@ function KartuInsentif({ ins, tier }: { ins: any; tier: any[] }) {
   const n = (v: any) => (v === null || v === undefined ? 0 : Number(v));
   const mek = ins.mekanisme ?? "—";
   // Jabatan yang menghandle >1 produk dengan mekanisme 'pagu' (mis. MBS
-  // MIX R2+R4) dinilai dari skor+pagu+pembagi GABUNGAN (lihat gabung_pagu
-  // di lib/hitung-indikator.ts) -- rumus per-produk lama tidak lagi utuh
-  // menjelaskan nominal_dasar produk ini sendirian, jadi kartunya perlu
-  // menunjukkan langkah gabungannya dulu baru bagian produk ini.
+  // MIX R2+R4): yang digabung hanya SKOR-nya, sementara pembagi dan pagu
+  // tetap milik jabatan (lihat gabung_pagu di lib/hitung-indikator.ts).
+  // Rumus per-produk lama tidak lagi utuh menjelaskan nominal_dasar produk
+  // ini sendirian, jadi kartunya perlu menunjukkan langkah gabungannya
+  // dulu, baru porsi produk ini.
   const gabungan = mek === "pagu" && Number(ins.jml_produk_gabungan ?? 1) > 1;
+  const nominalJabatan = n(ins.skor_gabungan) < n(ins.ambang_gabungan) ? 0
+    : Math.round((n(ins.skor_gabungan) / (n(ins.pembagi_gabungan) || 1)) * n(ins.pagu_gabungan));
 
   return (
     <div className="card trc-kartu trc-insentif">
@@ -766,12 +769,11 @@ function KartuInsentif({ ins, tier }: { ins: any; tier: any[] }) {
           <>
             <span>Skor gabungan <b>{angka(n(ins.skor_gabungan))}</b></span>
             <i>÷</i>
-            <span>Pembagi gabungan <b>{angka(n(ins.pembagi_gabungan))}</b></span>
+            <span>Pembagi <b>{angka(n(ins.pembagi_gabungan))}</b></span>
             <i>×</i>
-            <span>Pagu gabungan <b>{rp(n(ins.pagu_gabungan))}</b></span>
+            <span>Pagu jabatan <b>{rp(n(ins.pagu_gabungan))}</b></span>
             <i>=</i>
-            <span>Nominal jabatan <b>{rp(n(n(ins.skor_gabungan) < n(ins.ambang_gabungan) ? 0 :
-              Math.round((n(ins.skor_gabungan) / (n(ins.pembagi_gabungan) || 1)) * n(ins.pagu_gabungan))))}</b></span>
+            <span>Nominal jabatan <b>{rp(nominalJabatan)}</b></span>
           </>
         ) : (
           <>
@@ -788,11 +790,14 @@ function KartuInsentif({ ins, tier }: { ins: any; tier: any[] }) {
 
       {gabungan && (
         <p className="trc-catatan">
-          Jabatan ini menghandle <b>{ins.jml_produk_gabungan}</b> produk berbeda dengan mekanisme pagu,
-          jadi ambang minimal dan nominal dihitung dari hasil gabungan seluruhnya dulu — bukan produk
-          ini sendirian harus menembus ambang. Bagian produk <b>{ins.produk}</b> dari nominal gabungan
-          itu = <b>{angka(n(ins.skor_insentif))}</b> / <b>{angka(n(ins.skor_gabungan))}</b> (porsi skor
-          produk ini terhadap skor gabungan) = <b>{rp(n(ins.nominal_dasar))}</b>.
+          Jabatan ini menghandle <b>{ins.jml_produk_gabungan}</b> produk dengan mekanisme pagu, jadi
+          skor seluruh produknya dijumlahkan dulu (<b>{angka(n(ins.skor_gabungan))}</b>) dan dinilai
+          terhadap ambang minimal <b className="num">{angka(n(ins.ambang_gabungan))}</b> — bukan produk
+          ini sendirian yang harus menembus ambang. Pembagi dan pagunya tidak ikut dijumlahkan karena
+          satu orang hanya punya satu pagu. Nominal jabatan <b>{rp(nominalJabatan)}</b> lalu dibagi ke
+          tiap produk sesuai porsi skornya; bagian <b>{ins.produk}</b> ={" "}
+          <b>{angka(n(ins.skor_insentif))}</b>/<b>{angka(n(ins.skor_gabungan))}</b> ={" "}
+          <b>{rp(n(ins.nominal_dasar))}</b>.
         </p>
       )}
 

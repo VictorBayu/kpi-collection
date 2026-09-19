@@ -207,17 +207,21 @@ export const GET = handler(async (req) => {
         : [],
 
       q<any>(
-        // gabung: skor+pagu+pembagi seluruh produk mekanisme 'pagu' milik
-        // jabatan ini, dijumlahkan -- dipakai supaya kartu insentif bisa
-        // menjelaskan nominal gabungan (lihat komentar gabung_pagu di
-        // lib/hitung-indikator.ts), bukan cuma menampilkan angka per
-        // produk yang sekarang sudah tidak utuh menjelaskan nominal_dasar.
+        // gabung: skor seluruh produk mekanisme 'pagu' milik jabatan ini
+        // dijumlahkan, sementara pembagi/pagu/ambang diambil satu (MAX) --
+        // persis seperti CTE gabung_pagu di lib/hitung-indikator.ts, supaya
+        // kartu insentif menjelaskan angka yang sama dengan yang dipakai
+        // mesin. pembagi_min/pagu_min ikut dibawa hanya untuk mendeteksi
+        // baris pagu antarproduk yang tidak seragam, lalu diperingatkan.
         `WITH gabung AS (
            SELECT norm_jabatan(i.jabatan) AS alias,
                   SUM(i.skor_insentif)  AS skor_gabungan,
-                  SUM(g.pembagi)        AS pembagi_gabungan,
-                  SUM(g.nominal)        AS pagu_gabungan,
+                  MAX(g.pembagi)        AS pembagi_gabungan,
+                  MAX(g.nominal)        AS pagu_gabungan,
+                  MIN(g.pembagi)        AS pembagi_min,
+                  MIN(g.nominal)        AS pagu_min,
                   MAX(g.skor_minimal)   AS ambang_gabungan,
+                  MIN(g.skor_minimal)   AS ambang_min,
                   COUNT(*)::int         AS jml_produk_gabungan
              FROM insentif_row i
              JOIN insentif_pagu g
@@ -232,6 +236,7 @@ export const GET = handler(async (req) => {
                 g.mekanisme, g.nominal AS pagu_nominal,
                 g.skor_minimal, g.pembagi, g.aktif AS pagu_aktif,
                 gb.skor_gabungan, gb.pembagi_gabungan, gb.pagu_gabungan,
+                gb.pembagi_min, gb.pagu_min, gb.ambang_min,
                 gb.ambang_gabungan, gb.jml_produk_gabungan
            FROM insentif_row i
            LEFT JOIN insentif_pagu g
@@ -489,12 +494,45 @@ function temuan(
         });
       }
     }
-    if (i.mekanisme === "pagu" && n(i.skor_insentif) !== null &&
-        Number(i.skor_insentif) < Number(i.skor_minimal ?? 0)) {
+    // Ambang untuk mekanisme pagu dinilai dari skor GABUNGAN seluruh produk
+    // jabatan ini, bukan skor produk ini sendirian — kalau dinilai per produk,
+    // orang yang jabatannya menghandle dua produk akan diberi peringatan
+    // "di bawah ambang" padahal gabungannya lolos dan insentifnya cair.
+    const gabungan = i.mekanisme === "pagu" && Number(i.jml_produk_gabungan ?? 1) > 1;
+    const skorDinilai = gabungan ? n(i.skor_gabungan) : n(i.skor_insentif);
+    const ambangDinilai = Number((gabungan ? i.ambang_gabungan : i.skor_minimal) ?? 0);
+
+    if (i.mekanisme === "pagu" && skorDinilai !== null && skorDinilai < ambangDinilai) {
       out.push({
         nada: "info",
-        pesan: `${nm}: skor ${i.skor_insentif} di bawah ambang ${i.skor_minimal} — nol ini memang sesuai aturan, bukan kesalahan susunan.`,
+        pesan: gabungan
+          ? `${nm}: skor gabungan ${skorDinilai.toFixed(2)} dari ${i.jml_produk_gabungan} produk di bawah ambang ${ambangDinilai} — nol ini memang sesuai aturan, bukan kesalahan susunan.`
+          : `${nm}: skor ${i.skor_insentif} di bawah ambang ${i.skor_minimal} — nol ini memang sesuai aturan, bukan kesalahan susunan.`,
       });
+    }
+
+    // Baris pagu satu jabatan yang tidak seragam antarproduk: mesin memakai
+    // angka terbesar, jadi selisihnya perlu disadari admin, bukan diam-diam
+    // menentukan nominal yang dibayarkan.
+    if (gabungan) {
+      if (Number(i.pagu_gabungan) !== Number(i.pagu_min)) {
+        out.push({
+          nada: "warn",
+          pesan: `${nm}: pagu jabatan ini beda-beda antarproduk (${Number(i.pagu_min).toLocaleString('id-ID')} s/d ${Number(i.pagu_gabungan).toLocaleString('id-ID')}). Karena satu orang hanya punya satu pagu, mesin memakai yang terbesar — samakan baris Pagu Insentif untuk semua produk jabatan ini kalau itu bukan yang dimaksud.`,
+        });
+      }
+      if (Number(i.pembagi_gabungan) !== Number(i.pembagi_min)) {
+        out.push({
+          nada: "warn",
+          pesan: `${nm}: pembagi jabatan ini beda-beda antarproduk (${i.pembagi_min} s/d ${i.pembagi_gabungan}). Mesin memakai yang terbesar — samakan baris Pagu Insentif untuk semua produk jabatan ini.`,
+        });
+      }
+      if (Number(i.ambang_gabungan) !== Number(i.ambang_min)) {
+        out.push({
+          nada: "warn",
+          pesan: `${nm}: ambang minimal jabatan ini beda-beda antarproduk (${i.ambang_min} s/d ${i.ambang_gabungan}). Mesin memakai yang terbesar untuk menilai skor gabungan.`,
+        });
+      }
     }
   }
 
