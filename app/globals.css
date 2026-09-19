@@ -2772,7 +2772,15 @@ tfoot td{background:var(--page);border-top:1px solid var(--line)}
 .jh .periode-kotak .pilih-tombol{min-height:32px;border-color:transparent;padding:4px 10px;font-weight:600;font-size:13px}
 .jh .periode-kotak .pilih-tombol:hover{background:var(--page)}
 .split-kpi.dk2{grid-template-columns:minmax(300px,4fr) 8fr;gap:20px}
-.dk2 .cabang-list{overflow:hidden;top:80px}
+.dk2 .cabang-list{overflow:hidden;top:80px;
+  /* Kartu ini + isinya jadi kolom flex tinggi-tetap: kepala (cari +
+     hitungan) apa adanya, sisanya diberikan ke .cabang-scroll lewat
+     flex:1. Sebelumnya .cabang-scroll punya max-height sendiri lewat
+     angka ajaib (calc(100vh - Npx)) yang gampang meleset dari tinggi
+     kepala yang sebenarnya, membuat area di bawahnya terpotong tanpa
+     scrollbar saat daftar area dibuka. Pola flex ini membuat tinggi
+     yang tersedia selalu pas, apa pun tinggi kepalanya. */
+  display:flex;flex-direction:column;max-height:calc(100vh - 96px)}
 .cabang-kepala{padding:14px;border-bottom:1px solid var(--line);display:flex;flex-direction:column;gap:10px}
 .cabang-kepala-atas{display:flex;align-items:center;justify-content:space-between;gap:8px}
 .cabang-hitung{display:inline-flex;align-items:center;gap:6px;font-family:var(--font-head);font-size:15px;font-weight:700;color:var(--ink)}
@@ -2784,7 +2792,7 @@ tfoot td{background:var(--page);border-top:1px solid var(--line)}
 .cari-cabang input{width:100%;min-height:36px;padding:6px 12px 6px 34px;border-radius:var(--r-base);
   background:#EFF4FF;border-color:transparent;font-size:13px}
 .cari-cabang input:focus{background:#fff}
-.dk2 .cabang-scroll{max-height:calc(100vh - 300px);padding:8px;display:flex;flex-direction:column;gap:6px}
+.dk2 .cabang-scroll{flex:1 1 auto;min-height:0;overflow-y:auto;padding:8px;display:flex;flex-direction:column;gap:6px}
 .dk2 .area-grup{border:0;border-radius:var(--r-base);background:#EFF4FF;overflow:hidden}
 .dk2 .area-judul{position:static;padding:10px 12px 10px 28px;background:#E5EEFF;border:0;
   font-family:var(--font-head);font-size:12.5px;letter-spacing:-.005em;color:var(--ink-soft)}
@@ -2838,8 +2846,8 @@ tfoot td{background:var(--page);border-top:1px solid var(--line)}
 .kc-tabel tr:hover .kc-panah{color:var(--accent);background:var(--accent-soft)}
 @media (max-width:1000px){
   .split-kpi.dk2{grid-template-columns:1fr}
-  .dk2 .cabang-list{position:static}
-  .dk2 .cabang-scroll{max-height:320px}
+  .dk2 .cabang-list{position:static;max-height:none}
+  .dk2 .cabang-scroll{max-height:320px;flex:none}
   .kc-skor-cabang{border-left:0;padding-left:0;align-items:flex-start}
 }
 
