@@ -252,11 +252,73 @@ function EditorGerbang({ gerbang, ubah, lain, namaSendiri }: {
 }
 
 /** Panel detail satu baris pendaftaran, isinya menyesuaikan peran yang dipilih. */
-function DetailTarget({ t, ubah, lain, namaSendiri }: {
+/**
+ * Tombol "salin pita ke pendaftaran lain" — dipasang di bawah tiap editor
+ * pita/nominal supaya jabatan yang polanya sama (mis. RE R2, RE R4, RE MIX
+ * untuk kedua produknya) tidak perlu mengetik ulang tabel yang identik.
+ *
+ * Hasil salinnya LEPAS, bukan tertaut: begitu disalin, tiap pendaftaran
+ * bebas diedit sendiri-sendiri tanpa memengaruhi yang lain. Cuma tabel
+ * pita/nominal itu sendiri yang disalin — bobot, faktor pengakuan, dan
+ * peran tetap diisi manual karena biasanya memang berbeda per jabatan.
+ */
+function SalinPita({ opsi, ke }: {
+  opsi: { label: string; index: number }[];
+  ke: (tujuan: number[]) => void;
+}) {
+  const [buka, setBuka] = useState(false);
+  const [pilih, setPilih] = useState<number[]>([]);
+  if (!opsi.length) return null;
+
+  if (!buka) {
+    return (
+      <button type="button" className="btn ghost sm salin-pita-tombol" onClick={() => setBuka(true)}>
+        <Ikon nama="copy" ukuran={14} /> Salin ke pendaftaran lain
+      </button>
+    );
+  }
+
+  return (
+    <div className="salin-pita-panel">
+      <p className="faint small">
+        Salin tabel ini ke pendaftaran lain pada indikator yang sama — isi yang
+        sudah ada di sana akan ditimpa. Setelah disalin, tiap pendaftaran tetap
+        bisa diedit sendiri-sendiri.
+      </p>
+      <div className="salin-pita-daftar">
+        {opsi.map((o) => (
+          <label key={o.index} className="salin-pita-opsi">
+            <input type="checkbox" checked={pilih.includes(o.index)}
+                   onChange={(e) => setPilih(e.target.checked
+                     ? [...pilih, o.index]
+                     : pilih.filter((x) => x !== o.index))} />
+            {o.label}
+          </label>
+        ))}
+      </div>
+      <div className="salin-pita-aksi">
+        <button type="button" className="btn ghost sm"
+                onClick={() => { setBuka(false); setPilih([]); }}>
+          Batal
+        </button>
+        <button type="button" className="btn tint sm" disabled={!pilih.length}
+                onClick={() => { ke(pilih); setBuka(false); setPilih([]); }}>
+          Salin ke {pilih.length} pendaftaran
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function DetailTarget({ t, ubah, lain, namaSendiri, opsiSalin, salinKe }: {
   t: Target;
   ubah: (patch: Partial<Target>) => void;
   lain: IndikatorLain[];
   namaSendiri: string;
+  /** Pendaftaran lain pada indikator yang sama -- sumber pilihan tombol
+   *  "Salin ke pendaftaran lain" di bawah tiap editor pita/nominal. */
+  opsiSalin: { label: string; index: number }[];
+  salinKe: (tujuan: number[], bidang: "pita" | "nominal") => void;
 }) {
   if (t.peran === "pendukung") {
     return (
@@ -344,6 +406,9 @@ function DetailTarget({ t, ubah, lain, namaSendiri }: {
             berarti 100 JT pas ikut masuk.
           </p>
           <EditorNominal pita={t.nominal} ubah={(nominal) => ubah({ nominal })} />
+          {t.nominal.length > 0 && (
+            <SalinPita opsi={opsiSalin} ke={(tujuan) => salinKe(tujuan, "nominal")} />
+          )}
         </div>
 
         {!t.gerbang.length && !t.nominal.length && (
@@ -429,6 +494,9 @@ function DetailTarget({ t, ubah, lain, namaSendiri }: {
           halaman Tabel Tier Insentif.
         </p>
         <EditorPita pita={t.pita} ubah={(pita) => ubah({ pita })} labelPoin="Tier" />
+        {t.pita.length > 0 && (
+          <SalinPita opsi={opsiSalin} ke={(tujuan) => salinKe(tujuan, "pita")} />
+        )}
       </div>
     );
   }
@@ -480,6 +548,9 @@ function DetailTarget({ t, ubah, lain, namaSendiri }: {
         biasa.
       </p>
       <EditorPita pita={t.pita} ubah={(pita) => ubah({ pita })} labelPoin="Skor" />
+      {t.pita.length > 0 && (
+        <SalinPita opsi={opsiSalin} ke={(tujuan) => salinKe(tujuan, "pita")} />
+      )}
 
       {!t.pita.length && (
         <div className="target-detail-baris mt">
@@ -1146,6 +1217,17 @@ export default function IndikatorClient() {
               {target.map((t, i) => {
                 const ubah = (patch: Partial<Target>) =>
                   setTarget(target.map((x, y) => (y === i ? { ...x, ...patch } : x)));
+                // Pendaftaran lain pada indikator yang sama -- bahan tombol
+                // "Salin ke pendaftaran lain" di editor pita/nominal.
+                const opsiSalin = target
+                  .map((x, y) => ({
+                    label: `${x.alias || "(jabatan kosong)"} · ${x.produk || "(produk kosong)"}`,
+                    index: y,
+                  }))
+                  .filter((o) => o.index !== i);
+                const salinKe = (tujuan: number[], bidang: "pita" | "nominal") =>
+                  setTarget(target.map((x, y) =>
+                    tujuan.includes(y) ? { ...x, [bidang]: t[bidang].map((p) => ({ ...p })) } : x));
                 const adaPita = t.pita.length > 0;
                 const ringkasan =
                   t.peran === "reward" || t.peran === "penalty"
@@ -1206,7 +1288,8 @@ export default function IndikatorClient() {
                     </div>
                     {terbuka && (
                       <div className="trow-detail">
-                        <DetailTarget t={t} ubah={ubah} lain={lain} namaSendiri={nama} />
+                        <DetailTarget t={t} ubah={ubah} lain={lain} namaSendiri={nama}
+                                     opsiSalin={opsiSalin} salinKe={salinKe} />
                       </div>
                     )}
                   </div>

@@ -1596,6 +1596,19 @@ tr.kurang > td{background:var(--bad-soft)}
 .tbl-pita input{text-align:right}
 .tbl-pita input::placeholder{font-size:11px;color:var(--ink-faint);opacity:.7}
 
+/* Tombol + panel "Salin ke pendaftaran lain" di bawah editor pita/nominal —
+   lihat SalinPita di IndikatorClient.tsx. */
+.salin-pita-tombol{margin-top:2px}
+.salin-pita-panel{display:flex;flex-direction:column;gap:9px;width:100%;
+  max-width:420px;background:var(--surface);border:1px solid var(--line);
+  border-radius:10px;padding:12px 14px}
+.salin-pita-panel > p{margin:0;line-height:1.5}
+.salin-pita-daftar{display:flex;flex-direction:column;gap:6px;max-height:180px;
+  overflow-y:auto}
+.salin-pita-opsi{display:flex;align-items:center;gap:8px;font-size:13px;cursor:pointer}
+.salin-pita-opsi input{margin:0}
+.salin-pita-aksi{display:flex;justify-content:flex-end;gap:8px}
+
 /* Bagian di dalam panel detail: "Syarat kelayakan" dan "Besar nominal".
    Diberi kotak sendiri karena keduanya adalah dua keputusan terpisah yang
    kebetulan tinggal berdampingan — tanpa pemisah, admin membacanya sebagai
