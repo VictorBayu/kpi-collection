@@ -207,15 +207,36 @@ export const GET = handler(async (req) => {
         : [],
 
       q<any>(
-        `SELECT i.produk, i.kategori, i.jabatan, i.cabang,
+        // gabung: skor+pagu+pembagi seluruh produk mekanisme 'pagu' milik
+        // jabatan ini, dijumlahkan -- dipakai supaya kartu insentif bisa
+        // menjelaskan nominal gabungan (lihat komentar gabung_pagu di
+        // lib/hitung-indikator.ts), bukan cuma menampilkan angka per
+        // produk yang sekarang sudah tidak utuh menjelaskan nominal_dasar.
+        `WITH gabung AS (
+           SELECT norm_jabatan(i.jabatan) AS alias,
+                  SUM(i.skor_insentif)  AS skor_gabungan,
+                  SUM(g.pembagi)        AS pembagi_gabungan,
+                  SUM(g.nominal)        AS pagu_gabungan,
+                  MAX(g.skor_minimal)   AS ambang_gabungan,
+                  COUNT(*)::int         AS jml_produk_gabungan
+             FROM insentif_row i
+             JOIN insentif_pagu g
+               ON g.alias = norm_jabatan(i.jabatan) AND g.produk = i.produk AND g.aktif
+            WHERE i.nik = $1 AND i.periode = $2::date AND g.mekanisme = 'pagu'
+            GROUP BY norm_jabatan(i.jabatan)
+         )
+         SELECT i.produk, i.kategori, i.jabatan, i.cabang,
                 i.skor_insentif, i.tier, i.kelas_cabang,
                 i.nominal_dasar, i.nominal_reward, i.nominal_penalty, i.nominal,
                 i.keterangan, i.sumber, i.dihitung_pada,
                 g.mekanisme, g.nominal AS pagu_nominal,
-                g.skor_minimal, g.pembagi, g.aktif AS pagu_aktif
+                g.skor_minimal, g.pembagi, g.aktif AS pagu_aktif,
+                gb.skor_gabungan, gb.pembagi_gabungan, gb.pagu_gabungan,
+                gb.ambang_gabungan, gb.jml_produk_gabungan
            FROM insentif_row i
            LEFT JOIN insentif_pagu g
                   ON g.alias = norm_jabatan(i.jabatan) AND g.produk = i.produk
+           LEFT JOIN gabung gb ON gb.alias = norm_jabatan(i.jabatan)
           WHERE i.nik = $1 AND i.periode = $2::date
           ORDER BY i.produk`, [nik, periode]),
 

@@ -442,6 +442,14 @@ async function nilaiGerbang(periode: string): Promise<number> {
  *  - tier : dicari langsung dari tabel insentif_tier memakai tier (dari
  *           indikator berperan 'tier') disilang kelas cabang periode ini.
  *
+ * Untuk mekanisme 'pagu', jabatan yang menghandle lebih dari satu produk
+ * sekaligus (mis. MBS MIX menghandle R2 & R4) TIDAK dinilai per produk
+ * sendiri-sendiri. Skor, pembagi, dan pagu dari seluruh produk pagu milik
+ * jabatan itu digabung dulu (lihat CTE gabung_pagu) — ambang minimal dicek
+ * dari skor gabungan, dan nominal dihitung sekali untuk seluruh jabatan,
+ * baru dibagi kembali ke tiap produk sesuai porsi sumbangan skornya.
+ * Jabatan satu produk tidak berubah: gabungannya ya cuma dirinya sendiri.
+ *
  * Reward dan penalty lalu menambah/mengurangi nominal dasar itu. Efeknya
  * mengikuti hasil hitungan indikator masing-masing (bukan nilai tetap):
  * nilai_efek × pencapaian. Untuk jenis nominal, hasilnya rupiah langsung;
@@ -484,21 +492,61 @@ async function hitungInsentif(periode: string): Promise<number> {
        SELECT d.*, kelas_cabang(d.cabang, d.produk, $1::date) AS kelas
          FROM dasar d
      ),
+     -- Skor+pagu digabung per (nik, jabatan) untuk SELURUH produk yang
+     -- memakai mekanisme 'pagu' -- supaya jabatan yang menghandle lebih
+     -- dari satu produk (mis. MBS MIX menghandle R2 & R4) dinilai dari
+     -- HASIL AKHIR gabungan, bukan tiap produk harus sendiri-sendiri
+     -- menembus ambang minimal. Pagu dan pembagi ikut dijumlahkan supaya
+     -- satu nominal dihitung untuk seluruh jabatan, lalu dibagi kembali
+     -- ke tiap produk sesuai porsi skornya masing-masing -- bukan dua
+     -- nominal penuh yang kalau dijumlah jadi dobel.
+     --
+     -- Jabatan yang cuma menghandle satu produk tidak berubah sama
+     -- sekali: gabungannya ya cuma dirinya sendiri (pembagi/pagu/skor
+     -- gabungan = pembagi/pagu/skor produk itu, porsinya 100%).
+     gabung_pagu AS (
+       SELECT l.nik, norm_jabatan(l.jabatan) AS alias,
+              SUM(l.total_skor)   AS skor_gabungan,
+              SUM(g.pembagi)      AS pembagi_gabungan,
+              SUM(g.nominal)      AS pagu_gabungan,
+              MAX(g.skor_minimal) AS ambang_gabungan,
+              COUNT(*)::int       AS jml_produk_gabungan
+         FROM lengkap l
+         JOIN insentif_pagu g
+           ON g.alias = norm_jabatan(l.jabatan) AND g.produk = l.produk AND g.aktif
+        WHERE g.mekanisme = 'pagu'
+        GROUP BY l.nik, norm_jabatan(l.jabatan)
+     ),
      pokok AS (
        SELECT l.*, g.alias, g.mekanisme,
               g.nominal AS pagu_nominal, g.skor_minimal, g.pembagi,
+              gp.skor_gabungan, gp.pembagi_gabungan, gp.pagu_gabungan,
+              gp.ambang_gabungan, gp.jml_produk_gabungan,
               CASE
                 WHEN g.mekanisme = 'bersyarat' THEN l.nominal_bersyarat
                 WHEN g.mekanisme = 'tier' THEN
                   COALESCE((SELECT it.nominal FROM insentif_tier it
                              WHERE it.alias = g.alias AND it.produk = g.produk
                                AND it.tier = l.tier AND it.kelas = l.kelas), 0)
-                WHEN l.total_skor IS NULL OR l.total_skor < g.skor_minimal THEN 0
-                ELSE ROUND(l.total_skor / NULLIF(g.pembagi, 0) * g.nominal, 0)
+                WHEN g.mekanisme = 'pagu' THEN
+                  CASE
+                    WHEN gp.skor_gabungan IS NULL
+                      OR gp.skor_gabungan < gp.ambang_gabungan THEN 0
+                    ELSE ROUND(
+                      -- Nominal utuh jabatan ini (seluruh produk pagu
+                      -- digabung), lalu diambil bagian yang proporsional
+                      -- dengan sumbangan skor produk ini ke skor gabungan.
+                      (gp.skor_gabungan / NULLIF(gp.pembagi_gabungan, 0) * gp.pagu_gabungan)
+                      * (l.total_skor / NULLIF(gp.skor_gabungan, 0))
+                    , 0)
+                  END
+                ELSE 0
               END AS nominal_dasar
          FROM lengkap l
          JOIN insentif_pagu g
            ON g.alias = norm_jabatan(l.jabatan) AND g.produk = l.produk AND g.aktif
+         LEFT JOIN gabung_pagu gp
+           ON gp.nik = l.nik AND gp.alias = norm_jabatan(l.jabatan) AND g.mekanisme = 'pagu'
      )
      INSERT INTO insentif_row
        (periode, nik, kategori, produk, jabatan, cabang,
@@ -532,11 +580,29 @@ async function hitungInsentif(periode: string): Promise<number> {
                        OR p.nominal_dasar = 0 AND p.tier IS NOT NULL AND p.kelas IS NOT NULL
                      THEN ' (cek: tier/kelas belum lengkap atau tidak ada di tabel)'
                      ELSE '' END
-              WHEN p.total_skor IS NULL OR p.total_skor < p.skor_minimal
+              -- Mekanisme 'pagu' dengan lebih dari satu produk gabungan
+              -- (jabatan menghandle beberapa produk sekaligus, mis. MBS
+              -- MIX R2+R4): ambang dan nominal dihitung dari HASIL AKHIR
+              -- gabungan seluruh produk, bukan tiap produk sendiri-sendiri.
+              WHEN p.mekanisme = 'pagu' AND p.jml_produk_gabungan > 1 AND
+                   (p.skor_gabungan IS NULL OR p.skor_gabungan < p.ambang_gabungan)
+                THEN 'Skor gabungan ' || COALESCE(ROUND(p.skor_gabungan, 2)::text, '-') ||
+                     ' dari ' || p.jml_produk_gabungan || ' produk (' || p.produk ||
+                     ' menyumbang ' || COALESCE(ROUND(p.total_skor, 2)::text, '-') ||
+                     ') di bawah minimal gabungan ' || p.ambang_gabungan
+              WHEN p.mekanisme = 'pagu' AND p.jml_produk_gabungan > 1 THEN
+                'Skor gabungan ' || ROUND(p.skor_gabungan, 2) || ' / ' || p.pembagi_gabungan ||
+                ' x pagu ' || p.pagu_gabungan || ' (gabungan ' || p.jml_produk_gabungan ||
+                ' produk) — bagian ' || p.produk || ' = ' || ROUND(p.total_skor, 2) || '/' ||
+                ROUND(p.skor_gabungan, 2) || ' dari nominal gabungan itu'
+              WHEN p.mekanisme = 'pagu' AND
+                   (p.total_skor IS NULL OR p.total_skor < p.skor_minimal)
                 THEN 'Skor ' || COALESCE(ROUND(p.total_skor, 2)::text, '-') ||
                      ' di bawah minimal ' || p.skor_minimal
-              ELSE ROUND(p.total_skor, 2) || ' / ' || p.pembagi ||
-                   ' x pagu ' || p.pagu_nominal
+              WHEN p.mekanisme = 'pagu' THEN
+                ROUND(p.total_skor, 2) || ' / ' || p.pembagi ||
+                ' x pagu ' || p.pagu_nominal
+              ELSE 'Mekanisme insentif tidak dikenal'
             END,
             now()
        FROM pokok p
