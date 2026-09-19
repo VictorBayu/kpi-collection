@@ -175,7 +175,7 @@ export const GET = handler(async (req) => {
 
   const target = await q<any>(
     `SELECT id, alias, produk, peran, jenis_nilai, nilai_efek, pemilih_id,
-            bobot_kpi, bobot_insentif,
+            bobot_kpi, bobot_insentif, faktor_pengakuan,
             target_kpi3, target_kpi4, target_kpi5, aktif
        FROM indikator_target WHERE indikator_id = $1 ORDER BY alias, produk`, [id]);
 
@@ -348,12 +348,20 @@ export const POST = handler(async (req) => {
       const peranTarget = PERAN_TARGET.includes(t.peran) ? t.peran : "kpi";
       const jenisNilai = JENIS_NILAI.includes(t.jenis_nilai) ? t.jenis_nilai : null;
 
+      // Faktor pengakuan: kosong/tidak masuk akal jatuh balik ke 100
+      // (diakui penuh) — bukan 0, yang akan diam-diam menolkan seluruh
+      // pencapaian pendaftaran ini.
+      const faktorPengakuan = (() => {
+        const n = Number(t.faktor_pengakuan);
+        return Number.isFinite(n) && n >= 0 && n <= 1000 ? n : 100;
+      })();
+
       const [tb] = await q<any>(
         `INSERT INTO indikator_target
            (indikator_id, alias, produk, peran, jenis_nilai, nilai_efek, pemilih_id,
-            bobot_kpi, bobot_insentif,
+            bobot_kpi, bobot_insentif, faktor_pengakuan,
             target_kpi3, target_kpi4, target_kpi5, aktif)
-         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14)
          ON CONFLICT (indikator_id, alias, produk) DO UPDATE
            SET peran=EXCLUDED.peran,
                jenis_nilai=EXCLUDED.jenis_nilai,
@@ -361,6 +369,7 @@ export const POST = handler(async (req) => {
                pemilih_id=EXCLUDED.pemilih_id,
                bobot_kpi=EXCLUDED.bobot_kpi,
                bobot_insentif=EXCLUDED.bobot_insentif,
+               faktor_pengakuan=EXCLUDED.faktor_pengakuan,
                target_kpi3=EXCLUDED.target_kpi3,
                target_kpi4=EXCLUDED.target_kpi4, target_kpi5=EXCLUDED.target_kpi5,
                aktif=EXCLUDED.aktif, updated_at=now()
@@ -370,6 +379,7 @@ export const POST = handler(async (req) => {
          t.pemilih_id ? String(t.pemilih_id) : null,
          angkaAtauNull(t.bobot_kpi),
          angkaAtauNull(t.bobot_insentif),
+         faktorPengakuan,
          angkaAtauNull(t.target_kpi3),
          angkaAtauNull(t.target_kpi4),
          angkaAtauNull(t.target_kpi5),

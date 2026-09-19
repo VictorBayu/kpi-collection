@@ -537,6 +537,13 @@ function BarisJejak({ j, berjalan, paksaBuka }: { j: any; berjalan: boolean; pak
             <div className="trc-rumus">
               {j.catatan ? <RumusBerwarna teks={j.catatan} /> : <span className="rw-kosong">(rumus tidak tercatat di baris ini)</span>}
             </div>
+            {Number(j.faktor_pengakuan ?? 100) !== 100 && (
+              <p className="trc-catatan">
+                Diakui <b>{angka(Number(j.faktor_pengakuan))}%</b> dari pencapaian mentah — pendaftaran
+                jabatan ini diberi faktor pengakuan sebagian (mis. karena jabatannya juga menghandle
+                produk lain), diterapkan sebelum dicocokkan ke target/pita di bawah.
+              </p>
+            )}
             <ul className="trc-komponen">
               {j.komponen.map((k: any, i: number) => (
                 <li key={i}>

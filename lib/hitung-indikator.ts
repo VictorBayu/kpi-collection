@@ -209,25 +209,25 @@ async function hitungSatu(
    * lama dengan interpolasi lurus, supaya indikator yang belum dipindah
    * ke pita tetap jalan seperti sebelumnya.
    */
-  const skorPita = `poin_dari_pita(t.target_id, h.nilai)`;
+  const skorPita = `poin_dari_pita(g.target_id, g.nilai)`;
   const skorLama = `
     CASE
-      WHEN h.nilai IS NULL OR t.target_kpi3 IS NULL THEN NULL
-      WHEN t.target_kpi5 IS NOT NULL AND h.nilai >= t.target_kpi5 THEN 5
-      WHEN t.target_kpi5 IS NOT NULL AND t.target_kpi4 IS NOT NULL
-           AND h.nilai >= t.target_kpi4 AND t.target_kpi5 <> t.target_kpi4
-        THEN 4 + (h.nilai - t.target_kpi4) / (t.target_kpi5 - t.target_kpi4)
-      WHEN t.target_kpi4 IS NOT NULL AND h.nilai >= t.target_kpi3
-           AND t.target_kpi4 <> t.target_kpi3
-        THEN 3 + (h.nilai - t.target_kpi3) / (t.target_kpi4 - t.target_kpi3)
-      WHEN h.nilai >= t.target_kpi3 THEN 3
-      WHEN t.target_kpi3 = 0 THEN 0
-      ELSE GREATEST(0, 3 * h.nilai / NULLIF(t.target_kpi3, 0))
+      WHEN g.nilai IS NULL OR g.target_kpi3 IS NULL THEN NULL
+      WHEN g.target_kpi5 IS NOT NULL AND g.nilai >= g.target_kpi5 THEN 5
+      WHEN g.target_kpi5 IS NOT NULL AND g.target_kpi4 IS NOT NULL
+           AND g.nilai >= g.target_kpi4 AND g.target_kpi5 <> g.target_kpi4
+        THEN 4 + (g.nilai - g.target_kpi4) / (g.target_kpi5 - g.target_kpi4)
+      WHEN g.target_kpi4 IS NOT NULL AND g.nilai >= g.target_kpi3
+           AND g.target_kpi4 <> g.target_kpi3
+        THEN 3 + (g.nilai - g.target_kpi3) / (g.target_kpi4 - g.target_kpi3)
+      WHEN g.nilai >= g.target_kpi3 THEN 3
+      WHEN g.target_kpi3 = 0 THEN 0
+      ELSE GREATEST(0, 3 * g.nilai / NULLIF(g.target_kpi3, 0))
     END`;
   const skor = `
     CASE
-      WHEN h.nilai IS NULL THEN NULL
-      WHEN t.ada_pita THEN ${skorPita}
+      WHEN g.nilai IS NULL THEN NULL
+      WHEN g.ada_pita THEN ${skorPita}
       ELSE (${skorLama})
     END`;
 
@@ -235,7 +235,7 @@ async function hitungSatu(
     WITH terdaftar AS (
       SELECT u.nik, u.nama, u.jabatan, u.cabang,
              t.id AS target_id, t.peran, t.jenis_nilai, t.nilai_efek,
-             t.bobot_kpi, t.bobot_insentif,
+             t.bobot_kpi, t.bobot_insentif, t.faktor_pengakuan,
              t.target_kpi3, t.target_kpi4, t.target_kpi5,
              EXISTS (SELECT 1 FROM indikator_pita p WHERE p.target_id = t.id) AS ada_pita
         FROM indikator_target t
@@ -249,6 +249,21 @@ async function hitungSatu(
        WHERE dm.${kolomNik} IS NOT NULL
          AND upper(btrim(COALESCE(dm.product, ''))) = upper(${pProduk})
        GROUP BY dm.${kolomNik}
+    ),
+    -- Pengakuan sebagian diterapkan di sini, sebelum dicocokkan ke
+    -- pita/target apa pun — bukan cuma di tampilan. Jabatan yang
+    -- menghandle lebih dari satu produk (mis. MBS MIX di R2 dan R4) bisa
+    -- diberi faktor < 100 di pendaftarannya, supaya pencapaian mentah
+    -- yang ikut dinilai memang cuma porsi kerjanya di produk ini — bukan
+    -- seluruh portofolio produk itu dihitung penuh untuknya. 100 (nilai
+    -- baku) berarti tidak mengubah apa pun.
+    gabung AS (
+      SELECT t.nik, t.nama, t.jabatan, t.cabang, t.target_id, t.peran,
+             t.jenis_nilai, t.nilai_efek, t.bobot_kpi, t.bobot_insentif,
+             t.target_kpi3, t.target_kpi4, t.target_kpi5, t.ada_pita,
+             h.nilai * t.faktor_pengakuan / 100 AS nilai
+        FROM terdaftar t
+        LEFT JOIN hitung h ON h.nik = t.nik
     )
     INSERT INTO kpi_row
       (periode, nik, nama, jabatan, cabang, produk, indikator, indikator_id,
@@ -256,9 +271,9 @@ async function hitungSatu(
        target_kpi3, target_kpi4, target_kpi5, satuan, catatan,
        peran, jenis_nilai, nilai_efek,
        sumber, batch_id, dihitung_pada)
-    SELECT ${pPeriode}::date, t.nik, t.nama, t.jabatan, t.cabang, ${pProduk},
+    SELECT ${pPeriode}::date, g.nik, g.nama, g.jabatan, g.cabang, ${pProduk},
            ${pNama}, ${pIndikator}::uuid,
-           t.bobot_kpi, t.bobot_insentif, h.nilai,
+           g.bobot_kpi, g.bobot_insentif, g.nilai,
            ROUND((${skor})::numeric, 2),
            -- Bobot kosong berarti indikator ini memang tidak ikut skema
            -- tersebut, jadi hasilnya NULL — bukan nol. Nol akan terbaca
@@ -271,16 +286,15 @@ async function hitungSatu(
            -- nominal dihitung terpisah, bukan lewat jalur bobot ini.
            -- 'pendukung' bahkan tidak membayar apa pun: ia ada semata
            -- supaya angkanya bisa dibaca gerbang dan pemilih pita.
-           CASE WHEN t.peran NOT IN ('kpi','reguler') OR t.bobot_kpi IS NULL THEN NULL
-                ELSE ROUND((${skor})::numeric * t.bobot_kpi / 100, 2) END,
-           CASE WHEN t.peran NOT IN ('kpi','reguler') OR t.bobot_insentif IS NULL THEN NULL
-                ELSE ROUND((${skor})::numeric * t.bobot_insentif / 100, 2) END,
-           t.target_kpi3, t.target_kpi4, t.target_kpi5,
+           CASE WHEN g.peran NOT IN ('kpi','reguler') OR g.bobot_kpi IS NULL THEN NULL
+                ELSE ROUND((${skor})::numeric * g.bobot_kpi / 100, 2) END,
+           CASE WHEN g.peran NOT IN ('kpi','reguler') OR g.bobot_insentif IS NULL THEN NULL
+                ELSE ROUND((${skor})::numeric * g.bobot_insentif / 100, 2) END,
+           g.target_kpi3, g.target_kpi4, g.target_kpi5,
            ${pSatuan}, ${pCatatan},
-           t.peran, t.jenis_nilai, t.nilai_efek,
+           g.peran, g.jenis_nilai, g.nilai_efek,
            'api', NULL, now()
-      FROM terdaftar t
-      LEFT JOIN hitung h ON h.nik = t.nik
+      FROM gabung g
     ON CONFLICT (nik, periode, indikator_id, produk) WHERE sumber = 'api'
     DO UPDATE SET
       pencapaian        = EXCLUDED.pencapaian,

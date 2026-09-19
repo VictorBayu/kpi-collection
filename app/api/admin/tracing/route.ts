@@ -43,6 +43,7 @@ const SQL_BARIS = `
          k.jabatan, k.cabang, k.sumber, k.dihitung_pada,
          d.peran_pic, d.kali_seratus, d.aktif AS indikator_aktif,
          t.id AS target_id, t.alias, t.aktif AS target_aktif, t.pemilih_id,
+         t.faktor_pengakuan,
          pm.nama AS pemilih_nama,
          EXISTS (SELECT 1 FROM indikator_pita p WHERE p.target_id = t.id) AS ada_pita,
          EXISTS (SELECT 1 FROM indikator_nominal n WHERE n.target_id = t.id) AS ada_nominal

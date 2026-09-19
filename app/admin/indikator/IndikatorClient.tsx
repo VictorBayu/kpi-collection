@@ -31,6 +31,10 @@ type Target = {
   jenis_nilai: string; nilai_efek: string;
   /** Kosong berarti indikator ini tidak ikut skema bersangkutan. */
   bobot_kpi: string; bobot_insentif: string;
+  /** 100 = pencapaian mentah diakui penuh. Dipakai saat jabatan ini juga
+   *  menghandle produk lain, jadi porsi kerjanya di produk ini cuma
+   *  sebagian — mis. 50 untuk jabatan yang menghandle 2 produk. */
+  faktor_pengakuan: string;
   target_kpi3: string; target_kpi4: string; target_kpi5: string;
   /** Pita menggantikan tiga ambang di atas kalau diisi; boleh berapa pun
    *  tingkatnya, dan untuk peran tier poin-nya adalah nomor tier itu sendiri. */
@@ -257,6 +261,23 @@ function DetailTarget({ t, ubah, lain, namaSendiri }: {
   if (t.peran === "pendukung") {
     return (
       <div className="target-detail">
+      <div className="target-detail-baris">
+        <label>
+          <span className="faint small">Faktor pengakuan</span>
+          <div className="bobot-isi">
+            <input className="num" inputMode="decimal" value={t.faktor_pengakuan}
+                   placeholder="100"
+                   onChange={(e) => ubah({ faktor_pengakuan: e.target.value })} />
+            <span>%</span>
+          </div>
+        </label>
+      </div>
+      <p className="faint small mt">
+        Pencapaian mentah dikali faktor ini sebelum dicocokkan ke target/pita —
+        pakai kalau jabatan ini juga menghandle produk lain, jadi porsi
+        kerjanya di sini cuma sebagian (mis. 50 untuk yang menghandle 2
+        produk). 100 = diakui penuh, tidak mengubah apa pun.
+      </p>
         <p className="faint small">
           Indikator ini dihitung dan disimpan, tapi tidak dinilai dan tidak
           membayar apa pun. Gunanya semata supaya angkanya bisa dibaca sebagai
@@ -272,6 +293,23 @@ function DetailTarget({ t, ubah, lain, namaSendiri }: {
     const pemilihSendiri = !t.pemilih_id;
     return (
       <div className="target-detail">
+      <div className="target-detail-baris">
+        <label>
+          <span className="faint small">Faktor pengakuan</span>
+          <div className="bobot-isi">
+            <input className="num" inputMode="decimal" value={t.faktor_pengakuan}
+                   placeholder="100"
+                   onChange={(e) => ubah({ faktor_pengakuan: e.target.value })} />
+            <span>%</span>
+          </div>
+        </label>
+      </div>
+      <p className="faint small mt">
+        Pencapaian mentah dikali faktor ini sebelum dicocokkan ke target/pita —
+        pakai kalau jabatan ini juga menghandle produk lain, jadi porsi
+        kerjanya di sini cuma sebagian (mis. 50 untuk yang menghandle 2
+        produk). 100 = diakui penuh, tidak mengubah apa pun.
+      </p>
         <p className="faint small">
           Nominal datar: cair penuh bila <b>semua</b> syarat di bawah lolos,
           nol bila ada satu saja yang gagal. Besarnya tidak mengikuti skor,
@@ -322,6 +360,23 @@ function DetailTarget({ t, ubah, lain, namaSendiri }: {
     const label = t.peran === "reward" ? "menambah" : "mengurangi";
     return (
       <div className="target-detail">
+      <div className="target-detail-baris">
+        <label>
+          <span className="faint small">Faktor pengakuan</span>
+          <div className="bobot-isi">
+            <input className="num" inputMode="decimal" value={t.faktor_pengakuan}
+                   placeholder="100"
+                   onChange={(e) => ubah({ faktor_pengakuan: e.target.value })} />
+            <span>%</span>
+          </div>
+        </label>
+      </div>
+      <p className="faint small mt">
+        Pencapaian mentah dikali faktor ini sebelum dicocokkan ke target/pita —
+        pakai kalau jabatan ini juga menghandle produk lain, jadi porsi
+        kerjanya di sini cuma sebagian (mis. 50 untuk yang menghandle 2
+        produk). 100 = diakui penuh, tidak mengubah apa pun.
+      </p>
         <p className="faint small">
           Nilai efeknya mengikuti hasil hitungan indikator ini, bukan nilai tetap:
           tiap 1 satuan hasil hitung {label} nominal insentif sebesar angka di
@@ -351,6 +406,23 @@ function DetailTarget({ t, ubah, lain, namaSendiri }: {
   if (t.peran === "tier") {
     return (
       <div className="target-detail">
+      <div className="target-detail-baris">
+        <label>
+          <span className="faint small">Faktor pengakuan</span>
+          <div className="bobot-isi">
+            <input className="num" inputMode="decimal" value={t.faktor_pengakuan}
+                   placeholder="100"
+                   onChange={(e) => ubah({ faktor_pengakuan: e.target.value })} />
+            <span>%</span>
+          </div>
+        </label>
+      </div>
+      <p className="faint small mt">
+        Pencapaian mentah dikali faktor ini sebelum dicocokkan ke target/pita —
+        pakai kalau jabatan ini juga menghandle produk lain, jadi porsi
+        kerjanya di sini cuma sebagian (mis. 50 untuk yang menghandle 2
+        produk). 100 = diakui penuh, tidak mengubah apa pun.
+      </p>
         <p className="faint small">
           Poin di sini adalah nomor tier itu sendiri (1, 2, 3, …), bukan skor.
           Tier hasil pita ini disilang tier cabang untuk mencari nominal di
@@ -363,6 +435,23 @@ function DetailTarget({ t, ubah, lain, namaSendiri }: {
 
   return (
     <div className="target-detail">
+      <div className="target-detail-baris">
+        <label>
+          <span className="faint small">Faktor pengakuan</span>
+          <div className="bobot-isi">
+            <input className="num" inputMode="decimal" value={t.faktor_pengakuan}
+                   placeholder="100"
+                   onChange={(e) => ubah({ faktor_pengakuan: e.target.value })} />
+            <span>%</span>
+          </div>
+        </label>
+      </div>
+      <p className="faint small mt">
+        Pencapaian mentah dikali faktor ini sebelum dicocokkan ke target/pita —
+        pakai kalau jabatan ini juga menghandle produk lain, jadi porsi
+        kerjanya di sini cuma sebagian (mis. 50 untuk yang menghandle 2
+        produk). 100 = diakui penuh, tidak mengubah apa pun.
+      </p>
       <p className="faint small">
         Isi Bobot KPI kalau indikator ini ikut skor KPI, Bobot insentif kalau
         ikut skor insentif reguler — boleh salah satu, boleh dua-duanya dengan
@@ -578,6 +667,8 @@ export default function IndikatorClient() {
         nilai_efek: angkaStr(t.nilai_efek),
         bobot_kpi: angkaStr(t.bobot_kpi),
         bobot_insentif: angkaStr(t.bobot_insentif),
+        faktor_pengakuan: t.faktor_pengakuan === null || t.faktor_pengakuan === undefined
+          ? "100" : angkaStr(t.faktor_pengakuan),
         target_kpi3: angkaStr(t.target_kpi3),
         target_kpi4: angkaStr(t.target_kpi4),
         target_kpi5: angkaStr(t.target_kpi5),
@@ -692,7 +783,7 @@ export default function IndikatorClient() {
     setTarget([...target, {
       alias: "", produk: produk[0]?.kode ?? "",
       peran: "kpi", jenis_nilai: "nominal", nilai_efek: "",
-      bobot_kpi: "", bobot_insentif: "",
+      bobot_kpi: "", bobot_insentif: "", faktor_pengakuan: "100",
       target_kpi3: "", target_kpi4: "", target_kpi5: "",
       pita: [], pemilih_id: "", nominal: [], gerbang: [],
       aktif: true,

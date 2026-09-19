@@ -204,13 +204,20 @@ export default function AnalitikClient({
           categoryXField: "label",
         }),
       );
+      // Tooltip digabung di sini saja, bukan dipecah ke garis juga: area
+      // batang jauh lebih lebar dan gampang dituju kursor daripada garis
+      // yang cuma seutas piksel, dan dua tooltip terpisah yang kebetulan
+      // muncul bersamaan gampang bertumpuk dan saling menutupi tulisan.
       batang.columns.template.setAll({
         fill: am5.color(MERAH),
         stroke: am5.color(MERAH),
         fillOpacity: 0.18,
         strokeOpacity: 0,
         width: am5.percent(46),
-        tooltipText: "{bawah} orang di bawah KPI 3 ({persenBawah}%)",
+        tooltipText:
+          "[bold]{label}[/]\nSkor rata-rata: [bold]{skorRata}[/]\n" +
+          "{orang} karyawan · {bawah} di bawah KPI 3 ({persenBawah}%)\n" +
+          "Insentif: Rp {insentif.formatNumber('#,###')}",
       });
       batang.data.setAll(data);
 
@@ -222,11 +229,8 @@ export default function AnalitikClient({
           valueYField: "skorRata",
           categoryXField: "label",
           stroke: am5.color(BIRU),
-          tooltip: am5.Tooltip.new(root, {
-            labelText:
-              "[bold]{label}[/]\nSkor rata-rata: [bold]{skorRata}[/]\n" +
-              "{orang} karyawan · {bawah} di bawah KPI 3\nInsentif: Rp {insentif.formatNumber('#,###')}",
-          }),
+          // Tanpa tooltip sendiri — sudah digabung ke tooltip batang di
+          // atas, yang areanya jauh lebih mudah dituju kursor.
         }),
       );
       garis.strokes.template.setAll({ strokeWidth: 3 });
