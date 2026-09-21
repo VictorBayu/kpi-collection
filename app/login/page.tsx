@@ -27,7 +27,7 @@ export default async function LoginPage() {
               <span className="mark big">KC</span>
               <span>
                 <b>Smart Multi Finance</b>
-                <small>KPI &amp; Collection Command Hub</small>
+                <small>KPI &amp; Insentif Collection System</small>
               </span>
             </div>
             <span className="login-aman"><Ikon nama="lock" ukuran={14} /> Koneksi terenkripsi</span>
@@ -75,11 +75,11 @@ export default async function LoginPage() {
             <LoginForm />
             <div className="login-bantuan">
               Kendala akses atau koreksi data NIK?
-              <b>Hubungi Tim Admin Data HO (ext. 4120)</b>
+              <b>Hubungi Tim Collection Head Office</b>
             </div>
             <p className="login-catatan">
               <span><Ikon nama="shield" ukuran={14} /> Sesi aktif otomatis berlaku selama 8 jam.</span>
-              <small>Tim data tidak pernah meminta password Anda lewat WhatsApp atau telepon.</small>
+              <small>Tim Collection tidak akan pernah meminta password Anda lewat WhatsApp, telepon, atau email.</small>
             </p>
           </div>
         </main>
