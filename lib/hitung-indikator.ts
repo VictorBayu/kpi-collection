@@ -2,6 +2,7 @@ import { q } from "./db";
 import { susunRumus, bacaRumus, RumusSalah, type Komponen, type Syarat } from "./rumus";
 import { hitungSemuaTurunan } from "./turunan";
 import { daftarSumber, sumberUtama, penunjukKolom, gabungUntuk } from "./sumber";
+import { sumberUntukPeriode, type SumberMentah } from "./arsip-mentah";
 
 /**
  * Mesin hitung indikator.
@@ -23,6 +24,8 @@ export type HasilHitung = {
   insentif: number;
   periode: string;
   gagal: { indikator: string; pesan: string }[];
+  /** true bila dihitung dari arsip data mentah (bukan data_mentah langsung). */
+  dariArsip: boolean;
 };
 
 type DefIndikator = {
@@ -175,6 +178,7 @@ async function hitungSatu(
   produk: string,
   periode: string,
   kat: Awaited<ReturnType<typeof muatKatalog>>,
+  sumber: SumberMentah,
 ): Promise<number> {
   const params: any[] = [];
   kat.resetPakai();
@@ -245,7 +249,7 @@ async function hitungSatu(
     ),
     hitung AS (
       SELECT dm.${kolomNik} AS nik, (${ekspresi}) AS nilai
-        FROM data_mentah dm${joinPendukung}
+        FROM ${sumber.ekspresiDari(params)} dm${joinPendukung}
        WHERE dm.${kolomNik} IS NOT NULL
          AND upper(btrim(COALESCE(dm.product, ''))) = upper(${pProduk})
        GROUP BY dm.${kolomNik}
@@ -671,6 +675,14 @@ export async function hitungSemuaIndikator(periode?: string): Promise<HasilHitun
   let baris = 0;
   let terhitung = 0;
 
+  // Sumber data mentah ditentukan SEKALI di sini, dipakai ulang untuk
+  // seluruh pasangan indikator×produk periode ini: kalau periode ini
+  // sudah punya arsip data mentah yang diterbitkan (lihat menu "Arsip
+  // Data Mentah"), rumus dihitung dari arsip itu, bukan dari data_mentah
+  // (yang hanya berisi snapshot hari ini). Kalau belum ada arsipnya —
+  // termasuk periode berjalan — jatuh balik ke data_mentah seperti biasa.
+  const sumber = await sumberUntukPeriode(p);
+
   for (const d of daftar) {
     const produkList = perIndikator.get(d.id) ?? [];
     if (!produkList.length) continue;
@@ -678,7 +690,7 @@ export async function hitungSemuaIndikator(periode?: string): Promise<HasilHitun
     let adaYangJalan = false;
     for (const produk of produkList) {
       try {
-        baris += await hitungSatu(d, produk, p, kat);
+        baris += await hitungSatu(d, produk, p, kat, sumber);
         adaYangJalan = true;
       } catch (e) {
         gagal.push({
@@ -719,7 +731,7 @@ export async function hitungSemuaIndikator(periode?: string): Promise<HasilHitun
     gagal.push({ indikator: `Kolom turunan ${t.kolom}`, pesan: t.pesan });
   }
 
-  return { indikator: terhitung, baris, insentif, periode: p, gagal };
+  return { indikator: terhitung, baris, insentif, periode: p, gagal, dariArsip: sumber.arsip };
 }
 
 /**
