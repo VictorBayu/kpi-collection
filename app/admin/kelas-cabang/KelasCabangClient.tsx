@@ -6,6 +6,7 @@ import Pilih from "@/components/Pilih";
 import KotakCari from "@/components/KotakCari";
 import Ikon from "@/components/Ikon";
 import JudulHalaman, { KartuMetrik, TitikStatus } from "@/components/JudulHalaman";
+import { namaPeriode } from "@/lib/format";
 
 type Baris = { cabang: string; produk: string; berlaku_mulai: string; kelas: string };
 type Cabang = { branch_id: string; cabang: string; area: string | null };
@@ -16,7 +17,17 @@ const KELAS_OPSI = [
   { nilai: "small", label: "Small" },
 ];
 const namaKelas = (k: string) => KELAS_OPSI.find((o) => o.nilai === k)?.label ?? k;
-const hariIni = () => new Date().toISOString().slice(0, 10);
+
+/**
+ * Bawaan tanggal berlaku: tanggal 1 bulan ini, bukan hari ini.
+ *
+ * Periode KPI selalu tanggal 1, dan kelas_cabang() memilih baris dengan
+ * syarat `berlaku_mulai <= periode`. Baris bertanggal 21 September karena
+ * itu TIDAK berlaku untuk periode September dan diam-diam baru mulai
+ * berlaku Oktober. Bawaan lamanya tanggal hari ini, jadi menyimpan di
+ * tengah bulan berarti kehilangan satu bulan tanpa tanda apa pun.
+ */
+const bulanIni = () => new Date().toISOString().slice(0, 7) + "-01";
 
 /**
  * Tier cabang per produk.
@@ -116,7 +127,7 @@ export default function KelasCabangClient() {
     .filter((i) => i >= 0 && i < totalHal).sort((a, b) => a - b);
 
   function beriTier(cabang = "", prod = produk[0]?.kode ?? "") {
-    setBaru({ cabang, produk: prod, berlaku_mulai: hariIni(), kelas: "medium" });
+    setBaru({ cabang, produk: prod, berlaku_mulai: bulanIni(), kelas: "medium" });
     window.scrollTo({ top: 0, behavior: "smooth" });
   }
 
@@ -217,8 +228,20 @@ export default function KelasCabangClient() {
               </label>
               <label className="field">
                 <span>Berlaku mulai</span>
-                <input type="date" className="num" value={baru.berlaku_mulai}
-                       onChange={(e) => setBaru({ ...baru, berlaku_mulai: e.target.value })} />
+                {/* Pemilih BULAN, bukan tanggal: tanggalnya tidak pernah
+                    jadi pilihan admin karena periode KPI selalu tanggal 1,
+                    dan tanggal tengah bulan hanya bisa salah. */}
+                <input type="month" className="num"
+                       value={baru.berlaku_mulai.slice(0, 7)}
+                       onChange={(e) => setBaru({
+                         ...baru,
+                         berlaku_mulai: e.target.value ? `${e.target.value}-01` : "",
+                       })} />
+                <small className="faint tc-berlaku-ket">
+                  {baru.berlaku_mulai
+                    ? <>Berlaku untuk periode <b>{namaPeriode(baru.berlaku_mulai)}</b> dan seterusnya</>
+                    : "Pilih bulan mulai berlakunya"}
+                </small>
               </label>
               <div className="field">
                 <span>Tier</span>
@@ -235,8 +258,10 @@ export default function KelasCabangClient() {
             </div>
             <div className="alert-box info">
               <span className="alert-ikon">i</span>
-              <span>Untuk mengubah tier yang sudah ada, tambahkan baris baru dengan tanggal berlaku yang lebih baru — baris
-                lama tetap disimpan supaya insentif periode lampau tidak ikut berubah.</span>
+              <span>Baris berlaku sejak periode yang dipilih dan seterusnya, sampai ada baris lebih baru yang
+                menggantikannya — tidak ada tanggal berakhir. Untuk mengubah tier yang sudah ada, tambahkan baris
+                baru dengan periode yang lebih baru; baris lama tetap disimpan supaya insentif periode lampau
+                tidak ikut berubah.</span>
             </div>
           </div>
           <div className="sd-form-kaki">
@@ -314,7 +339,7 @@ export default function KelasCabangClient() {
                   <tr key={`${b.cabang}|${b.produk}|${b.berlaku_mulai}`}>
                     <td><div className="tc-cabang">{b.cabang}</div><div className="pa-sub">{areaDari.get(b.cabang) ?? "—"}</div></td>
                     <td><span className="sp-produk">{b.produk}</span></td>
-                    <td className="num tc-tanggal">{b.berlaku_mulai}</td>
+                    <td className="num tc-tanggal">{namaPeriode(b.berlaku_mulai)}</td>
                     <td>
                       <div className={"tc-kelas-sel " + b.kelas}>
                         <Pilih nilai={b.kelas} cari={false} onPilih={(v) => simpan({ ...b, kelas: v })} opsi={KELAS_OPSI} />

@@ -1,5 +1,6 @@
 import { requireAdmin, handler, HttpError } from "@/lib/auth";
 import { q, auditLog } from "@/lib/db";
+import { toISODate } from "@/lib/format";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -17,7 +18,27 @@ const KELAS = ["large", "medium", "small"];
  *
  * Produk masuk kunci karena satu cabang bisa berkelas berbeda antar produk:
  * besar untuk R2 tapi kecil untuk R4, mengikuti volume masing-masing.
+ *
+ * Tanggal berlakunya SELALU tanggal 1. Periode KPI sendiri selalu tanggal
+ * 1 (lihat periodeBerjalan()), dan kelas_cabang() memilih baris dengan
+ * syarat `berlaku_mulai <= periode`. Jadi baris bertanggal 21 September
+ * TIDAK berlaku untuk periode September -- 21 tidak kurang dari sama
+ * dengan 1 -- dan diam-diam baru mulai berlaku Oktober. Dulu formulir di
+ * sisi klien mengisi tanggal hari ini sebagai bawaan, sehingga siapa pun
+ * yang menyimpan di tengah bulan kehilangan satu bulan tanpa tahu. Kini
+ * klien hanya memilih bulan, dan di sini tanggalnya dinormalkan lagi
+ * supaya jalur mana pun -- klien lama, panggilan langsung ke API --
+ * tetap mendarat di tanggal 1.
  */
+
+/** Menjadikan tanggal apa pun jadi tanggal 1 bulan yang sama. */
+function awalBulan(iso: string): string | null {
+  const m = /^(\d{4})-(\d{2})/.exec(iso.trim());
+  if (!m) return null;
+  const bulan = Number(m[2]);
+  if (bulan < 1 || bulan > 12) return null;
+  return `${m[1]}-${m[2]}-01`;
+}
 export const GET = handler(async () => {
   await requireAdmin();
 
@@ -37,7 +58,15 @@ export const GET = handler(async () => {
     q<any>(`SELECT kode, nama FROM produk_master WHERE aktif ORDER BY urutan, kode`),
   ]);
 
-  return Response.json({ kelas, cabang, produk });
+  return Response.json({
+    // Driver mengembalikan DATE sebagai objek Date, dan Response.json()
+    // akan mengubahnya jadi "2026-09-01T00:00:00.000Z" -- bentuk yang
+    // tidak bisa langsung dipakai <input type="month"> maupun
+    // ditampilkan apa adanya. Dinormalkan sekali di sini supaya klien
+    // tidak perlu menebak bentuknya.
+    kelas: kelas.map((k: any) => ({ ...k, berlaku_mulai: toISODate(k.berlaku_mulai) })),
+    cabang, produk,
+  });
 });
 
 export const POST = handler(async (req) => {
@@ -51,7 +80,9 @@ export const POST = handler(async (req) => {
 
   if (!cabang) throw new HttpError(400, "Cabang belum dipilih.");
   if (!produk) throw new HttpError(400, "Produk belum dipilih.");
-  if (!berlakuMulai) throw new HttpError(400, "Tanggal mulai berlaku belum diisi.");
+  if (!berlakuMulai) throw new HttpError(400, "Periode mulai berlaku belum diisi.");
+  const mulai = awalBulan(berlakuMulai);
+  if (!mulai) throw new HttpError(400, "Periode mulai berlaku tidak terbaca.");
   if (!KELAS.includes(kelas)) throw new HttpError(400, "Tier harus Large, Medium, atau Small.");
 
   await q(
@@ -59,9 +90,10 @@ export const POST = handler(async (req) => {
      VALUES ($1,$2,$3,$4)
      ON CONFLICT (cabang, produk, berlaku_mulai) DO UPDATE
        SET kelas = EXCLUDED.kelas, updated_at = now()`,
-    [cabang, produk, berlakuMulai, kelas]);
+    [cabang, produk, mulai, kelas]);
 
-  await auditLog(admin.sub, "tier-cabang.simpan", `${cabang}/${produk}`, { berlakuMulai, kelas });
+  await auditLog(admin.sub, "tier-cabang.simpan", `${cabang}/${produk}`,
+                 { berlaku_mulai: mulai, kelas });
   return Response.json({ ok: true });
 });
 
