@@ -3,7 +3,7 @@ import AppShell from "@/components/AppShell";
 import { readSession } from "@/lib/auth";
 import KelasCabangClient from "./KelasCabangClient";
 
-export const metadata = { title: "Tier Cabang" };
+export const metadata = { title: "Grading Cabang" };
 
 export default async function Page() {
   const s = await readSession();

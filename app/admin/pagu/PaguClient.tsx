@@ -143,7 +143,7 @@ export default function PaguClient() {
                        onPilih={(v) => setBaru({ ...baru, mekanisme: v })}
                        opsi={[
                          { nilai: "pagu", label: "Rumus pagu", ket: "skor ÷ pembagi × pagu" },
-                         { nilai: "tier", label: "Tabel tier", ket: "tier orang × tier cabang → nominal" },
+                         { nilai: "tier", label: "Tabel tier", ket: "tier orang × grading cabang → nominal" },
                          { nilai: "bersyarat", label: "Nominal bersyarat",
                            ket: "dari indikator berperan Nominal bersyarat" },
                        ]} />

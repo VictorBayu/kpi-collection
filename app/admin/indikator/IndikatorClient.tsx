@@ -490,7 +490,7 @@ function DetailTarget({ t, ubah, lain, namaSendiri, opsiSalin, salinKe }: {
       </p>
         <p className="faint small">
           Poin di sini adalah nomor tier itu sendiri (1, 2, 3, …), bukan skor.
-          Tier hasil pita ini disilang tier cabang untuk mencari nominal di
+          Tier hasil pita ini disilang grading cabang untuk mencari nominal di
           halaman Tabel Tier Insentif.
         </p>
         <EditorPita pita={t.pita} ubah={(pita) => ubah({ pita })} labelPoin="Tier" />

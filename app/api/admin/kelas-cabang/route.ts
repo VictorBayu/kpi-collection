@@ -8,7 +8,7 @@ export const dynamic = "force-dynamic";
 const KELAS = ["large", "medium", "small"];
 
 /**
- * Tier cabang per produk, berperiode.
+ * Grading cabang per produk, berperiode.
  *
  * Disimpan berbaris dengan tanggal mulai berlaku, bukan diedit di tempat.
  * Kalau kelasnya ditimpa langsung, mengubahnya akan ikut mengubah insentif

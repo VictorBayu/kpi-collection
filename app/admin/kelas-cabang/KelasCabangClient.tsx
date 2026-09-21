@@ -30,10 +30,10 @@ const namaKelas = (k: string) => KELAS_OPSI.find((o) => o.nilai === k)?.label ??
 const bulanIni = () => new Date().toISOString().slice(0, 7) + "-01";
 
 /**
- * Tier cabang per produk.
+ * Grading cabang per produk.
  *
  * Dipakai jabatan yang mekanisme insentifnya "tabel tier": nominalnya
- * dicari lewat tier orangnya disilang tier cabang tempatnya bertugas.
+ * dicari lewat tier orangnya disilang grading cabang tempatnya bertugas.
  *
  * Nama cabang dipilih dari master cabang API, tidak diketik bebas — nama
  * yang meleset sedikit tidak akan cocok saat dicari waktu menghitung
@@ -56,7 +56,7 @@ export default function KelasCabangClient() {
   async function segarkan() {
     const r = await fetch("/api/admin/kelas-cabang", { cache: "no-store" });
     const j = await r.json().catch(() => ({}));
-    if (!r.ok) { setPesan(j.error ?? "Gagal memuat tier cabang."); setMuat(false); return; }
+    if (!r.ok) { setPesan(j.error ?? "Gagal memuat grading cabang."); setMuat(false); return; }
     setBaris(j.kelas ?? []);
     setCabangList(j.cabang ?? []);
     setProduk(j.produk ?? []);
@@ -89,7 +89,7 @@ export default function KelasCabangClient() {
       (!saringKelas || saringKelas === "belum" || b.kelas === saringKelas));
   }, [baris, cari, saringProduk, saringArea, saringKelas, areaDari]);
 
-  // Pasangan cabang+produk yang belum pernah diberi tier. Tanpa ini,
+  // Pasangan cabang+produk yang belum pernah diberi grading. Tanpa ini,
   // insentif bermekanisme tier di cabang tersebut diam-diam bernilai nol.
   const belumBerkelas = useMemo(() => {
     const ada = new Set(baris.map((b) => `${b.cabang}|${b.produk}`));
@@ -132,7 +132,7 @@ export default function KelasCabangClient() {
   }
 
   async function hapus(b: Baris) {
-    if (!confirm(`Hapus tier ${b.cabang} · ${b.produk} berlaku ${b.berlaku_mulai}?`)) return;
+    if (!confirm(`Hapus grading ${b.cabang} · ${b.produk} berlaku ${b.berlaku_mulai}?`)) return;
     setSibuk(true);
     try {
       await fetch(
@@ -146,13 +146,13 @@ export default function KelasCabangClient() {
     <>
       <JudulHalaman
         eyebrow="Master data · klasifikasi cabang"
-        meta={<><TitikStatus nada={belumBerkelas.length ? "warn" : "good"} /> {terpetakan} dari {totalPasangan} pasangan bertier</>}
-        judul="Tier Cabang"
-        deskripsi={<>Tier cabang (Large/Medium/Small) per produk, dipakai jabatan bermekanisme “tabel tier” — disilang dengan
+        meta={<><TitikStatus nada={belumBerkelas.length ? "warn" : "good"} /> {terpetakan} dari {totalPasangan} pasangan punya grading</>}
+        judul="Grading Cabang"
+        deskripsi={<>Grading cabang (Large/Medium/Small) per produk, dipakai jabatan bermekanisme “tabel tier” — disilang dengan
           tier orangnya untuk menentukan nominal di <Link className="lnk" href="/admin/tier">Tabel Tier Insentif</Link>.</>}
         aksi={
           <button className="btn" disabled={!cabangList.length} onClick={() => beriTier()}>
-            <Ikon nama="plus" ukuran={16} tebal={2.2} /> Tambah tier cabang
+            <Ikon nama="plus" ukuran={16} tebal={2.2} /> Tambah grading cabang
           </button>
         }
       />
@@ -171,11 +171,11 @@ export default function KelasCabangClient() {
         <KartuMetrik label="Pasangan cabang·produk" nilai={totalPasangan} satuan="pasangan"
                      catatan={`${cabangList.length} cabang × ${produk.length} produk`}
                      ikon={<Ikon nama="network" ukuran={20} />} />
-        <KartuMetrik label="Sudah bertier" nilai={terpetakan} satuan="pasangan"
+        <KartuMetrik label="Sudah punya grading" nilai={terpetakan} satuan="pasangan"
                      catatan={`${baris.length} baris termasuk riwayat`}
                      ikon={<Ikon nama="checkCircle" ukuran={20} />} nada="good"
                      lencana={totalPasangan ? { teks: `${((terpetakan / totalPasangan) * 100).toFixed(1).replace(".", ",")}%`, nada: belumBerkelas.length ? "warn" : "good" } : undefined} />
-        <KartuMetrik label="Belum punya tier" nilai={<span className={belumBerkelas.length ? "teks-bad" : ""}>{belumBerkelas.length}</span>} satuan="pasangan"
+        <KartuMetrik label="Belum punya grading" nilai={<span className={belumBerkelas.length ? "teks-bad" : ""}>{belumBerkelas.length}</span>} satuan="pasangan"
                      catatan="Insentif tier di sana bernilai nol"
                      ikon={<Ikon nama="alert" ukuran={20} />} nada={belumBerkelas.length ? "bad" : "netral"} />
       </div>
@@ -183,7 +183,7 @@ export default function KelasCabangClient() {
       {!muat && !cabangList.length && (
         <div className="alert-box warn tr-pesan">
           <span className="alert-ikon">!</span>
-          <span>Master cabang API masih kosong, jadi belum ada cabang yang bisa diberi tier. Isi dulu di{" "}
+          <span>Master cabang API masih kosong, jadi belum ada cabang yang bisa diberi grading. Isi dulu di{" "}
             <Link className="lnk" href="/admin/cabang">Master Cabang API</Link>.</span>
         </div>
       )}
@@ -192,7 +192,7 @@ export default function KelasCabangClient() {
         <div className="tr-info tc-perhatian">
           <span className="sd-ikon"><Ikon nama="alert" ukuran={18} /></span>
           <div className="tr-info-teks">
-            <b>Perhatian: {belumBerkelas.length} pasangan cabang·produk belum ditetapkan tier</b>
+            <b>Perhatian: {belumBerkelas.length} pasangan cabang·produk belum ditetapkan grading</b>
             <p>{belumBerkelas.slice(0, 8).map((b) => `${b.cabang}/${b.produk}`).join(", ")}
               {belumBerkelas.length > 8 && `, dan ${belumBerkelas.length - 8} lainnya`}. Petugas bermekanisme tier di sana tidak mendapat nominal.</p>
           </div>
@@ -206,7 +206,7 @@ export default function KelasCabangClient() {
         <section className="card tr-form">
           <div className="kt-form-kepala">
             <span className="kt-titik" aria-hidden />
-            <h3>Klasifikasi tier cabang baru</h3>
+            <h3>Klasifikasi grading cabang baru</h3>
             <span className="kt-mode">baris lama tetap disimpan sebagai riwayat</span>
             <button className="pa-tutup" onClick={() => setBaru(null)} aria-label="Tutup formulir">×</button>
           </div>
@@ -244,8 +244,8 @@ export default function KelasCabangClient() {
                 </small>
               </label>
               <div className="field">
-                <span>Tier</span>
-                <div className="tc-kelas-pilih" role="radiogroup" aria-label="Tier cabang">
+                <span>Grading</span>
+                <div className="tc-kelas-pilih" role="radiogroup" aria-label="Grading cabang">
                   {KELAS_OPSI.map((k) => (
                     <button key={k.nilai} type="button" role="radio" aria-checked={baru.kelas === k.nilai}
                             className={"tr-kelas-btn " + k.nilai + (baru.kelas === k.nilai ? " on" : "")}
@@ -259,7 +259,7 @@ export default function KelasCabangClient() {
             <div className="alert-box info">
               <span className="alert-ikon">i</span>
               <span>Baris berlaku sejak periode yang dipilih dan seterusnya, sampai ada baris lebih baru yang
-                menggantikannya — tidak ada tanggal berakhir. Untuk mengubah tier yang sudah ada, tambahkan baris
+                menggantikannya — tidak ada tanggal berakhir. Untuk mengubah grading yang sudah ada, tambahkan baris
                 baru dengan periode yang lebih baru; baris lama tetap disimpan supaya insentif periode lampau
                 tidak ikut berubah.</span>
             </div>
@@ -268,14 +268,14 @@ export default function KelasCabangClient() {
             <button className="btn ghost" onClick={() => setBaru(null)}>Batal</button>
             <button className="btn" disabled={sibuk || !baru.cabang || !baru.produk}
                     onClick={async () => { if (await simpan(baru)) setBaru(null); }}>
-              <Ikon nama="check" ukuran={16} tebal={2.2} /> {sibuk ? "Menyimpan…" : "Simpan tier"}
+              <Ikon nama="check" ukuran={16} tebal={2.2} /> {sibuk ? "Menyimpan…" : "Simpan grading"}
             </button>
           </div>
         </section>
       )}
 
       <section className="card pa-tabel-kartu">
-        <div className="tr-pil" role="tablist" aria-label="Saring tier">
+        <div className="tr-pil" role="tablist" aria-label="Saring grading">
           {[["", "Semua baris", baris.length], ["large", "Large", hitungKelas("large")],
             ["medium", "Medium", hitungKelas("medium")], ["small", "Small", hitungKelas("small")]].map(([v, t, n]) => (
             <button key={String(v)} role="tab" aria-selected={saringKelas === v} className={saringKelas === v ? "on" : ""}
@@ -283,7 +283,7 @@ export default function KelasCabangClient() {
           ))}
           <button role="tab" aria-selected={modeBelum} className={"tc-pil-belum" + (modeBelum ? " on" : "")}
                   onClick={() => ubah(setSaringKelas)("belum")}>
-            <i aria-hidden /> Belum bertier <span className="num">{belumBerkelas.length}</span>
+            <i aria-hidden /> Belum punya grading <span className="num">{belumBerkelas.length}</span>
           </button>
         </div>
         <div className="pa-alat">
@@ -299,7 +299,7 @@ export default function KelasCabangClient() {
             )}
           </div>
           <span className="ri-alat-kanan faint">
-            {modeBelum ? `${belumTersaring.length} pasangan belum bertier` : `${tersaring.length} dari ${baris.length} baris`}
+            {modeBelum ? `${belumTersaring.length} pasangan belum punya grading` : `${tersaring.length} dari ${baris.length} baris`}
           </span>
         </div>
 
@@ -314,17 +314,17 @@ export default function KelasCabangClient() {
                   <tr key={b.cabang + "|" + b.produk} className="pr-kurang">
                     <td><div className="tc-cabang">{b.cabang}</div><div className="pa-sub">{areaDari.get(b.cabang) ?? "—"}</div></td>
                     <td><span className="sp-produk">{b.produk}</span></td>
-                    <td><span className="pa-status bad">belum bertier</span></td>
+                    <td><span className="pa-status bad">belum ada grading</span></td>
                     <td className="r">
                       <button className="btn tint sm" onClick={() => beriTier(b.cabang, b.produk)}>
-                        <Ikon nama="plus" ukuran={14} /> Beri tier
+                        <Ikon nama="plus" ukuran={14} /> Beri grading
                       </button>
                     </td>
                   </tr>
                 ))}
                 {!belumTersaring.length && (
                   <tr><td colSpan={4} className="empty">
-                    {belumBerkelas.length ? "Tidak ada yang cocok dengan penyaring." : "Semua pasangan cabang·produk sudah bertier."}
+                    {belumBerkelas.length ? "Tidak ada yang cocok dengan penyaring." : "Semua pasangan cabang·produk sudah punya grading."}
                   </td></tr>
                 )}
               </tbody>
@@ -332,7 +332,7 @@ export default function KelasCabangClient() {
           ) : (
             <table className="pa-tabel tc-tabel">
               <thead>
-                <tr><th>Cabang</th><th>Produk</th><th>Berlaku mulai</th><th style={{ width: 170 }}>Tier</th><th className="r" style={{ width: 70 }}>Aksi</th></tr>
+                <tr><th>Cabang</th><th>Produk</th><th>Berlaku mulai</th><th style={{ width: 170 }}>Grading</th><th className="r" style={{ width: 70 }}>Aksi</th></tr>
               </thead>
               <tbody>
                 {tersaring.slice(halIni * PER, halIni * PER + PER).map((b) => (
@@ -346,7 +346,7 @@ export default function KelasCabangClient() {
                       </div>
                     </td>
                     <td className="r">
-                      <button className="pa-ikon-btn pr-mati" title={`Hapus tier ${b.cabang} · ${b.produk}`} disabled={sibuk}
+                      <button className="pa-ikon-btn pr-mati" title={`Hapus grading ${b.cabang} · ${b.produk}`} disabled={sibuk}
                               onClick={() => hapus(b)}>
                         <Ikon nama="trash" ukuran={15} />
                       </button>
@@ -355,7 +355,7 @@ export default function KelasCabangClient() {
                 ))}
                 {!tersaring.length && (
                   <tr><td colSpan={5} className="empty">
-                    {muat ? "Memuat…" : (cari || saringProduk || saringArea || saringKelas) ? "Tidak ada yang cocok." : "Belum ada tier cabang."}
+                    {muat ? "Memuat…" : (cari || saringProduk || saringArea || saringKelas) ? "Tidak ada yang cocok." : "Belum ada grading cabang."}
                   </td></tr>
                 )}
               </tbody>

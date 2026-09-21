@@ -198,7 +198,7 @@ export default function ArsipMentahClient() {
           </>
         }
         aksi={
-          <a className="btn ghost" href="/api/admin/arsip-mentah/template">
+          <a className="btn ghost" href="/api/admin/arsip-mentah/template" download>
             <Ikon nama="download" ukuran={16} /> Unduh Template Excel
           </a>
         }

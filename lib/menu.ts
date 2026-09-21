@@ -64,7 +64,7 @@ export const MENU: Menu[] = [
   { kode: "admin_produk",       label: "Master Produk",       href: "/admin/produk",       grup: "Master", ikon: "box" },
   { kode: "admin_pagu",         label: "Pagu Insentif",       href: "/admin/pagu",         grup: "Master", ikon: "wallet" },
   { kode: "admin_tier",         label: "Tabel Tier Insentif", href: "/admin/tier",         grup: "Master", ikon: "layers" },
-  { kode: "admin_kelas_cabang", label: "Tier Cabang",         href: "/admin/kelas-cabang", grup: "Master", ikon: "building" },
+  { kode: "admin_kelas_cabang", label: "Grading Cabang",      href: "/admin/kelas-cabang", grup: "Master", ikon: "building" },
   { kode: "admin_cabang",       label: "Master Cabang API",   href: "/admin/cabang",       grup: "Master", ikon: "server" },
   { kode: "admin_pengguna",     label: "Pengguna & Akses",    href: "/admin/pengguna",     grup: "Master", ikon: "userCog" },
   { kode: "admin_peran",        label: "Peran & Hak Akses",   href: "/admin/peran",        grup: "Master", ikon: "shield" },

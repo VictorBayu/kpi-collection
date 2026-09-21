@@ -114,10 +114,10 @@ export default function TierClient() {
         eyebrow="Master data & formula"
         meta={<><TitikStatus nada={belumTerisi.length ? "warn" : "good"} /> {belumTerisi.length ? `${belumTerisi.length} pasangan belum terisi` : "matriks lengkap"}</>}
         judul="Tabel Tier Insentif"
-        deskripsi={<>Nominal untuk jabatan+produk bermekanisme “tabel tier” — dicari lewat kombinasi tier orang dan tier cabang
+        deskripsi={<>Nominal untuk jabatan+produk bermekanisme “tabel tier” — dicari lewat kombinasi tier orang dan grading cabang
           (Large/Medium/Small), bukan rumus skor ÷ pembagi × pagu.</>}
         aksi={<>
-          <Link className="btn ghost" href="/admin/kelas-cabang"><Ikon nama="building" ukuran={16} /> Tier cabang</Link>
+          <Link className="btn ghost" href="/admin/kelas-cabang"><Ikon nama="building" ukuran={16} /> Grading cabang</Link>
           <button className="btn" onClick={() => setBaru(bawaanBaru())}>
             <Ikon nama="plus" ukuran={16} tebal={2.2} /> Tambah baris tier
           </button>
@@ -173,7 +173,7 @@ export default function TierClient() {
           <div className="kt-form-kepala">
             <span className="kt-titik" aria-hidden />
             <h3>Baris matriks tier baru</h3>
-            <span className="kt-mode">nominal dicari dari tier orang × tier cabang</span>
+            <span className="kt-mode">nominal dicari dari tier orang × grading cabang</span>
             <button className="pa-tutup" onClick={() => setBaru(null)} aria-label="Tutup formulir">×</button>
           </div>
           <div className="tr-form-isi">
@@ -197,7 +197,7 @@ export default function TierClient() {
                        onChange={(e) => setBaru({ ...baru, tier: e.target.value })} />
               </label>
               <label className="field">
-                <span>Tier cabang</span>
+                <span>Grading cabang</span>
                 <Pilih nilai={baru.kelas} cari={false}
                        onPilih={(v) => setBaru({ ...baru, kelas: v })}
                        opsi={KELAS_OPSI} />
@@ -240,7 +240,7 @@ export default function TierClient() {
             <Pilih nilai={saringProduk} cari={false} onPilih={setSaringProduk}
                    opsi={[{ nilai: "", label: "Semua produk" }, ...produk.map((p) => ({ nilai: p.kode, label: p.kode, ket: p.nama }))]} />
             <Pilih nilai={saringKelas} cari={false} onPilih={setSaringKelas}
-                   opsi={[{ nilai: "", label: "Semua tier cabang" }, ...KELAS_OPSI]} />
+                   opsi={[{ nilai: "", label: "Semua grading cabang" }, ...KELAS_OPSI]} />
           </div>
           <div className="ri-alat-kanan">
             {adaSaring && (
@@ -257,7 +257,7 @@ export default function TierClient() {
             <thead>
               <tr>
                 <th>Jabatan</th><th>Produk</th><th>Tier karyawan</th>
-                <th>Tier cabang</th><th className="r" style={{ width: 190 }}>Nominal insentif</th><th className="r" style={{ width: 96 }}>Aksi</th>
+                <th>Grading cabang</th><th className="r" style={{ width: 190 }}>Nominal insentif</th><th className="r" style={{ width: 96 }}>Aksi</th>
               </tr>
             </thead>
             <tbody>
@@ -307,7 +307,7 @@ export default function TierClient() {
         <Ikon nama="bulb" ukuran={16} />
         <span>
           Nominal diubah langsung di tabel dan tersimpan saat kotaknya ditinggalkan. {rp(0)} berarti kombinasi itu belum
-          diisi — bukan nol sengaja. Tier cabang diatur di <Link className="lnk" href="/admin/kelas-cabang">Tier Cabang</Link>.
+          diisi — bukan nol sengaja. Grading cabang diatur di <Link className="lnk" href="/admin/kelas-cabang">Grading Cabang</Link>.
         </span>
       </p>
     </>

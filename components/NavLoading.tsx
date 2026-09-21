@@ -30,6 +30,10 @@ import { usePathname, useSearchParams } from "next/navigation";
  * detik pertama. Karena itu submit yang sudah di-preventDefault
  * diabaikan, dan pemeriksaannya diulang lagi setelah jeda 300 ms supaya
  * tidak bergantung pada di mana React memasang listener-nya.
+ *
+ * Alasan yang sama berlaku untuk tautan UNDUHAN (mis. tombol "Unduh
+ * Template Excel"): berkasnya turun, alamat halaman tidak berubah, jadi
+ * penandanya menggantung. Karena itu seluruh tautan ke /api/ dilewati.
  */
 export default function NavLoading() {
   const [tampil, setTampil] = useState(false);
@@ -112,6 +116,14 @@ export default function NavLoading() {
 
       const tujuan = new URL(a.href, window.location.href);
       if (tujuan.origin !== window.location.origin) return;
+      // Tautan ke /api/ bukan perpindahan halaman: ia mengunduh berkas
+      // (template Excel, ekspor CSV) atau memanggil endpoint. Alamat
+      // halaman tidak pernah berubah, jadi penanda ini tidak akan pernah
+      // berhenti sendiri -- persis kegagalan yang sama dengan <form> yang
+      // menangani dirinya sendiri. Atribut download saja tidak cukup:
+      // berkas yang diunduh lewat Content-Disposition di sisi server
+      // sering ditulis sebagai tautan biasa tanpa atribut itu.
+      if (tujuan.pathname.startsWith("/api/")) return;
       if (tujuan.pathname + tujuan.search === window.location.pathname + window.location.search) return;
 
       mulai(e);

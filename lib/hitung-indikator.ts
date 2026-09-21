@@ -37,6 +37,21 @@ type DefIndikator = {
   komponen: Komponen[];
 };
 
+/**
+ * Skor KPI terendah yang mungkin diperoleh.
+ *
+ * Skala penilaian perusahaan adalah 1-5: 1 berarti "tidak mencapai apa
+ * pun", bukan nol. Sebelum ini mesin hitung bisa mengeluarkan 0 atau 0,75
+ * -- dari pita yang poin terendahnya disetel 0, maupun dari interpolasi
+ * lurus tiga-ambang (3 x nilai / target_kpi3) yang memang menuju nol saat
+ * pencapaiannya nol. Angka di bawah 1 itu tidak pernah dimaksudkan ada;
+ * yang benar: serendah apa pun pencapaiannya, skornya berhenti di 1.
+ *
+ * Lantai ini HANYA untuk peran 'kpi' dan 'reguler' -- lihat alasannya di
+ * ekspresi `skor` di hitungSatu().
+ */
+const SKOR_MINIMUM = 1;
+
 /** Kolom NIK yang dipakai mengelompokkan, sesuai peran pemegang indikator. */
 const KOLOM_PIC: Record<string, string> = {
   staff: "nik_staff",
@@ -228,11 +243,40 @@ async function hitungSatu(
       WHEN g.target_kpi3 = 0 THEN 0
       ELSE GREATEST(0, 3 * g.nilai / NULLIF(g.target_kpi3, 0))
     END`;
-  const skor = `
+  const skorMentah = `
     CASE
       WHEN g.nilai IS NULL THEN NULL
       WHEN g.ada_pita THEN ${skorPita}
       ELSE (${skorLama})
+    END`;
+
+  /**
+   * Skor akhir: skor mentah yang dinaikkan ke SKOR_MINIMUM bila di
+   * bawahnya.
+   *
+   * Dibatasi pada peran 'kpi' dan 'reguler' dengan sengaja. Peran 'tier'
+   * TIDAK boleh ikut: di sana angka skor bukan nilai KPI melainkan NOMOR
+   * TIER (lihat hitungInsentif, `MAX(ROUND(k.skor_kpi)) FILTER (WHERE
+   * k.peran = 'tier')`). Menaikkannya dari 0 ke 1 berarti diam-diam
+   * memberi tier 1 kepada orang yang sebenarnya tidak masuk tier mana
+   * pun -- dan tier 1 punya nominal rupiah di tabel insentif_tier.
+   * Peran 'reward', 'penalty', 'nominal', dan 'pendukung' juga dibiarkan
+   * apa adanya karena nominalnya berasal dari `pencapaian`, bukan dari
+   * skor ini; menaikkan skornya hanya akan menyesatkan pembaca Tracing.
+   *
+   * Baris tanpa data sama sekali (nilai NULL -- orang terdaftar di
+   * indikator ini tapi tidak memegang satu kontrak pun) tetap NULL, bukan
+   * 1: "tidak dinilai" berbeda dari "dinilai dan hasilnya terendah", dan
+   * layar menampilkannya sebagai "-". Perhatikan GREATEST() TIDAK dipakai
+   * di sini justru karena Postgres mengabaikan NULL di dalamnya --
+   * GREATEST(NULL, 1) menghasilkan 1, yang persis bukan yang diinginkan.
+   */
+  const skor = `
+    CASE
+      WHEN g.skor_mentah IS NULL THEN NULL
+      WHEN g.peran IN ('kpi','reguler') AND g.skor_mentah < ${SKOR_MINIMUM}
+        THEN ${SKOR_MINIMUM}
+      ELSE g.skor_mentah
     END`;
 
   const sql = `
@@ -268,6 +312,14 @@ async function hitungSatu(
              h.nilai * t.faktor_pengakuan / 100 AS nilai
         FROM terdaftar t
         LEFT JOIN hitung h ON h.nik = t.nik
+    ),
+    -- Skor mentah dihitung SEKALI di sini, bukan tiga kali di dalam
+    -- INSERT (skor_kpi, skor_terbobot, skor_terbobot_ins semuanya
+    -- memakainya). Selain lebih hemat -- poin_dari_pita() adalah fungsi
+    -- plpgsql yang dipanggil per baris -- ini juga menjamin ketiganya
+    -- berangkat dari angka yang sama persis.
+    skoran AS (
+      SELECT g.*, (${skorMentah}) AS skor_mentah FROM gabung g
     )
     INSERT INTO kpi_row
       (periode, nik, nama, jabatan, cabang, produk, indikator, indikator_id,
@@ -298,7 +350,7 @@ async function hitungSatu(
            ${pSatuan}, ${pCatatan},
            g.peran, g.jenis_nilai, g.nilai_efek,
            'api', NULL, now()
-      FROM gabung g
+      FROM skoran g
     ON CONFLICT (nik, periode, indikator_id, produk) WHERE sumber = 'api'
     DO UPDATE SET
       pencapaian        = EXCLUDED.pencapaian,

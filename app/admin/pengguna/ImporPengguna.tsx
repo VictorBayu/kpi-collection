@@ -80,7 +80,7 @@ export default function ImporPengguna({ onSelesai }: { onSelesai?: () => void })
             Unduh contoh berkasnya dulu supaya susunan kolomnya pasti cocok.
           </p>
         </div>
-        <a className="btn ghost sm nowrap" href="/api/admin/pengguna/template">
+        <a className="btn ghost sm nowrap" href="/api/admin/pengguna/template" download>
           ↓ Unduh contoh Excel
         </a>
       </div>
