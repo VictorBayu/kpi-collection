@@ -41,11 +41,14 @@ type DefIndikator = {
  * Skor KPI terendah yang mungkin diperoleh.
  *
  * Skala penilaian perusahaan adalah 1-5: 1 berarti "tidak mencapai apa
- * pun", bukan nol. Sebelum ini mesin hitung bisa mengeluarkan 0 atau 0,75
- * -- dari pita yang poin terendahnya disetel 0, maupun dari interpolasi
- * lurus tiga-ambang (3 x nilai / target_kpi3) yang memang menuju nol saat
- * pencapaiannya nol. Angka di bawah 1 itu tidak pernah dimaksudkan ada;
- * yang benar: serendah apa pun pencapaiannya, skornya berhenti di 1.
+ * pun", bukan nol. Ada TIGA jalan yang sebelumnya menembus lantai itu:
+ * pita yang poin terendahnya disetel 0; interpolasi lurus tiga-ambang
+ * (3 x nilai / target_kpi3) yang memang menuju nol saat pencapaiannya
+ * nol; dan -- yang paling sering -- rumus yang tidak menghasilkan angka
+ * sama sekali (NULL), misalnya karena orangnya tidak memegang satu
+ * kontrak pun di produk itu, atau karena penyebut rasionya nol.
+ *
+ * Ketiganya berakhir sama: skornya berhenti di 1.
  *
  * Lantai ini HANYA untuk peran 'kpi' dan 'reguler' -- lihat alasannya di
  * ekspresi `skor` di hitungSatu().
@@ -251,8 +254,21 @@ async function hitungSatu(
     END`;
 
   /**
-   * Skor akhir: skor mentah yang dinaikkan ke SKOR_MINIMUM bila di
-   * bawahnya.
+   * Skor akhir: SKOR_MINIMUM untuk apa pun yang berada di bawahnya --
+   * termasuk yang tidak menghasilkan angka sama sekali.
+   *
+   * SKOR KOSONG IKUT DINAIKKAN, dan ini bagian yang mudah keliru.
+   * Terdaftar di sebuah indikator berarti DINILAI; kalau rumusnya tidak
+   * menghasilkan angka (orangnya tidak memegang kontrak di produk itu,
+   * atau penyebut rasionya nol), yang benar adalah nilai terendah pada
+   * skala, bukan "tidak punya skor". Membiarkannya NULL membuat seluruh
+   * total terbobot orang itu ikut NULL, dan layar menampilkannya sebagai
+   * 0,00 -- angka yang bahkan tidak ada di skala 1-5.
+   *
+   * `pencapaian` sengaja DIBIARKAN NULL. Jadi Tracing tetap jujur: tidak
+   * ada pencapaian yang terukur, tapi skornya minimum. Membuatnya nol
+   * akan mengaburkan beda antara "tidak ada datanya" dan "datanya ada,
+   * hasilnya nol".
    *
    * Dibatasi pada peran 'kpi' dan 'reguler' dengan sengaja. Peran 'tier'
    * TIDAK boleh ikut: di sana angka skor bukan nilai KPI melainkan NOMOR
@@ -264,17 +280,16 @@ async function hitungSatu(
    * apa adanya karena nominalnya berasal dari `pencapaian`, bukan dari
    * skor ini; menaikkan skornya hanya akan menyesatkan pembaca Tracing.
    *
-   * Baris tanpa data sama sekali (nilai NULL -- orang terdaftar di
-   * indikator ini tapi tidak memegang satu kontrak pun) tetap NULL, bukan
-   * 1: "tidak dinilai" berbeda dari "dinilai dan hasilnya terendah", dan
-   * layar menampilkannya sebagai "-". Perhatikan GREATEST() TIDAK dipakai
-   * di sini justru karena Postgres mengabaikan NULL di dalamnya --
-   * GREATEST(NULL, 1) menghasilkan 1, yang persis bukan yang diinginkan.
+   * Yang menjaga lantai ini tidak berubah jadi rupiah adalah
+   * insentif_pagu.skor_minimal (bawaannya 3): skor 1 tetap di bawah
+   * ambang, jadi nominalnya nol. Kalau ada jabatan yang skor_minimal-nya
+   * disetel <= 1, di sanalah lantai ini mulai membayar -- periksa di
+   * layar Pagu Insentif sebelum menyimpulkan angkanya keliru.
    */
   const skor = `
     CASE
-      WHEN g.skor_mentah IS NULL THEN NULL
-      WHEN g.peran IN ('kpi','reguler') AND g.skor_mentah < ${SKOR_MINIMUM}
+      WHEN g.peran NOT IN ('kpi','reguler') THEN g.skor_mentah
+      WHEN g.skor_mentah IS NULL OR g.skor_mentah < ${SKOR_MINIMUM}
         THEN ${SKOR_MINIMUM}
       ELSE g.skor_mentah
     END`;
