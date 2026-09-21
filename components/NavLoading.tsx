@@ -19,6 +19,17 @@ import { usePathname, useSearchParams } from "next/navigation";
  *     tersambung, dan hasilnya diberitahukan apa adanya;
  *   - setelah 12 detik disediakan tombol muat ulang, jadi pengguna tidak
  *     perlu menebak sendiri harus berbuat apa.
+ *
+ * PENTING soal `submit`: banyak layar di aplikasi ini memakai <form> yang
+ * TIDAK berpindah halaman -- Tracing KPI, pencarian, penyaring -- yaitu
+ * form yang handler-nya memanggil preventDefault() lalu fetch() sendiri.
+ * Penanda ini hanya berhenti ketika alamat berubah, jadi kalau form
+ * semacam itu ikut dihitung sebagai perpindahan, penandanya TIDAK PERNAH
+ * berhenti: pengguna melihat "Memuat halaman... 14 detik" lalu "Masih
+ * diproses, lebih lama dari biasanya" padahal datanya sudah tampil sejak
+ * detik pertama. Karena itu submit yang sudah di-preventDefault
+ * diabaikan, dan pemeriksaannya diulang lagi setelah jeda 300 ms supaya
+ * tidak bergantung pada di mana React memasang listener-nya.
  */
 export default function NavLoading() {
   const [tampil, setTampil] = useState(false);
@@ -28,6 +39,12 @@ export default function NavLoading() {
   const jeda = useRef<ReturnType<typeof setTimeout> | null>(null);
   const jam = useRef<ReturnType<typeof setInterval> | null>(null);
   const denyut = useRef<ReturnType<typeof setInterval> | null>(null);
+  // Denyut pertama dijadwalkan 3 detik setelah penanda tampil. Tanpa ref,
+  // berhenti() tidak bisa membatalkannya: perpindahan yang selesai di
+  // detik pertama tetap menyalakan interval 4 detik sesudahnya, dan
+  // interval itu menyentuh /api/akses selamanya karena tidak ada lagi
+  // yang membersihkannya.
+  const denyutAwal = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const path = usePathname();
   const query = useSearchParams();
@@ -36,6 +53,7 @@ export default function NavLoading() {
     if (jeda.current) { clearTimeout(jeda.current); jeda.current = null; }
     if (jam.current) { clearInterval(jam.current); jam.current = null; }
     if (denyut.current) { clearInterval(denyut.current); denyut.current = null; }
+    if (denyutAwal.current) { clearTimeout(denyutAwal.current); denyutAwal.current = null; }
     setTampil(false);
     setDetik(0);
     setServer("belum");
@@ -61,14 +79,20 @@ export default function NavLoading() {
       }
     }
 
-    function mulai() {
+    function mulai(e?: Event) {
       if (jeda.current) clearTimeout(jeda.current);
       jeda.current = setTimeout(() => {
+        jeda.current = null;
+        // Diperiksa lagi di sini, bukan cuma saat event datang: handler
+        // React bisa memanggil preventDefault() setelah listener document
+        // ini jalan, tergantung di mana React memasang listener-nya.
+        if (e?.defaultPrevented) return;
         setTampil(true);
         setDetik(0);
         jam.current = setInterval(() => setDetik((d) => d + 1), 1000);
         // Denyut pertama setelah 3 detik, lalu tiap 4 detik.
-        setTimeout(() => {
+        denyutAwal.current = setTimeout(() => {
+          denyutAwal.current = null;
           sentuhServer();
           denyut.current = setInterval(sentuhServer, 4000);
         }, 3000);
@@ -90,10 +114,15 @@ export default function NavLoading() {
       if (tujuan.origin !== window.location.origin) return;
       if (tujuan.pathname + tujuan.search === window.location.pathname + window.location.search) return;
 
-      mulai();
+      mulai(e);
     }
 
-    const kirimForm = () => mulai();
+    // Form yang menangani dirinya sendiri (preventDefault lalu fetch)
+    // bukan perpindahan halaman, jadi tidak menyalakan penanda ini.
+    const kirimForm = (e: Event) => {
+      if (e.defaultPrevented) return;
+      mulai(e);
+    };
     const sembunyi = () => berhenti();
 
     document.addEventListener("click", klik);

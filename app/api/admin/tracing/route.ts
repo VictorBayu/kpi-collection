@@ -67,6 +67,42 @@ const SQL_BARIS = `
  * Ini justru temuan yang paling mudah terlewat — yang hilang tidak
  * muncul di layar mana pun.
  */
+/**
+ * Daftar periode, dibaca lewat "loose index scan".
+ *
+ * Bentuk lamanya `SELECT DISTINCT periode FROM kpi_row ORDER BY periode
+ * DESC LIMIT 18`. Postgres tidak punya skip-scan, jadi perintah itu harus
+ * membaca SELURUH isi idx_kpi_periode lebih dulu baru menyaring yang
+ * kembar -- biayanya tumbuh seiring jumlah baris KPI, padahal jawabannya
+ * cuma belasan tanggal. Di layar ini ia dijalankan setiap kali tombol
+ * Telusuri ditekan, jadi ongkosnya dibayar terus-menerus.
+ *
+ * Bentuk rekursif di bawah menempuh indeks yang sama seperti menaiki
+ * tangga: ambil periode terbesar, lalu terbesar yang lebih kecil dari
+ * itu, dan seterusnya. Biayanya jadi sebanyak bulan yang ada -- belasan
+ * pencarian indeks -- bukan satu kali pembacaan seluruh baris KPI, dan
+ * tidak ikut membengkak setiap bulan data baru masuk.
+ *
+ * ORDER BY-nya ditulis walau rekursi ini memang sudah menghasilkan urutan
+ * menurun: urutan keluaran CTE bukan sesuatu yang dijanjikan SQL, dan
+ * baris pertama di sini dipakai sebagai periode baku saat pemanggil tidak
+ * menyebutkan periode. Ongkosnya mengurutkan belasan baris.
+ *
+ * Hasilnya identik dengan bentuk lama -- kolom periode di kpi_row NOT
+ * NULL, jadi tidak ada baris NULL yang perlu diurus berbeda.
+ */
+const SQL_PERIODE = `
+  WITH RECURSIVE tangga AS (
+    SELECT MAX(periode) AS periode FROM kpi_row
+    UNION ALL
+    SELECT (SELECT MAX(k.periode) FROM kpi_row k WHERE k.periode < t.periode)
+      FROM tangga t WHERE t.periode IS NOT NULL
+  )
+  SELECT periode FROM tangga
+   WHERE periode IS NOT NULL
+   ORDER BY periode DESC
+   LIMIT 18`;
+
 const SQL_TARGET_YATIM = `
   SELECT d.nama AS indikator, t.produk, t.alias, t.peran
     FROM indikator_target t
@@ -86,10 +122,17 @@ export const GET = handler(async (req) => {
   const nik = (u.searchParams.get("nik") ?? "").trim();
   const periodeMinta = (u.searchParams.get("periode") ?? "").trim();
 
+  const t0 = Date.now();
+
   // Daftar periode selalu dikirim supaya pemilih periode terisi bahkan
-  // saat NIK belum diketik.
-  const periodeList = await q<{ periode: string }>(
-    `SELECT DISTINCT periode FROM kpi_row ORDER BY periode DESC LIMIT 18`);
+  // saat NIK belum diketik. Kueri DIBERANGKATKAN di sini tapi sengaja
+  // BELUM ditunggu: begitu pemanggil sudah menyebut periode -- dan itu
+  // yang terjadi setiap kali tombol Telusuri ditekan, karena pemilih
+  // periode sudah terisi sejak layar pertama -- nilainya tidak dibutuhkan
+  // siapa pun untuk menyusun kueri berikutnya. Menunggunya di sini berarti
+  // menambah satu perjalanan bolak-balik ke database sebelum kueri yang
+  // sebenarnya boleh berangkat.
+  const pPeriodeList = q<{ periode: string }>(SQL_PERIODE);
   // toISODate(), bukan String(date).slice(0,10) — driver mengembalikan
   // periode sebagai objek Date, dan String(Date) menghasilkan teks
   // seperti "Tue Sep 01 2026 ..." yang terpotong jadi "Tue Sep 01" tanpa
@@ -100,9 +143,10 @@ export const GET = handler(async (req) => {
   // toISODate() sendiri (lihat komentarnya), tapi di sini kena lagi
   // karena dipanggil manual dengan cara yang salah.
   const periode = periodeMinta ||
-    (periodeList[0] ? toISODate(periodeList[0].periode) : "");
+    (await pPeriodeList.then((l) => (l[0] ? toISODate(l[0].periode) : "")));
 
   if (!nik) {
+    const periodeList = await pPeriodeList;
     // Contoh NIK untuk layar awal: orang dengan baris indikator terbanyak
     // di periode itu — paling banyak yang bisa ditelusuri, jadi paling
     // berguna untuk mencoba. Diambil dari data sungguhan, bukan NIK
@@ -120,17 +164,38 @@ export const GET = handler(async (req) => {
     return Response.json({ periodeList, periode, kosong: true, contoh });
   }
 
-  const [orang] = await q<any>(
-    `SELECT u.nik, u.nama, u.jabatan, u.cabang, u.area, u.aktif,
-            norm_jabatan(u.jabatan) AS alias
-       FROM app_user u WHERE u.nik = $1`, [nik]);
-  if (!orang) throw new HttpError(404, `NIK ${nik} tidak ada di daftar pengguna.`);
+  // Diperiksa SEBELUM gelombang di bawah berangkat: tanpa periode,
+  // parameter $2::date akan berisi teks kosong dan kuerinya gagal.
   if (!periode) throw new HttpError(400, "Belum ada periode KPI sama sekali.");
 
-  const [baris, yatim] = await Promise.all([
+  // Satu gelombang, bukan tiga.
+  //
+  // Driver Neon di sini berbicara lewat HTTP: tiap q() adalah satu
+  // perjalanan bolak-balik tersendiri, dan ongkos terbesarnya bukan kerja
+  // databasenya melainkan jaraknya. Dulu berkas ini menunggu daftar
+  // periode, lalu menunggu baris "orang", baru menjalankan sisanya --
+  // empat gelombang berurutan, empat kali ongkos jarak, padahal tidak
+  // satu pun dari keempatnya memerlukan hasil yang sebelumnya.
+  //
+  // Satu-satunya yang benar-benar berurutan adalah periode (dipakai
+  // sebagai parameter) dan itu sudah diselesaikan di atas. Sisanya
+  // berangkat bersama-sama. NIK yang tidak terdaftar memang jadi
+  // menjalankan tiga kueri sia-sia, tapi ketiganya tidak menemukan apa
+  // pun dan berakhir cepat -- jauh lebih murah daripada membuat setiap
+  // penelusuran yang berhasil menunggu satu giliran tambahan.
+  const [periodeList, orangRows, baris, yatim] = await Promise.all([
+    pPeriodeList,
+    q<any>(
+      `SELECT u.nik, u.nama, u.jabatan, u.cabang, u.area, u.aktif,
+              norm_jabatan(u.jabatan) AS alias
+         FROM app_user u WHERE u.nik = $1`, [nik]),
     q<Baris>(SQL_BARIS, [nik, periode]),
     q<any>(SQL_TARGET_YATIM, [nik, periode]),
   ]);
+  const t1 = Date.now();
+
+  const orang = orangRows[0];
+  if (!orang) throw new HttpError(404, `NIK ${nik} tidak ada di daftar pengguna.`);
 
   const targetIds = baris.map((b) => b.target_id).filter(Boolean);
   const indikatorIds = [...new Set(baris.map((b) => b.indikator_id).filter(Boolean))];
@@ -270,6 +335,7 @@ export const GET = handler(async (req) => {
           WHERE nik_staff = $1 OR nik_spv = $1 OR nik_bch = $1
           GROUP BY 1 ORDER BY 1`, [nik]),
     ]);
+  const t2 = Date.now();
 
   const perTarget = <T extends { target_id: string }>(rows: T[]) => {
     const m = new Map<string, T[]>();
@@ -316,11 +382,24 @@ export const GET = handler(async (req) => {
     };
   });
 
+  // Server-Timing: dua gelombang kueri itu dilaporkan apa adanya, supaya
+  // kalau suatu saat layar ini terasa lambat lagi, jawabannya bisa dibaca
+  // di tab Network peramban (kolom Timing) tanpa perlu menebak atau
+  // menambal instrumentasi dadakan -- termasuk membedakan "databasenya
+  // lambat" dari "fungsinya baru bangun" (selisih total dengan db1+db2).
   return Response.json({
     periodeList, periode, orang, periode_berjalan: berjalan,
     jejak, yatim, insentif, tier_tabel: tierTabel,
     mentah,
     temuan: temuan(jejak, yatim, insentif, tierTabel, berjalan),
+  }, {
+    headers: {
+      "Server-Timing": [
+        `db1;desc="periode+orang+baris+yatim";dur=${t1 - t0}`,
+        `db2;desc="pita+gerbang+komponen+insentif+tier+mentah";dur=${t2 - t1}`,
+        `total;dur=${Date.now() - t0}`,
+      ].join(", "),
+    },
   });
 });
 

@@ -65,6 +65,15 @@ export default function Client() {
   const [cetak, setCetak] = useState(false);
   const [contoh, setContoh] = useState<any[]>([]);
   const inputNik = useRef<HTMLInputElement>(null);
+  // Nomor urut permintaan. Penelusuran tidak bisa dibatalkan begitu saja
+  // dengan menimpa state: kalau admin menelusuri NIK A lalu cepat
+  // berpindah ke NIK B, jawaban A bisa tiba BELAKANGAN dan menimpa layar
+  // dengan data yang bukan diminta terakhir — pada layar audit, itu jenis
+  // kekeliruan yang paling mahal. Jawaban yang bukan dari permintaan
+  // terakhir dibuang, dan permintaan lama sekalian dibatalkan supaya
+  // tidak ikut memperebutkan jatah koneksi peramban.
+  const urut = useRef(0);
+  const batalkan = useRef<AbortController | null>(null);
 
   // Muat awal tanpa NIK: hanya untuk mengisi daftar periode.
   useEffect(() => { void ambil("", ""); }, []);
@@ -76,13 +85,20 @@ export default function Client() {
   }, []);
 
   async function ambil(n: string, p: string) {
+    batalkan.current?.abort();
+    const kendali = new AbortController();
+    batalkan.current = kendali;
+    const saya = ++urut.current;
+    const usang = () => saya !== urut.current;
+
     setSibuk(true); setPesan(null);
     try {
       const u = new URL("/api/admin/tracing", location.origin);
       if (n) u.searchParams.set("nik", n);
       if (p) u.searchParams.set("periode", p);
-      const r = await fetch(u, { cache: "no-store" });
+      const r = await fetch(u, { cache: "no-store", signal: kendali.signal });
       const j = await r.json().catch(() => ({}));
+      if (usang()) return;
       if (!r.ok) { setPesan(j.error ?? "Gagal memuat."); setData(null); return; }
       if (!periode && j.periode) setPeriode(toISODate(j.periode));
       if (Array.isArray(j.contoh)) setContoh(j.contoh);
@@ -90,7 +106,13 @@ export default function Client() {
       // Yang tampil sekarang berasal dari NIK+periode ini; dipakai untuk
       // menandai bila isian di atas sudah diubah tapi belum ditelusuri.
       setDimuat({ nik: n, periode: p || (j.periode ? toISODate(j.periode) : "") });
-    } finally { setSibuk(false); }
+    } catch (e: any) {
+      // Pembatalan bukan kegagalan: permintaan yang lebih baru sedang
+      // berjalan dan dialah yang berhak mengisi layar.
+      if (e?.name !== "AbortError" && !usang()) setPesan("Gagal memuat.");
+    } finally {
+      if (!usang()) setSibuk(false);
+    }
   }
 
   function cari(e: React.FormEvent) {

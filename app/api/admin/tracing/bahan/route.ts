@@ -79,16 +79,18 @@ export const GET = handler(async (req) => {
     throw new HttpError(400, "nik, produk, dan indikator_id wajib diisi.");
   }
 
-  const [def] = await q<any>(
-    `SELECT peran_pic FROM indikator_def WHERE id = $1::uuid`, [indikatorId]);
-  if (!def) throw new HttpError(404, "Indikator tidak ditemukan.");
-  const pic = KOLOM_PIC[def.peran_pic] ?? "staff";
-  const kolomNik = `nik_${pic}`;
+  // Keduanya hanya berbekal indikatorId dan tidak saling menunggu, jadi
+  // berangkat bersama. Driver Neon berbicara lewat HTTP: tiap kueri satu
+  // perjalanan bolak-balik, dan menjalankannya berurutan berarti membayar
+  // ongkos jarak dua kali untuk pekerjaan yang muat dalam satu giliran.
+  const [defRows, daftarKomponen] = await Promise.all([
+    q<any>(
+      `SELECT peran_pic FROM indikator_def WHERE id = $1::uuid`, [indikatorId]),
 
-  // Komponen ke-`urutan`. Rumus bersusun (A - B) punya bahan yang
-  // berbeda di tiap sisinya, jadi sisi mana yang sedang dilihat ikut
-  // dipilih — bukan selalu yang pertama.
-  const daftarKomponen = await q<any>(
+    // Komponen ke-`urutan`. Rumus bersusun (A - B) punya bahan yang
+    // berbeda di tiap sisinya, jadi sisi mana yang sedang dilihat ikut
+    // dipilih — bukan selalu yang pertama.
+    q<any>(
     `SELECT k.id, k.urutan, k.agregat, k.kolom, k.gabung_syarat,
             COALESCE(mk.label, k.kolom) AS kolom_label,
             (SELECT json_agg(json_build_object(
@@ -100,7 +102,13 @@ export const GET = handler(async (req) => {
        FROM indikator_komponen k
        LEFT JOIN mentah_kolom mk ON mk.kolom = k.kolom
       WHERE k.indikator_id = $1::uuid
-      ORDER BY k.urutan`, [indikatorId]);
+      ORDER BY k.urutan`, [indikatorId]),
+  ]);
+
+  const def = defRows[0];
+  if (!def) throw new HttpError(404, "Indikator tidak ditemukan.");
+  const pic = KOLOM_PIC[def.peran_pic] ?? "staff";
+  const kolomNik = `nik_${pic}`;
 
   if (!daftarKomponen.length) {
     return Response.json({ kosong: true, pesan: "Indikator ini tidak punya komponen rumus." });
@@ -140,17 +148,9 @@ export const GET = handler(async (req) => {
 
   const kolomJumlah = kolomUtama ? `"${kolomUtama}"` : "NULL::numeric";
 
-  // Rekap dihitung atas SELURUH baris, bukan atas halaman yang tampil.
-  const [rekap] = await q<any>(
-    `SELECT COUNT(*)::int AS jml,
-            COUNT(*) FILTER (WHERE ${lulusExpr})::int AS jml_lolos,
-            COALESCE(SUM(${kolomJumlah}), 0) AS total,
-            COALESCE(SUM(${kolomJumlah}) FILTER (WHERE ${lulusExpr}), 0) AS total_lolos
-       ${dasar}`, params);
-
   // Params rekap dan params daftar dipisah: potongan syarat sudah
   // menempelkan placeholder $3.. ke `params`, dan penyaring tampilan
-  // harus menyambung SETELAH itu tanpa mengubah kueri rekap di atas.
+  // harus menyambung SETELAH itu tanpa mengubah kueri rekap.
   const paramsDaftar = [...params];
   let saring = "";
   if (cari) {
@@ -160,18 +160,42 @@ export const GET = handler(async (req) => {
   if (status === "lolos") saring += ` AND (${lulusExpr}) IS TRUE`;
   else if (status === "tersaring") saring += ` AND (${lulusExpr}) IS NOT TRUE`;
 
-  const [hitungTampil] = saring
-    ? await q<any>(`SELECT COUNT(*)::int AS jml ${dasar}${saring}`, paramsDaftar)
-    : [{ jml: rekap?.jml ?? 0 }];
-
+  // Disalin SEBELUM offset/limit ditempelkan. Kueri hitung tidak menyebut
+  // kedua placeholder itu, dan mengirim parameter yang tidak dirujuk
+  // ditolak server sebagai jumlah parameter yang tidak cocok.
+  const paramsHitung = [...paramsDaftar];
   const pOffset = `$${paramsDaftar.push((hal - 1) * PER_HALAMAN)}`;
   const pLimit = `$${paramsDaftar.push(PER_HALAMAN)}`;
 
-  const baris = await q<any>(
-    `SELECT ${select}, (${lulusExpr}) AS lulus_syarat
-       ${dasar}${saring}
-      ORDER BY id DESC
-      OFFSET ${pOffset} LIMIT ${pLimit}`, paramsDaftar);
+  // Ketiganya membaca data_mentah dengan penyaring yang sudah jadi dan
+  // tidak ada yang memakai hasil yang lain, jadi dijalankan serentak.
+  // Sebelumnya berurutan — rekap, lalu hitung, lalu baris — sehingga
+  // membuka satu komponen rumus menunggu tiga giliran penuh padahal
+  // ketiganya bisa selesai dalam waktu yang paling lama di antaranya.
+  const [rekapRows, tampilRows, baris] = await Promise.all([
+    // Rekap dihitung atas SELURUH baris, bukan atas halaman yang tampil.
+    q<any>(
+      `SELECT COUNT(*)::int AS jml,
+              COUNT(*) FILTER (WHERE ${lulusExpr})::int AS jml_lolos,
+              COALESCE(SUM(${kolomJumlah}), 0) AS total,
+              COALESCE(SUM(${kolomJumlah}) FILTER (WHERE ${lulusExpr}), 0) AS total_lolos
+         ${dasar}`, params),
+
+    // Tanpa penyaring tampilan, jumlahnya sama dengan rekap — tidak perlu
+    // kueri kedua yang menghitung hal yang persis sama.
+    saring
+      ? q<any>(`SELECT COUNT(*)::int AS jml ${dasar}${saring}`, paramsHitung)
+      : Promise.resolve(null),
+
+    q<any>(
+      `SELECT ${select}, (${lulusExpr}) AS lulus_syarat
+         ${dasar}${saring}
+        ORDER BY id DESC
+        OFFSET ${pOffset} LIMIT ${pLimit}`, paramsDaftar),
+  ]);
+
+  const rekap = rekapRows[0];
+  const hitungTampil = tampilRows ? tampilRows[0] : { jml: rekap?.jml ?? 0 };
 
   return Response.json({
     kolom: kolomUtama,
