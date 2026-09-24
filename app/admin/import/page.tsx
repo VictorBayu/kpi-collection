@@ -5,13 +5,14 @@ import Link from "next/link";
 import Ikon from "@/components/Ikon";
 import JudulHalaman from "@/components/JudulHalaman";
 import { readSession } from "@/lib/auth";
+import { menuSesi } from "@/lib/menu";
 
 export const metadata = { title: "Unggah data KPI" };
 
 export default async function Page() {
   const s = await readSession();
   if (!s) redirect("/login");
-  if (s.peran !== "admin") redirect("/dashboard");
+  if (s.peran !== "admin" && !menuSesi(s.peran, s.menu).includes("admin_import")) redirect("/dashboard");
 
   return (
     <AppShell>

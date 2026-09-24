@@ -4,6 +4,7 @@ import AppShell from "@/components/AppShell";
 import { tingkat } from "@/components/Ladder";
 import TombolCetak from "@/components/TombolCetak";
 import { readSession } from "@/lib/auth";
+import { menuSesi } from "@/lib/menu";
 import { periodeTersedia, indikatorNik, insentifKaryawan, ringkasan, trenKpi } from "@/lib/kpi";
 import Ikon from "@/components/Ikon";
 import { q } from "@/lib/db";
@@ -25,7 +26,7 @@ export default async function DetailKpi({
 }: { params: Promise<{ nik: string }>; searchParams: Promise<{ periode?: string }> }) {
   const s = await readSession();
   if (!s) redirect("/login");
-  if (s.peran !== "admin") redirect("/dashboard");
+  if (s.peran !== "admin" && !menuSesi(s.peran, s.menu).includes("admin_kpi")) redirect("/dashboard");
 
   const { nik } = await params;
   const daftar = await periodeTersedia();

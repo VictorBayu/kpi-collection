@@ -2,6 +2,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import AppShell from "@/components/AppShell";
 import { readSession } from "@/lib/auth";
+import { menuSesi } from "@/lib/menu";
 import { q } from "@/lib/db";
 import { namaPeriode, waktu } from "@/lib/format";
 import Ikon from "@/components/Ikon";
@@ -15,7 +16,7 @@ const angka = (n: unknown) => Number(n ?? 0).toLocaleString("id-ID");
 export default async function Riwayat() {
   const s = await readSession();
   if (!s) redirect("/login");
-  if (s.peran !== "admin") redirect("/dashboard");
+  if (s.peran !== "admin" && !menuSesi(s.peran, s.menu).includes("admin_riwayat")) redirect("/dashboard");
 
   const [list, [total], [jumlah]] = await Promise.all([
     q<any>(

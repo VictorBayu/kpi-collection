@@ -2,6 +2,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import AppShell from "@/components/AppShell";
 import { readSession } from "@/lib/auth";
+import { menuSesi } from "@/lib/menu";
 import { periodeTersedia } from "@/lib/kpi";
 import { semuaCabang } from "@/lib/analitik";
 import { namaPeriode, toISODate } from "@/lib/format";
@@ -25,7 +26,7 @@ export default async function Page({
 }: { searchParams: Promise<{ periode?: string }> }) {
   const s = await readSession();
   if (!s) redirect("/login");
-  if (s.peran !== "admin") redirect("/dashboard");
+  if (s.peran !== "admin" && !menuSesi(s.peran, s.menu).includes("admin_analitik")) redirect("/dashboard");
 
   const daftar = await periodeTersedia();
   if (!daftar.length) redirect("/admin/analitik");

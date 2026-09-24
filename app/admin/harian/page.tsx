@@ -3,6 +3,7 @@ import Link from "next/link";
 import AppShell from "@/components/AppShell";
 import StatusHarianBar from "@/components/StatusHarian";
 import { readSession } from "@/lib/auth";
+import { menuSesi } from "@/lib/menu";
 import { statusHarian, cabangHarian, karyawanHarian } from "@/lib/harian";
 import { rp, angka } from "@/lib/format";
 import Ikon from "@/components/Ikon";
@@ -26,7 +27,7 @@ export default async function AdminHarian({
 }: { searchParams: Promise<{ cabang?: string }> }) {
   const s = await readSession();
   if (!s) redirect("/login");
-  if (s.peran !== "admin") redirect("/harian");
+  if (s.peran !== "admin" && !menuSesi(s.peran, s.menu).includes("admin_harian")) redirect("/harian");
 
   const [status, cabang] = await Promise.all([statusHarian(), cabangHarian()]);
 

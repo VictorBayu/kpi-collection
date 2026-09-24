@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 import Link from "next/link";
 import AppShell from "@/components/AppShell";
 import { readSession } from "@/lib/auth";
+import { menuSesi } from "@/lib/menu";
 import { periodeTersedia, cabangPeriode, karyawanCabang } from "@/lib/kpi";
 import { rp, angka, namaPeriode, toISODate } from "@/lib/format";
 import PilihPeriode from "@/components/PilihPeriode";
@@ -16,7 +17,7 @@ export default async function AdminKpi({
 }: { searchParams: Promise<{ periode?: string; cabang?: string }> }) {
   const s = await readSession();
   if (!s) redirect("/login");
-  if (s.peran !== "admin") redirect("/dashboard");
+  if (s.peran !== "admin" && !menuSesi(s.peran, s.menu).includes("admin_kpi")) redirect("/dashboard");
 
   const daftar = await periodeTersedia();
   if (!daftar.length) {
