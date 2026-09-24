@@ -1,4 +1,4 @@
-import { requireAdmin, handler, HttpError } from "@/lib/auth";
+import { requireAdmin, requireMenu, handler, HttpError } from "@/lib/auth";
 import { q, auditLog } from "@/lib/db";
 import { toISODate } from "@/lib/format";
 
@@ -40,7 +40,7 @@ function awalBulan(iso: string): string | null {
   return `${m[1]}-${m[2]}-01`;
 }
 export const GET = handler(async () => {
-  await requireAdmin();
+  await requireMenu("admin_kelas_cabang");
 
   const [kelas, cabang, produk] = await Promise.all([
     q<any>(

@@ -1,4 +1,4 @@
-import { requireAdmin, handler, HttpError } from "@/lib/auth";
+import { requireAdmin, requireMenu, handler, HttpError } from "@/lib/auth";
 import { q, auditLog } from "@/lib/db";
 
 export const runtime = "nodejs";
@@ -20,7 +20,7 @@ const keKode = (v: unknown) =>
  * sama-sama jabatan pokok "FC TT" tapi menangani produk yang berbeda.
  */
 export const GET = handler(async () => {
-  await requireAdmin();
+  await requireMenu("admin_produk");
 
   const [produk, jabatan, pemetaan] = await Promise.all([
     q<any>(`SELECT kode, nama, urutan, aktif FROM produk_master ORDER BY urutan, kode`),

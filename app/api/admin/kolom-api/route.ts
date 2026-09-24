@@ -1,4 +1,4 @@
-import { requireAdmin, handler, HttpError } from "@/lib/auth";
+import { requireMenu, handler, HttpError } from "@/lib/auth";
 import { q, auditLog } from "@/lib/db";
 import { daftarSumber, satuSumber, POLA_NAMA } from "@/lib/sumber";
 
@@ -61,7 +61,7 @@ async function pemakai(kolom: string) {
 }
 
 export const GET = handler(async () => {
-  await requireAdmin();
+  await requireMenu("admin_kolom_api");
 
   const [kolom, dipakai, sumber] = await Promise.all([
     q<any>(`SELECT kolom, label, jenis, agregat, kelompok, urutan,
@@ -94,7 +94,7 @@ export const GET = handler(async () => {
 
 /** Tambah kolom baru: catat di katalog lalu buat kolom fisiknya. */
 export const POST = handler(async (req) => {
-  const admin = await requireAdmin();
+  const admin = await requireMenu("admin_kolom_api");
   const b = await req.json();
 
   const kolom = String(b.kolom ?? "").trim().toLowerCase();
@@ -147,7 +147,7 @@ export const POST = handler(async (req) => {
 
 /** Ubah keterangan kolom. Kolom inti hanya boleh diubah sebagian. */
 export const PUT = handler(async (req) => {
-  const admin = await requireAdmin();
+  const admin = await requireMenu("admin_kolom_api");
   const b = await req.json();
   const kolom = String(b.kolom ?? "");
 
@@ -201,7 +201,7 @@ export const PUT = handler(async (req) => {
  * tahu apa yang harus diperbaiki dulu, bukan sekadar ditolak.
  */
 export const DELETE = handler(async (req) => {
-  const admin = await requireAdmin();
+  const admin = await requireMenu("admin_kolom_api");
   const kolom = new URL(req.url).searchParams.get("kolom") ?? "";
 
   const [k] = await q<any>(

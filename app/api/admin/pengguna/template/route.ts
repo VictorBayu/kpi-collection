@@ -1,5 +1,5 @@
 import * as XLSX from "xlsx";
-import { requireAdmin, handler } from "@/lib/auth";
+import { requireAdmin, requireMenu, handler } from "@/lib/auth";
 
 export const runtime = "nodejs";
 // Selalu dijalankan saat ada permintaan, tidak pernah dibekukan saat build.
@@ -16,7 +16,7 @@ export const dynamic = "force-dynamic";
  * sendiri tanpa harus membuka dokumentasi terpisah.
  */
 export const GET = handler(async () => {
-  await requireAdmin();
+  await requireMenu("admin_pengguna");
 
   const data = [
     {

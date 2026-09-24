@@ -1,4 +1,4 @@
-import { requireAdmin, handler, HttpError } from "@/lib/auth";
+import { requireMenu, handler, HttpError } from "@/lib/auth";
 import { q } from "@/lib/db";
 
 export const runtime = "nodejs";
@@ -61,7 +61,7 @@ function potongan(
 }
 
 export const GET = handler(async (req) => {
-  await requireAdmin();
+  await requireMenu("admin_tracing");
   const u = new URL(req.url);
   const nik = (u.searchParams.get("nik") ?? "").trim();
   const produk = (u.searchParams.get("produk") ?? "").trim();

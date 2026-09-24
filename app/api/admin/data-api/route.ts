@@ -1,4 +1,4 @@
-import { requireAdmin, handler, HttpError } from "@/lib/auth";
+import { requireMenu, handler, HttpError } from "@/lib/auth";
 import { q, auditLog } from "@/lib/db";
 import { tarikSemua } from "@/lib/tarik-api";
 import { hitungSemuaIndikator } from "@/lib/hitung-indikator";
@@ -17,7 +17,7 @@ export const maxDuration = 300;
  * waktu function, dan itu hanya ketahuan dengan mencobanya.
  */
 export const GET = handler(async () => {
-  await requireAdmin();
+  await requireMenu("admin_data_api");
 
   const [cabang, riwayat, ringkas] = await Promise.all([
     q<any>(`SELECT branch_id, cabang, area, aktif FROM cabang_api ORDER BY branch_id`),
@@ -40,7 +40,7 @@ export const GET = handler(async () => {
 
 /** Tambah atau ubah satu kode cabang API. */
 export const POST = handler(async (req) => {
-  const admin = await requireAdmin();
+  const admin = await requireMenu("admin_data_api");
   const b = await req.json();
 
   const branchId = String(b.branch_id ?? "").trim();
@@ -69,7 +69,7 @@ export const POST = handler(async (req) => {
  * menyalinnya dari spreadsheet atau catatan, bukan mengetik ulang.
  */
 export const PUT = handler(async (req) => {
-  const admin = await requireAdmin();
+  const admin = await requireMenu("admin_data_api");
   const b = await req.json();
   const teks = String(b.teks ?? "");
 
@@ -109,7 +109,7 @@ export const PUT = handler(async (req) => {
  * bisa gagal karena kuota API.
  */
 export const PATCH = handler(async (req) => {
-  const admin = await requireAdmin();
+  const admin = await requireMenu("admin_data_api");
   const body = await req.json().catch(() => ({}));
 
   if (body?.hanyaHitung) {
@@ -130,7 +130,7 @@ export const PATCH = handler(async (req) => {
 });
 
 export const DELETE = handler(async (req) => {
-  const admin = await requireAdmin();
+  const admin = await requireMenu("admin_data_api");
   const url = new URL(req.url);
 
   // Membersihkan riwayat penarikan. Riwayat sudah dipangkas otomatis tiap

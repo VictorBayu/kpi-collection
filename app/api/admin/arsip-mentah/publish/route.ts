@@ -1,4 +1,4 @@
-import { requireAdmin, handler, HttpError } from "@/lib/auth";
+import { requireMenu, handler, HttpError } from "@/lib/auth";
 import { q, sql, auditLog } from "@/lib/db";
 import { hitungSemuaIndikator } from "@/lib/hitung-indikator";
 import { toISODate } from "@/lib/format";
@@ -25,7 +25,7 @@ export const maxDuration = 120;
  * arsip dulu untuk diperiksa, baru memicu hitung ulang saat sudah yakin.
  */
 export const POST = handler(async (req) => {
-  const s = await requireAdmin();
+  const s = await requireMenu("admin_arsip_mentah");
   const { batchId, hitungUlang } = await req.json();
   if (!batchId) throw new HttpError(400, "Batch tidak dikenal.");
 

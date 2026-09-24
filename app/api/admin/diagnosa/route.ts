@@ -1,4 +1,4 @@
-import { requireAdmin, handler, HttpError } from "@/lib/auth";
+import { requireAdmin, requireMenu, handler, HttpError } from "@/lib/auth";
 import { q } from "@/lib/db";
 
 export const runtime = "nodejs";
@@ -16,7 +16,7 @@ export const dynamic = "force-dynamic";
  * kecil yang tidak kelihatan di layar.
  */
 export const GET = handler(async (req) => {
-  await requireAdmin();
+  await requireMenu("admin_hierarki");
   const url = new URL(req.url);
   const pengamatNik = (url.searchParams.get("pengamat") || "").trim();
   const targetNik = (url.searchParams.get("target") || "").trim();

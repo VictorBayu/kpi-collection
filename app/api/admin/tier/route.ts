@@ -1,4 +1,4 @@
-import { requireAdmin, handler, HttpError } from "@/lib/auth";
+import { requireAdmin, requireMenu, handler, HttpError } from "@/lib/auth";
 import { q, auditLog } from "@/lib/db";
 
 export const runtime = "nodejs";
@@ -13,7 +13,7 @@ const KELAS = ["large", "medium", "small"];
  * biasa untuk jabatan yang nominalnya memang tidak berbentuk skor linear.
  */
 export const GET = handler(async () => {
-  await requireAdmin();
+  await requireMenu("admin_tier");
 
   const [tier, produk, jabatan] = await Promise.all([
     q<any>(

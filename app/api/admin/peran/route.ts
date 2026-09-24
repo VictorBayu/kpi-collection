@@ -1,4 +1,4 @@
-import { requireAdmin, handler, HttpError } from "@/lib/auth";
+import { requireAdmin, requireMenu, handler, HttpError } from "@/lib/auth";
 import { q, auditLog } from "@/lib/db";
 import { MENU, PETA_MENU } from "@/lib/menu";
 
@@ -17,7 +17,7 @@ export const dynamic = "force-dynamic";
 const kodeSah = (s: string) => /^[a-z][a-z0-9_]{1,30}$/.test(s);
 
 export const GET = handler(async () => {
-  await requireAdmin();
+  await requireMenu("admin_peran");
 
   const [peran, hak, pakai] = await Promise.all([
     q<any>(`SELECT kode, nama, keterangan, bawaan, urutan, aktif

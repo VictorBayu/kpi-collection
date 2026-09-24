@@ -1,4 +1,4 @@
-import { requireAdmin, handler } from "@/lib/auth";
+import { requireMenu, handler } from "@/lib/auth";
 import { buatTemplateXlsx } from "@/lib/arsip-mentah";
 
 export const runtime = "nodejs";
@@ -6,7 +6,7 @@ export const dynamic = "force-dynamic";
 
 /** Mengunduh template .xlsx sesuai katalog kolom data mentah saat ini. */
 export const GET = handler(async () => {
-  await requireAdmin();
+  await requireMenu("admin_arsip_mentah");
   const buf = await buatTemplateXlsx();
 
   return new Response(new Uint8Array(buf), {

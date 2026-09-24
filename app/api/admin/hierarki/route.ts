@@ -1,5 +1,5 @@
 import { revalidateTag } from "next/cache";
-import { requireAdmin, handler, HttpError } from "@/lib/auth";
+import { requireAdmin, requireMenu, handler, HttpError } from "@/lib/auth";
 import { q, auditLog } from "@/lib/db";
 
 export const runtime = "nodejs";
@@ -27,7 +27,7 @@ const rapikan = (v: unknown) =>
  * ditindaklanjuti admin, karena KPI-nya tidak akan terlihat siapa pun.
  */
 export const GET = handler(async () => {
-  await requireAdmin();
+  await requireMenu("admin_hierarki");
 
   const level = await q<any>(
     `SELECT r.kode, r.nama, r.urutan, r.se_area, r.aktif,

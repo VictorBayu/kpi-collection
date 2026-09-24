@@ -1,4 +1,4 @@
-import { requireAdmin, handler } from "@/lib/auth";
+import { requireMenu, handler } from "@/lib/auth";
 import { q } from "@/lib/db";
 
 export const runtime = "nodejs";
@@ -19,7 +19,7 @@ const BATAS_NILAI = 200;
  * hal yang mencegah nama kolom karangan ikut tertempel ke dalam SQL.
  */
 export const GET = handler(async (req) => {
-  await requireAdmin();
+  await requireMenu("admin_indikator");
 
   const diminta = (new URL(req.url).searchParams.get("kolom") ?? "")
     .split(",").map((s) => s.trim()).filter(Boolean);

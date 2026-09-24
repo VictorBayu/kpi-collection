@@ -1,5 +1,5 @@
 import { del } from "@vercel/blob";
-import { requireAdmin, handler, HttpError } from "@/lib/auth";
+import { requireMenu, handler, HttpError } from "@/lib/auth";
 import { q, auditLog } from "@/lib/db";
 
 export const runtime = "nodejs";
@@ -13,7 +13,7 @@ export const dynamic = "force-dynamic";
  * periode itu tanpa peringatan.
  */
 export const POST = handler(async (req) => {
-  const admin = await requireAdmin();
+  const admin = await requireMenu("admin_arsip_mentah");
   const { batchId } = await req.json();
   if (!batchId) throw new HttpError(400, "Batch tidak dikenal.");
 

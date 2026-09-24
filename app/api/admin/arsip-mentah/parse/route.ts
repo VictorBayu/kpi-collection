@@ -1,4 +1,4 @@
-import { requireAdmin, handler, HttpError } from "@/lib/auth";
+import { requireMenu, handler, HttpError } from "@/lib/auth";
 import { q, auditLog } from "@/lib/db";
 import { toISODate } from "@/lib/format";
 import {
@@ -20,7 +20,7 @@ export const maxDuration = 120;
  * langkah pencocokan kolom terpisah.
  */
 export const POST = handler(async (req) => {
-  const s = await requireAdmin();
+  const s = await requireMenu("admin_arsip_mentah");
   const { blobUrl, namaFile, periode } = await req.json();
 
   if (!blobUrl || !periode) {

@@ -1,4 +1,4 @@
-import { requireAdmin, handler } from "@/lib/auth";
+import { requireMenu, handler } from "@/lib/auth";
 import { q } from "@/lib/db";
 import { headerTemplate } from "@/lib/arsip-mentah";
 
@@ -11,7 +11,7 @@ export const dynamic = "force-dynamic";
  * akan diminta sebelum admin mengunduh templatenya).
  */
 export const GET = handler(async () => {
-  await requireAdmin();
+  await requireMenu("admin_arsip_mentah");
 
   const [batch, katalog] = await Promise.all([
     q<any>(

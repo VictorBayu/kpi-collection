@@ -1,4 +1,4 @@
-import { requireAdmin, handler } from "@/lib/auth";
+import { requireMenu, handler } from "@/lib/auth";
 import { q } from "@/lib/db";
 
 export const runtime = "nodejs";
@@ -20,7 +20,7 @@ const BATAS_MAKS = 200;
  * supaya admin tidak perlu menghafal NIK untuk tahu baris itu milik siapa.
  */
 export const GET = handler(async (req) => {
-  await requireAdmin();
+  await requireMenu("admin_sampel");
   const url = new URL(req.url);
   const cabang = url.searchParams.get("cabang");
   const cari = url.searchParams.get("cari")?.trim();

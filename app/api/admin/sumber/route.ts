@@ -1,4 +1,4 @@
-import { requireAdmin, handler, HttpError } from "@/lib/auth";
+import { requireMenu, handler, HttpError } from "@/lib/auth";
 import { q, auditLog } from "@/lib/db";
 import {
   daftarSumber, satuSumber, namaTabelSumber, POLA_NAMA,
@@ -80,7 +80,7 @@ async function pemakai(kode: string) {
 }
 
 export const GET = handler(async () => {
-  await requireAdmin();
+  await requireMenu("admin_sumber");
   const daftar = await daftarSumber();
 
   // Jumlah kolom dan baris tiap sumber dibaca sekali, bukan per baris di
@@ -113,7 +113,7 @@ export const GET = handler(async () => {
 });
 
 export const POST = handler(async (req) => {
-  const admin = await requireAdmin();
+  const admin = await requireMenu("admin_sumber");
   const b = await req.json();
 
   const kode = String(b.kode ?? "").trim().toLowerCase();
@@ -175,7 +175,7 @@ export const POST = handler(async (req) => {
 });
 
 export const PUT = handler(async (req) => {
-  const admin = await requireAdmin();
+  const admin = await requireMenu("admin_sumber");
   const b = await req.json();
   const kode = String(b.kode ?? "");
   const lama = await satuSumber(kode);
@@ -216,7 +216,7 @@ export const PUT = handler(async (req) => {
 
 /** Uji koneksi atau tarik sekarang. */
 export const PATCH = handler(async (req) => {
-  const admin = await requireAdmin();
+  const admin = await requireMenu("admin_sumber");
   const b = await req.json();
   const kode = String(b.kode ?? "");
 
@@ -233,7 +233,7 @@ export const PATCH = handler(async (req) => {
 });
 
 export const DELETE = handler(async (req) => {
-  const admin = await requireAdmin();
+  const admin = await requireMenu("admin_sumber");
   const kode = new URL(req.url).searchParams.get("kode") ?? "";
   const s = await satuSumber(kode);
   if (!s) throw new HttpError(404, "Sumber tidak ditemukan.");

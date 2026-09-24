@@ -1,4 +1,4 @@
-import { requireAdmin, handler, HttpError, hashPassword } from "@/lib/auth";
+import { requireAdmin, requireMenu, handler, HttpError, hashPassword } from "@/lib/auth";
 import { q, auditLog } from "@/lib/db";
 
 export const runtime = "nodejs";
@@ -158,7 +158,7 @@ function susunFilter(aturan: Aturan[], params: any[]) {
 
 /** Daftar pengguna + statistik akses, dengan penyaring bersusun. */
 export const GET = handler(async (req) => {
-  await requireAdmin();
+  await requireMenu("admin_pengguna");
   const url = new URL(req.url);
 
   // Bentuk lama (cari/peran/status) tetap didukung supaya tautan yang sudah

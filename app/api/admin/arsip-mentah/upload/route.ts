@@ -1,5 +1,5 @@
 import { handleUpload, type HandleUploadBody } from "@vercel/blob/client";
-import { requireAdmin, handler } from "@/lib/auth";
+import { requireMenu, handler } from "@/lib/auth";
 
 export const dynamic = "force-dynamic";
 
@@ -17,7 +17,7 @@ export const POST = handler(async (req: Request) => {
     body,
     request: req,
     onBeforeGenerateToken: async (pathname) => {
-      await requireAdmin();
+      await requireMenu("admin_arsip_mentah");
       if (!/\.(xlsx|xls)$/i.test(pathname)) {
         throw new Error("Format berkas harus .xlsx atau .xls");
       }

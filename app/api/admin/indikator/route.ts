@@ -1,4 +1,4 @@
-import { requireAdmin, handler, HttpError } from "@/lib/auth";
+import { requireMenu, handler, HttpError } from "@/lib/auth";
 import { q, auditLog } from "@/lib/db";
 import { daftarSumber } from "@/lib/sumber";
 import { ujiRumus } from "@/lib/hitung-indikator";
@@ -112,7 +112,7 @@ function bacaKomponen(raw: any): Komponen[] {
 
 /** Daftar indikator, katalog kolom, dan bahan pengisi dropdown. */
 export const GET = handler(async (req) => {
-  await requireAdmin();
+  await requireMenu("admin_indikator");
   const id = new URL(req.url).searchParams.get("id");
 
   if (!id) {
@@ -232,7 +232,7 @@ export const GET = handler(async (req) => {
  * menghasilkan keadaan yang persis seperti di layar.
  */
 export const POST = handler(async (req) => {
-  const admin = await requireAdmin();
+  const admin = await requireMenu("admin_indikator");
   const b = await req.json();
 
   const nama = String(b.nama ?? "").trim();
@@ -446,7 +446,7 @@ export const POST = handler(async (req) => {
  * rumus baru ketahuan setelah semua orang melihat angkanya di dasbor.
  */
 export const PATCH = handler(async (req) => {
-  await requireAdmin();
+  await requireMenu("admin_indikator");
   const b = await req.json();
   try {
     const hasil = await ujiRumus(
@@ -463,7 +463,7 @@ export const PATCH = handler(async (req) => {
 });
 
 export const DELETE = handler(async (req) => {
-  const admin = await requireAdmin();
+  const admin = await requireMenu("admin_indikator");
   const id = new URL(req.url).searchParams.get("id");
   if (!id) throw new HttpError(400, "Indikator belum dipilih.");
 

@@ -1,5 +1,5 @@
 import * as XLSX from "xlsx";
-import { requireAdmin, handler, HttpError } from "@/lib/auth";
+import { requireMenu, handler, HttpError } from "@/lib/auth";
 import { q, auditLog } from "@/lib/db";
 
 export const runtime = "nodejs";
@@ -58,7 +58,7 @@ const tanggal = (v: any): string | null => {
 const PER_HAL = 5;
 
 export const GET = handler(async (req) => {
-  await requireAdmin();
+  await requireMenu("admin_pendukung");
   const url = new URL(req.url);
   const hal = Math.max(0, Number(url.searchParams.get("hal") ?? 0) || 0);
   const cari = (url.searchParams.get("cari") ?? "").trim();
@@ -110,7 +110,7 @@ export const GET = handler(async (req) => {
 
 /** Ubah satu baris: status pakai/tidak, catatan, dan nilai kolomnya. */
 export const PUT = handler(async (req) => {
-  const admin = await requireAdmin();
+  const admin = await requireMenu("admin_pendukung");
   const b = await req.json();
   const id = Number(b.id);
   if (!Number.isFinite(id)) throw new HttpError(400, "Baris tidak dikenal.");
@@ -136,7 +136,7 @@ export const PUT = handler(async (req) => {
 });
 
 export const DELETE = handler(async (req) => {
-  const admin = await requireAdmin();
+  const admin = await requireMenu("admin_pendukung");
   const url = new URL(req.url);
 
   // Membersihkan seluruh isi sekaligus — dipakai saat berkas yang salah
@@ -184,7 +184,7 @@ export const DELETE = handler(async (req) => {
 });
 
 export const POST = handler(async (req) => {
-  const admin = await requireAdmin();
+  const admin = await requireMenu("admin_pendukung");
   const form = await req.formData();
   const file = form.get("file");
   if (!(file instanceof File)) throw new HttpError(400, "Berkas belum dipilih.");

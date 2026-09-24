@@ -1,4 +1,4 @@
-import { requireAdmin, handler } from "@/lib/auth";
+import { requireMenu, handler } from "@/lib/auth";
 import { q } from "@/lib/db";
 
 export const runtime = "nodejs";
@@ -7,7 +7,7 @@ export const dynamic = "force-dynamic";
 
 /** Daftar riwayat impor + temuan satu batch (?batchId=...). */
 export const GET = handler(async (req) => {
-  await requireAdmin();
+  await requireMenu("admin_import");
   const url = new URL(req.url);
   const batchId = url.searchParams.get("batchId");
 

@@ -1,4 +1,4 @@
-import { requireAdmin, handler, HttpError } from "@/lib/auth";
+import { requireAdmin, requireMenu, handler, HttpError } from "@/lib/auth";
 import { q, auditLog } from "@/lib/db";
 
 export const runtime = "nodejs";
@@ -17,7 +17,7 @@ export const dynamic = "force-dynamic";
  * skor di bawah ambang minimal.
  */
 export const GET = handler(async () => {
-  await requireAdmin();
+  await requireMenu("admin_pagu");
 
   const [pagu, produk, jabatan, semuaJabatan] = await Promise.all([
     q<any>(

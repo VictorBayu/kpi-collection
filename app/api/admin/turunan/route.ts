@@ -1,4 +1,4 @@
-import { requireAdmin, handler, HttpError } from "@/lib/auth";
+import { requireMenu, handler, HttpError } from "@/lib/auth";
 import { q, auditLog } from "@/lib/db";
 import { periksaEkspresi, hitungTurunan, daftarTurunan } from "@/lib/turunan";
 
@@ -12,7 +12,7 @@ const TIPE_SQL: Record<string, string> = {
 };
 
 export const GET = handler(async () => {
-  await requireAdmin();
+  await requireMenu("admin_turunan");
 
   const [turunan, kolom] = await Promise.all([
     q<any>(`SELECT t.kolom, t.mode, t.aturan, t.nilai_lain, t.ekspresi_sql,
@@ -37,7 +37,7 @@ export const GET = handler(async () => {
  * tidak perlu mendaftarkannya dua kali di dua layar berbeda.
  */
 export const POST = handler(async (req) => {
-  const admin = await requireAdmin();
+  const admin = await requireMenu("admin_turunan");
   const b = await req.json();
 
   const kolom = String(b.kolom ?? "").trim().toLowerCase();
@@ -119,7 +119,7 @@ export const POST = handler(async (req) => {
 
 /** Menghitung ulang satu kolom turunan sekarang juga. */
 export const PATCH = handler(async (req) => {
-  const admin = await requireAdmin();
+  const admin = await requireMenu("admin_turunan");
   const { kolom } = await req.json();
 
   const t = (await daftarTurunan()).find((x) => x.kolom === kolom);
@@ -141,7 +141,7 @@ export const PATCH = handler(async (req) => {
 });
 
 export const DELETE = handler(async (req) => {
-  const admin = await requireAdmin();
+  const admin = await requireMenu("admin_turunan");
   const kolom = new URL(req.url).searchParams.get("kolom") ?? "";
   if (!POLA_KOLOM.test(kolom)) throw new HttpError(400, "Nama kolom tidak sah.");
 
