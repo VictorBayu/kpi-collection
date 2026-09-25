@@ -6,6 +6,7 @@ import RincianHarian from "@/components/RincianHarian";
 import { readSession } from "@/lib/auth";
 import { statusHarian, progresNik, ringkasHarian, timHarian } from "@/lib/harian";
 import { rp, angka } from "@/lib/format";
+import JudulHalaman from "@/components/JudulHalaman";
 
 export const metadata = { title: "Progres Harian" };
 export const dynamic = "force-dynamic";
@@ -34,15 +35,11 @@ export default async function HarianSaya() {
   return (
     <AppShell>
       <main className="shell">
-        <div className="sectionhead">
-          <div>
-            <h2>Progres Harian</h2>
-            <p>
-              Posisi berjalan bulan ini dari data API — bukan angka final.
-              Halaman KPI biasa tetap menampilkan hasil yang sudah ditutup.
-            </p>
-          </div>
-        </div>
+        <JudulHalaman
+          eyebrow="Data berjalan"
+          judul="Progres Harian"
+          deskripsi="Posisi berjalan bulan ini dari data API — bukan angka final. Halaman KPI biasa tetap menampilkan hasil yang sudah ditutup."
+        />
 
         <StatusHarianBar s={status} />
         <div className="mt" />

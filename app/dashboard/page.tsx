@@ -6,6 +6,8 @@ import Ladder, { kalimatJarak, tingkat } from "@/components/Ladder";
 import RincianIndikator from "./RincianIndikator";
 import TabelInsentif from "./TabelInsentif";
 import DasborUnit from "./DasborUnit";
+import JudulHalaman from "@/components/JudulHalaman";
+import PilihPeriode from "@/components/PilihPeriode";
 import { readSession } from "@/lib/auth";
 import {
   periodeTersedia, indikatorKaryawan, insentifKaryawan, ringkasan, trenKpi,
@@ -42,30 +44,19 @@ export default async function Dashboard({
 
   return (
     <AppShell>
-      {/* pita konteks: dari mana angka ini datang */}
-      <div className="ribbon">
-        <div className="ribbon-in">
-          <span className="pill">● Terbit {waktu(aktif.diterbitkan_pada)}</span>
-          <span className="spacer" />
-          <form>
-            <label className="faint" htmlFor="periode">Periode</label>{" "}
-            <select id="periode" name="periode" defaultValue={periode} className="select"
-                    // form dikirim ulang saat pilihan berubah, tanpa JavaScript tambahan
-                    >
-              {daftarPeriode.map((p) => (
-                <option key={String(p.periode)} value={toISODate(p.periode)}>
-                  {namaPeriode(p.periode)}
-                </option>
-              ))}
-            </select>{" "}
-            <button className="btn sm ghost">Lihat</button>
-          </form>
-        </div>
-      </div>
+      <main className="shell">
+        <JudulHalaman
+          eyebrow="Terbit"
+          meta={<>{waktu(aktif.diterbitkan_pada)}</>}
+          judul="Dasbor saya"
+          deskripsi="Pencapaian KPI dan perkiraan insentif Anda pada periode terpilih."
+          aksi={<PilihPeriode daftar={daftarPeriode.map((p) => toISODate(p.periode))} aktif={periode} />}
+        />
 
-      <Suspense fallback={<RangkaDasbor />}>
-        <IsiDasbor nik={s.nik} periode={periode} peran={s.peran} />
-      </Suspense>
+        <Suspense fallback={<RangkaDasbor />}>
+          <IsiDasbor nik={s.nik} periode={periode} peran={s.peran} />
+        </Suspense>
+      </main>
     </AppShell>
   );
 }
@@ -105,19 +96,17 @@ async function IsiDasbor({
     const unit = await ringkasanUnit(nik, periode);
     if (unit.orang > 0) {
       return (
-        <main className="shell">
-          <div className="card card-pad narrow mt">
-            <h2>Anda belum punya indikator sendiri</h2>
-            <p className="muted">
-              Jabatan Anda tidak dinilai lewat indikator pribadi pada periode{" "}
-              {namaPeriode(periode)}. Pencapaian yang Anda pimpin ada di dasbor tim.
-            </p>
-            <p className="mt" style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-              <Link className="btn" href="/tim/dashboard">Ke Dashboard Tim</Link>
-              <Link className="btn ghost" href="/tim">Tim saya</Link>
-            </p>
-          </div>
-        </main>
+        <div className="card card-pad narrow mt">
+          <h2>Anda belum punya indikator sendiri</h2>
+          <p className="muted">
+            Jabatan Anda tidak dinilai lewat indikator pribadi pada periode{" "}
+            {namaPeriode(periode)}. Pencapaian yang Anda pimpin ada di dasbor tim.
+          </p>
+          <p className="mt" style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+            <Link className="btn" href="/tim/dashboard">Ke Dashboard Tim</Link>
+            <Link className="btn ghost" href="/tim">Tim saya</Link>
+          </p>
+        </div>
       );
     }
   }
@@ -131,7 +120,7 @@ async function IsiDasbor({
   const maksTren = Math.max(5, ...tren.map((t) => t.skor));
 
   return (
-      <main className="shell">
+      <>
         {/* Ringkasan: dua angka utama disatukan dalam satu kartu supaya di
             layar kecil keduanya terbaca tanpa scroll. */}
         <section className="card card-pad dash-ring">
@@ -207,14 +196,14 @@ async function IsiDasbor({
           Ajukan koreksi lewat <Link href="/request">menu Request</Link>. Sertakan nomor kontrak
           atau nama debitur agar tim data bisa menelusuri barisnya.
         </div>
-      </main>
+      </>
   );
 }
 
 /** Kerangka yang tampil selama angka KPI masih diambil. */
 function RangkaDasbor() {
   return (
-    <main className="shell">
+    <>
       <div className="card card-pad dash-ring">
         <div className="dash-metrik">
           <div className="metrik"><div className="sk sk-title" /><div className="sk sk-sub" /></div>
@@ -225,7 +214,7 @@ function RangkaDasbor() {
       <div className="sk-cards">
         {Array.from({ length: 4 }).map((_, i) => <div className="sk sk-card" key={i} />)}
       </div>
-    </main>
+    </>
   );
 }
 
@@ -245,15 +234,13 @@ function KosongTotal() {
 
 function KosongPeriode({ periode }: { periode: string }) {
   return (
-    <main className="shell">
-      <div className="card card-pad narrow mt">
-        <h2>Data Anda belum ada di periode {namaPeriode(periode)}</h2>
-        <p className="muted">
-          Ini biasanya terjadi kalau NIK Anda belum masuk berkas yang diunggah tim data.
-          Ajukan lewat menu Request dengan kategori “Data tidak muncul”.
-        </p>
-        <p className="mt"><Link className="btn" href="/request">Ajukan sekarang</Link></p>
-      </div>
-    </main>
+    <div className="card card-pad narrow mt">
+      <h2>Data Anda belum ada di periode {namaPeriode(periode)}</h2>
+      <p className="muted">
+        Ini biasanya terjadi kalau NIK Anda belum masuk berkas yang diunggah tim data.
+        Ajukan lewat menu Request dengan kategori “Data tidak muncul”.
+      </p>
+      <p className="mt"><Link className="btn" href="/request">Ajukan sekarang</Link></p>
+    </div>
   );
 }

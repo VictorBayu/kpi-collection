@@ -1272,7 +1272,7 @@ export default function IndikatorClient() {
                         <span className="trow-label">Ringkasan</span>
                         <span className="trow-ringkas-teks">
                           <i className="trow-dot" aria-hidden />
-                          {ringkasan}
+                          <span className="trow-ringkas-str" title={ringkasan}>{ringkasan}</span>
                         </span>
                       </div>
                       <div className="trow-aksi">

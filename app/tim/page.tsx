@@ -8,6 +8,8 @@ import Ladder, { tingkat } from "@/components/Ladder";
 import KontrolDetail from "./KontrolDetail";
 import PetaCabang from "./PetaCabang";
 import TombolCetak from "@/components/TombolCetak";
+import Ikon from "@/components/Ikon";
+import JudulHalaman, { KartuMetrik } from "@/components/JudulHalaman";
 import { rp, angka, nilai, namaPeriode, toISODate, tebakSatuan, nilaiBanding } from "@/lib/format";
 
 export const metadata = { title: "Tim saya" };
@@ -73,39 +75,39 @@ async function IsiTim({
 
   return (
       <main className="shell">
-        <div className="sectionhead">
-          <div>
-            <h2>Tim saya — {lingkup}</h2>
-            <p>
-              {anggota.length} orang, periode {namaPeriode(periode)}. Diurutkan dari skor
-              terendah supaya yang butuh bantuan terlihat lebih dulu.
-            </p>
-          </div>
+        <JudulHalaman
+          eyebrow="Tim saya"
+          nada="tegas"
+          meta={<>{lingkup}</>}
+          judul="Tim saya"
+          deskripsi={`${anggota.length} orang, periode ${namaPeriode(periode)}. Diurutkan dari skor terendah supaya yang butuh bantuan terlihat lebih dulu.`}
+        />
+
+        <div className="km-grid tiga">
+          <KartuMetrik label="Anggota tim" nilai={anggota.length} satuan="orang"
+                       catatan={lingkup}
+                       ikon={<Ikon nama="users" ukuran={20} />} nada="accent" />
+          <KartuMetrik label="Skor rata-rata"
+                       nilai={angka(rata)}
+                       lencana={anggota.length ? (rata >= 3 ? { teks: "≥ KPI 3", nada: "good" } : { teks: "< KPI 3", nada: "bad" }) : undefined}
+                       catatan={`Rata-rata ${lingkup.toLowerCase()}`}
+                       ikon={<Ikon nama={rata < 3 ? "trendDown" : "chart"} ukuran={20} />}
+                       nada={rata < 3 ? "bad" : "good"}
+                       progres={{ persen: (rata / 5) * 100, nada: rata < 3 ? "bad" : "good" }} />
+          <KartuMetrik label="Di bawah KPI 3" nilai={dibawah} satuan="orang"
+                       catatan={dibawah === 0 ? "Semua sudah di atas KPI 3" : "perlu perhatian bulan ini"}
+                       ikon={<Ikon nama="alert" ukuran={20} />} nada={dibawah ? "bad" : "good"} />
         </div>
 
-        <section className="hero">
-          <div className="card card-pad">
-            <span className="eyebrow">Skor rata-rata {lingkup.toLowerCase()}</span>
-            <div className="scorewrap">
-              <b className="score sm">{angka(rata)}</b>
-            </div>
-            <p className="muted small">
-              {dibawah === 0
-                ? "Semua anggota tim sudah di atas KPI 3."
-                : `${dibawah} orang masih di bawah KPI 3 dan perlu perhatian bulan ini.`}
-            </p>
+        <section className="card card-pad mt">
+          <span className="eyebrow">Sebaran skor tim</span>
+          <div className="distro">
+            {ember.map((n, i) => (
+              <div key={i} style={{ height: `${(n / maks) * 100}%` }}><span>{n}</span></div>
+            ))}
           </div>
-
-          <div className="card card-pad">
-            <span className="eyebrow">Sebaran skor tim</span>
-            <div className="distro">
-              {ember.map((n, i) => (
-                <div key={i} style={{ height: `${(n / maks) * 100}%` }}><span>{n}</span></div>
-              ))}
-            </div>
-            <div className="distro-x">
-              <span>&lt;3</span><span>3,0–3,5</span><span>3,5–4,0</span><span>4,0–4,5</span><span>&gt;4,5</span>
-            </div>
+          <div className="distro-x">
+            <span>&lt;3</span><span>3,0–3,5</span><span>3,5–4,0</span><span>4,0–4,5</span><span>&gt;4,5</span>
           </div>
         </section>
 

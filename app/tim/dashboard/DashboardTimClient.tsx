@@ -3,6 +3,8 @@
 import Link from "next/link";
 import AmChart from "@/components/AmChart";
 import PilihPeriode from "@/components/PilihPeriode";
+import Ikon from "@/components/Ikon";
+import JudulHalaman, { KartuMetrik } from "@/components/JudulHalaman";
 import { rp, angka, namaPeriode } from "@/lib/format";
 
 type Ringkas = {
@@ -47,41 +49,30 @@ export default function DashboardTimClient({
 
   return (
     <>
-      <div className="sectionhead rowbetween">
-        <div>
-          <h2>Dashboard Tim</h2>
-          <p>
-            Ringkasan pencapaian tim Anda pada periode {namaPeriode(periode)}.
-            Hanya memuat orang yang boleh Anda lihat.
-          </p>
-        </div>
-        <PilihPeriode daftar={daftarPeriode} aktif={periode} />
-      </div>
+      <JudulHalaman
+        eyebrow="Dashboard Tim"
+        nada="tegas"
+        judul="Dashboard Tim"
+        deskripsi={`Ringkasan pencapaian tim Anda pada periode ${namaPeriode(periode)}. Hanya memuat orang yang boleh Anda lihat.`}
+        aksi={<PilihPeriode daftar={daftarPeriode} aktif={periode} />}
+      />
 
-      <div className="kartu-angka mb">
-        <div className="angka-kotak">
-          <span>Skor rata-rata tim</span>
-          <b className={ringkas.skorRata === null ? ""
-            : ringkas.skorRata >= 4 ? "baik" : ringkas.skorRata < 3 ? "buruk" : ""}>
-            {ringkas.skorRata === null ? "—" : angka(ringkas.skorRata)}
-          </b>
-          <i>{ringkas.dinilai} dari {ringkas.anggota} orang dinilai</i>
-        </div>
-        <div className="angka-kotak">
-          <span>Di bawah KPI 3</span>
-          <b className={ringkas.bawah ? "buruk" : ""}>{ringkas.bawah}</b>
-          <i>perlu dibantu</i>
-        </div>
-        <div className="angka-kotak">
-          <span>Mencapai KPI 4+</span>
-          <b className={ringkas.baik ? "baik" : ""}>{ringkas.baik}</b>
-          <i>di atas target</i>
-        </div>
-        <div className="angka-kotak">
-          <span>Total insentif tim</span>
-          <b style={{ fontSize: 16 }}>{rp(ringkas.insentif)}</b>
-          <i>periode ini</i>
-        </div>
+      <div className="km-grid">
+        <KartuMetrik label="Skor rata-rata tim"
+                     nilai={ringkas.skorRata === null ? "—" : angka(ringkas.skorRata)}
+                     catatan={`${ringkas.dinilai} dari ${ringkas.anggota} orang dinilai`}
+                     ikon={<Ikon nama={ringkas.skorRata !== null && ringkas.skorRata < 3 ? "trendDown" : "chart"} ukuran={20} />}
+                     nada={ringkas.skorRata !== null && ringkas.skorRata < 3 ? "bad"
+                       : ringkas.skorRata !== null && ringkas.skorRata >= 4 ? "good" : "netral"} />
+        <KartuMetrik label="Di bawah KPI 3" nilai={ringkas.bawah} satuan="orang"
+                     catatan="perlu dibantu"
+                     ikon={<Ikon nama="alert" ukuran={20} />} nada={ringkas.bawah ? "bad" : "good"} />
+        <KartuMetrik label="Mencapai KPI 4+" nilai={ringkas.baik} satuan="orang"
+                     catatan="di atas target"
+                     ikon={<Ikon nama="checkCircle" ukuran={20} />} nada={ringkas.baik ? "good" : "netral"} />
+        <KartuMetrik label="Total insentif tim" nilai={rp(ringkas.insentif)}
+                     catatan="periode ini"
+                     ikon={<Ikon nama="wallet" ukuran={20} />} />
       </div>
 
       <section className="card mb">
