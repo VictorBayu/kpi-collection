@@ -96,23 +96,30 @@ export default function PenggunaClient() {
     }).catch(() => {});
   }, []);
 
-  const muat = useCallback(async () => {
-    // Kartu status di atas tetap bekerja sebagai jalan pintas: nilainya
-    // diterjemahkan menjadi satu aturan filter, jadi hanya ada satu
-    // mekanisme penyaringan di server.
+  /**
+   * Parameter saringan yang sedang aktif di layar, dipakai bersama oleh
+   * pemuatan daftar dan tautan ekspor -- supaya berkas yang diunduh selalu
+   * persis sama dengan yang sedang dilihat, bukan mekanisme terpisah yang
+   * bisa berbeda hasilnya.
+   */
+  const paramsSaatIni = useCallback(() => {
     const semua: Aturan[] = [...aturan];
     if (status) semua.push({ kolom: "status", operator: "sama", nilai: status });
+    return new URLSearchParams({ cari, urut, gabung, filter: JSON.stringify(semua) });
+  }, [cari, status, urut, aturan, gabung]);
 
-    const p = new URLSearchParams({
-      cari, urut, gabung, filter: JSON.stringify(semua),
-    });
+  const muat = useCallback(async () => {
+    // Kartu status di atas tetap bekerja sebagai jalan pintas: nilainya
+    // diterjemahkan menjadi satu aturan filter lewat paramsSaatIni(), jadi
+    // hanya ada satu mekanisme penyaringan di server.
+    const p = paramsSaatIni();
     const d = await fetch(`/api/admin/pengguna?${p}`).then((r) => r.json());
     setList(d.list ?? []);
     setStat(d.stat ?? stat);
     setSkema(d.skema ?? null);
     setCocok(d.cocok ?? (d.list?.length ?? 0));
     setHal(0);
-  }, [cari, status, urut, aturan, gabung]);
+  }, [paramsSaatIni]);
 
   useEffect(() => { muat(); }, [muat]);
 
@@ -242,6 +249,11 @@ export default function PenggunaClient() {
         deskripsi="Kelola akun login, penempatan jabatan, dan pantau seberapa sering tiap akun dipakai."
         aksi={
           <>
+            <a className="btn ghost" download
+               href={`/api/admin/pengguna/export?${paramsSaatIni()}`}
+               title="Unduh daftar yang sedang tersaring di layar ini sebagai berkas Excel">
+              <Ikon nama="download" ukuran={16} /> Ekspor Excel
+            </a>
             <button className={"btn " + (impor ? "tint" : "ghost")} onClick={() => setImpor(!impor)} disabled={sibuk}>
               <Ikon nama={impor ? "chevronDown" : "upload"} ukuran={16} /> {impor ? "Tutup impor" : "Impor Excel (.xlsx)"}
             </button>
