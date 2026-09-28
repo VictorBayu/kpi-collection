@@ -5034,3 +5034,25 @@ section.rh-grup.rh-kpi:hover{background:var(--surface);border-color:var(--line);
   .an-kartu,.km{break-inside:avoid;box-shadow:none!important}
   .an-utama,.an-utama.balik{grid-template-columns:1fr}
 }
+
+/* =====================================================================
+   LAPORAN INDIKATOR (/admin/laporan-indikator)
+   ===================================================================== */
+.li-saring .pilih{min-width:160px}
+.li-jabatan,.li-indikator{font-weight:600;color:var(--ink)}
+.li-indikator{font-weight:500;max-width:360px}
+.li-total{color:var(--ink-faint)}
+.li-total.beda{color:var(--warn-ink);font-weight:600}
+.li-faktor{color:var(--accent);font-weight:600}
+.li-peran{display:inline-flex;align-items:center;height:22px;padding:0 9px;border-radius:999px;
+  font-size:11.5px;font-weight:600;border:1px solid var(--line);background:var(--line-soft);color:var(--ink-soft);white-space:nowrap}
+.li-peran.kpi{background:var(--accent-soft);color:var(--accent);border-color:var(--accent-line)}
+.li-peran.reward{background:var(--good-soft);color:var(--good-ink);border-color:var(--good-line)}
+.li-peran.penalty{background:var(--bad-soft);color:var(--bad-ink);border-color:var(--bad-line)}
+.li-peran.tier{background:var(--warn-soft);color:var(--warn-ink);border-color:var(--warn-line)}
+.li-tabel tr.li-mati td{background:#FAFAFB}
+.li-tabel tr.li-mati .li-jabatan,.li-tabel tr.li-mati .li-indikator{color:var(--ink-faint)}
+
+/* Prioritas pemulihan cabang: bar pil tidak lagi menggulir sendiri, supaya
+   panel "Tampilkan N / halaman" tidak terpotong di dalamnya. */
+.tr-pil.pp-bar{overflow:visible;flex-wrap:wrap}

@@ -139,7 +139,7 @@ export default function PrioritasClient({ cabang, periode }: { cabang: Cabang[];
       )}
 
       <section className="card pa-tabel-kartu">
-        <div className="tr-pil" role="tablist" aria-label="Saring status">
+        <div className="tr-pil pp-bar" role="tablist" aria-label="Saring status">
           {([["", "Semua cabang", cabang.length], ["kritis", "Audit segera", jumlah("kritis")],
              ["waspada", "Peringatan", jumlah("waspada")], ["stabil", "Stabil", jumlah("stabil")]] as const).map(([v, t, n]) => (
             <button key={v} role="tab" aria-selected={saringStatus === v}

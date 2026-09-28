@@ -77,7 +77,10 @@ export default function ImporPengguna({ onSelesai }: { onSelesai?: () => void })
         <div>
           <h3 className="formtitle" style={{ margin: 0 }}>Impor pengguna dari Excel</h3>
           <p className="faint small nomargin">
-            Unduh contoh berkasnya dulu supaya susunan kolomnya pasti cocok.
+            Unduh contoh berkasnya dulu supaya susunan kolomnya pasti cocok. Berkas hasil
+            <b> Ekspor Excel</b> di atas juga bisa langsung diunggah ulang di sini -- kolomnya
+            sudah cocok, jadi berguna untuk memperbarui banyak akun sekaligus (mis. ubah kolom
+            AKTIF jadi "Tidak" untuk beberapa NIK, lalu unggah ulang berkas yang sama).
           </p>
         </div>
         <a className="btn ghost sm nowrap" href="/api/admin/pengguna/template" download>
