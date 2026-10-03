@@ -1,5 +1,6 @@
 import { tarikSemua } from "@/lib/tarik-api";
 import { hitungSemuaIndikator } from "@/lib/hitung-indikator";
+import { sinkronAkunDariApi } from "@/lib/akun-otomatis";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -55,6 +56,9 @@ export async function GET(req: Request) {
   }
 
   // Data mentah baru tidak ada gunanya sampai diolah jadi angka KPI.
+  // Akun otomatis untuk NIK di API yang belum punya akun (tanpa login).
+  // Kegagalannya tidak boleh menghentikan penghitungan KPI.
+  const akun = await sinkronAkunDariApi().catch(() => null);
   const hitung = await hitungSemuaIndikator();
-  return Response.json({ tahap: "selesai", tarik, hitung });
+  return Response.json({ tahap: "selesai", tarik, hitung, akun });
 }

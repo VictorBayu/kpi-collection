@@ -83,12 +83,14 @@ export async function verifyLogin(nik: string, password: string) {
   const rows = await q<{
     id: string; nik: string; nama: string; peran: Session["peran"];
     password_hash: string; aktif: boolean; must_change_password: boolean;
-    suspended_at: string | null;
-  }>(`SELECT id, nik, nama, peran, password_hash, aktif, must_change_password, suspended_at
+    suspended_at: string | null; bisa_login: boolean;
+  }>(`SELECT id, nik, nama, peran, password_hash, aktif, must_change_password, suspended_at, bisa_login
         FROM app_user WHERE nik = $1`, [nik.trim()]);
 
   const u = rows[0];
   if (!u) return null;
+  // Akun otomatis dari API: ada untuk perhitungan KPI, tapi belum diberi login.
+  if (!u.bisa_login) return { tanpaLogin: true } as const;
   // Password salah -> gagal biasa (pesan generik di route)
   if (!(await bcrypt.compare(password, u.password_hash))) return null;
   // Akun nonaktif / disuspend -> tandai khusus agar route bisa memberi pesan tepat

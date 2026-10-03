@@ -86,17 +86,18 @@ export const GET = handler(async (req) => {
 
   // status_akun diturunkan di sini supaya bisa disaring seperti kolom biasa.
   const sumber = `(
-    SELECT v.*,
+    SELECT v.*, au.bisa_login, au.sumber_akun, au.perlu_ditinjau, au.hilang_dari_api,
            CASE WHEN NOT v.aktif OR v.suspended_at IS NOT NULL THEN 'nonaktif'
                 WHEN v.akses_30h < 3 THEN 'jarang'
                 ELSE 'aktif' END AS status_akun
-      FROM v_akses_ringkas v
+      FROM v_akses_ringkas v JOIN app_user au ON au.id = v.id
   ) t`;
 
   const rows = await q<any>(
     `SELECT id, nik, nama, peran, jabatan, jabatan_master, level, cabang, area, aktif,
             login_count, access_count, akses_7h, akses_30h,
-            last_login_at, last_access_at, suspended_at, suspended_reason, status_akun
+            last_login_at, last_access_at, suspended_at, suspended_reason, status_akun,
+            bisa_login, sumber_akun, perlu_ditinjau, hilang_dari_api
        FROM ${sumber} ${where}
       ORDER BY ${orderBy}
       LIMIT 500`, params);
@@ -162,7 +163,7 @@ export const PUT = handler(async (req) => {
   const userId = String(body.userId ?? "");
   if (!userId) throw new HttpError(400, "User tidak dikenal.");
 
-  const [u] = await q<any>(`SELECT id, nik, nama, peran FROM app_user WHERE id = $1`, [userId]);
+  const [u] = await q<any>(`SELECT id, nik, nama, peran, jabatan, cabang, area FROM app_user WHERE id = $1`, [userId]);
   if (!u) throw new HttpError(404, "Pengguna tidak ditemukan.");
 
   const f = bacaForm(body, false, await peranSah());
@@ -183,13 +184,17 @@ export const PUT = handler(async (req) => {
     `UPDATE app_user
         SET nik = $2, nama = $3, jabatan = $4, cabang = $5, area = $6,
             peran = $7, aktif = $8, must_change_password = $9,
+            -- diubah manual -> tidak lagi ditimpa sinkron API
+            sumber_akun = CASE WHEN jabatan IS DISTINCT FROM $4 OR cabang IS DISTINCT FROM $5
+                                 OR area IS DISTINCT FROM $6 THEN 'manual' ELSE sumber_akun END,
+            perlu_ditinjau = FALSE,
             suspended_at = CASE WHEN $8 THEN NULL ELSE suspended_at END,
             suspended_reason = CASE WHEN $8 THEN NULL ELSE suspended_reason END
       WHERE id = $1`,
     [userId, f.nik, f.nama, f.jabatan, f.cabang, f.area, f.peran, f.aktif, f.mustChange]);
 
   if (f.password) {
-    await q(`UPDATE app_user SET password_hash = $2 WHERE id = $1`,
+    await q(`UPDATE app_user SET password_hash = $2, bisa_login = TRUE WHERE id = $1`,
       [userId, await hashPassword(f.password)]);
   }
 
@@ -264,10 +269,17 @@ export const PATCH = handler(async (req) => {
     await q(`UPDATE app_user SET aktif = TRUE, suspended_at = NULL, suspended_reason = NULL WHERE id = $1`,
       [userId]);
     await auditLog(admin.sub, "aktifkan_user", u.nik);
+  } else if (aksi === "aktifkan_login") {
+    const pw = String(password ?? "");
+    if (pw.length < 8) throw new HttpError(400, "Password awal minimal 8 karakter.");
+    await q(`UPDATE app_user SET password_hash = $2, bisa_login = TRUE,
+                    must_change_password = TRUE, perlu_ditinjau = FALSE WHERE id = $1`,
+      [userId, await hashPassword(pw)]);
+    await auditLog(admin.sub, "aktifkan_login", u.nik);
   } else if (aksi === "reset_password") {
     const pw = String(password ?? "");
     if (pw.length < 8) throw new HttpError(400, "Password minimal 8 karakter.");
-    await q(`UPDATE app_user SET password_hash = $2, must_change_password = TRUE WHERE id = $1`,
+    await q(`UPDATE app_user SET password_hash = $2, must_change_password = TRUE, bisa_login = TRUE WHERE id = $1`,
       [userId, await hashPassword(pw)]);
     await auditLog(admin.sub, "reset_password", u.nik);
   } else {

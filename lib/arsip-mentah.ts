@@ -99,6 +99,9 @@ export type BarisArsip = {
   nik_staff: string | null;
   nik_spv: string | null;
   nik_bch: string | null;
+  staff_pic: string | null;
+  spv_pic: string | null;
+  bch_pic: string | null;
   kolom: Record<string, string | number | null>;
 };
 
@@ -129,6 +132,9 @@ export function uraiBaris(row: Record<string, unknown>, katalog: KolomKatalog[])
       nik_staff: urai_nik(row["staff_pic"]),
       nik_spv: urai_nik(row["spv_pic"]),
       nik_bch: urai_nik(row["bch_pic"]),
+      staff_pic: bersihkanTeks(row["staff_pic"]),
+      spv_pic: bersihkanTeks(row["spv_pic"]),
+      bch_pic: bersihkanTeks(row["bch_pic"]),
       kolom,
     },
   };
@@ -196,6 +202,8 @@ export async function buatTemplateXlsx(): Promise<Buffer> {
 export type SumberMentah = {
   arsip: boolean;
   batchId?: string;
+  /** NIK → jabatan menurut teks PIC arsip periode ini (hanya bila arsip). */
+  jabatanPeriode?: Record<string, string>;
   /** Fragmen SQL untuk ditempel setelah "FROM" (alias "dm" selalu ikut
    *  ditempel oleh pemanggil). Menambah parameter ke `params` bila perlu. */
   ekspresiDari(params: unknown[]): string;
@@ -216,6 +224,30 @@ const SUMBER_LIVE: SumberMentah = {
  * berulang dan supaya seluruh perhitungan satu periode konsisten memakai
  * sumber yang sama walau ada perubahan di tengah proses.
  */
+/**
+ * Jabatan tiap NIK pada periode arsip, dibaca dari teks PIC
+ * "NIK - NAMA (JABATAN)" di batch itu sendiri. Bila satu NIK muncul
+ * dengan beberapa jabatan, dipakai yang paling sering (seri: urut abjad).
+ */
+export async function jabatanDariArsip(batchId: string): Promise<Record<string, string>> {
+  const rows = await q<{ nik: string; jab: string }>(
+    `WITH x AS (
+       SELECT nik_staff AS nik, staff_pic AS pic FROM arsip_mentah_baris WHERE batch_id = $1
+       UNION ALL SELECT nik_spv, spv_pic FROM arsip_mentah_baris WHERE batch_id = $1
+       UNION ALL SELECT nik_bch, bch_pic FROM arsip_mentah_baris WHERE batch_id = $1
+     ), j AS (
+       SELECT nik, upper(btrim(substring(pic from '\(([^)]*)\)\s*$'))) AS jab
+         FROM x WHERE nik IS NOT NULL AND pic IS NOT NULL
+     ), c AS (
+       SELECT nik, jab, count(*) n FROM j WHERE jab IS NOT NULL AND jab <> '' GROUP BY nik, jab
+     )
+     SELECT DISTINCT ON (nik) nik, jab FROM c ORDER BY nik, n DESC, jab`,
+    [batchId]);
+  const out: Record<string, string> = {};
+  for (const r of rows) out[r.nik] = r.jab;
+  return out;
+}
+
 export async function sumberUntukPeriode(periode: string): Promise<SumberMentah> {
   const [batch] = await q<{ id: string }>(
     `SELECT id FROM arsip_mentah_batch WHERE periode = $1 AND status = 'published'`,
@@ -224,10 +256,12 @@ export async function sumberUntukPeriode(periode: string): Promise<SumberMentah>
   if (!batch) return SUMBER_LIVE;
 
   const katalog = await kolomArsip();
+  const jabatanPeriode = await jabatanDariArsip(batch.id);
 
   return {
     arsip: true,
     batchId: batch.id,
+    jabatanPeriode,
     ekspresiDari(params: unknown[]) {
       const pBatch = `$${params.push(batch.id)}`;
       const proyeksi = katalog.map((k) => {
@@ -265,9 +299,11 @@ export async function simpanBarisArsip(batchId: string, periode: string, baris: 
     const potongan = baris.slice(i, i + 500);
     await q(
       `INSERT INTO arsip_mentah_baris
-         (batch_id, periode, agreement_no, branch_id, product, nik_staff, nik_spv, nik_bch, kolom)
+         (batch_id, periode, agreement_no, branch_id, product, nik_staff, nik_spv, nik_bch,
+          staff_pic, spv_pic, bch_pic, kolom)
        SELECT $1, $2::date, r->>'agreement_no', r->>'branch_id', r->>'product',
-              r->>'nik_staff', r->>'nik_spv', r->>'nik_bch', r->'kolom'
+              r->>'nik_staff', r->>'nik_spv', r->>'nik_bch',
+              r->>'staff_pic', r->>'spv_pic', r->>'bch_pic', r->'kolom'
          FROM jsonb_array_elements($3::jsonb) r`,
       [batchId, periode, JSON.stringify(potongan)]);
   }

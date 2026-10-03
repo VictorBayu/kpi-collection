@@ -16,6 +16,7 @@ type User = {
   akses_7h: number; akses_30h: number;
   last_login_at: string | null; last_access_at: string | null;
   suspended_at: string | null; suspended_reason: string | null;
+  bisa_login?: boolean; sumber_akun?: string; perlu_ditinjau?: boolean; hilang_dari_api?: boolean;
 };
 
 type FormUser = {
@@ -136,6 +137,20 @@ export default function PenggunaClient() {
     const res = await fetch("/api/admin/pengguna", {
       method: "PATCH", headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ userId, aksi, alasan }),
+    });
+    const d = await res.json();
+    setSibuk(false);
+    if (!res.ok) { setGalat(d.error); return; }
+    muat();
+  }
+
+  async function aktifkanLogin(u: User) {
+    const pw = prompt(`Aktifkan login ${u.nama}?\nIsi password awal (min. 8 karakter). Pengguna wajib menggantinya saat login pertama.`);
+    if (pw === null) return;
+    setSibuk(true); setGalat(null);
+    const res = await fetch("/api/admin/pengguna", {
+      method: "PATCH", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ userId: u.id, aksi: "aktifkan_login", password: pw }),
     });
     const d = await res.json();
     setSibuk(false);
@@ -465,6 +480,12 @@ export default function PenggunaClient() {
                     <td>
                       <div className="pa-jab">
                         {u.jabatan ?? <span className="faint">tanpa jabatan</span>}
+                        {u.perlu_ditinjau && (
+                          <span className="tag-warn" title="Jabatan dari API tidak dikenali di pendaftaran indikator">perlu ditinjau</span>
+                        )}
+                        {u.hilang_dari_api && (
+                          <span className="tag-warn" title="NIK tidak muncul lagi di data API">hilang dari API</span>
+                        )}
                         {u.jabatan && !u.level && (
                           <span className="tag-warn" title="Belum terdaftar di Master Hierarki">belum di hierarki</span>
                         )}
@@ -479,7 +500,9 @@ export default function PenggunaClient() {
                       <div className="pa-sub">{fmt(u.last_access_at)}</div>
                     </td>
                     <td>
-                      {suspended
+                      {u.bisa_login === false
+                        ? <span className="pa-status warn" title="Dibuat otomatis dari data API; belum punya login">Belum ada login</span>
+                        : suspended
                         ? <span className="pa-status bad" title={u.suspended_reason ?? "Nonaktif"}>Nonaktif</span>
                         : jarang
                           ? <span className="pa-status warn">Jarang</span>
@@ -495,7 +518,9 @@ export default function PenggunaClient() {
                         <details className="menu">
                           <summary title="Tindakan lain" aria-label={`Tindakan lain untuk ${u.nama}`}>⋯</summary>
                           <div className="menu-isi">
-                            <button onClick={() => resetPassword(u)}>Reset password</button>
+                            {u.bisa_login === false
+                              ? <button className="baik" onClick={() => aktifkanLogin(u)}>Aktifkan login</button>
+                              : <button onClick={() => resetPassword(u)}>Reset password</button>}
                             {suspended
                               ? <button className="baik" onClick={() => aksi(u.id, "aktifkan", u.nama)}>Aktifkan</button>
                               : <button className="hati" onClick={() => aksi(u.id, "suspend", u.nama)}>Nonaktifkan</button>}

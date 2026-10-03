@@ -215,6 +215,8 @@ async function hitungSatu(
   const pIndikator = `$${params.push(d.id)}`;
   const pProduk    = `$${params.push(produk)}`;
   const pPeriode   = `$${params.push(periode)}`;
+  // Jabatan menurut arsip periode ini (null = pakai app_user.jabatan).
+  const pJabPeriode = `$${params.push(sumber.jabatanPeriode ? JSON.stringify(sumber.jabatanPeriode) : null)}`;
   const pNama      = `$${params.push(d.nama)}`;
   const pSatuan    = `$${params.push(d.satuan)}`;
   const pCatatan   = `$${params.push(catatan)}`;
@@ -296,15 +298,19 @@ async function hitungSatu(
 
   const sql = `
     WITH terdaftar AS (
-      SELECT u.nik, u.nama, u.jabatan, u.cabang,
+      SELECT u.nik, u.nama, COALESCE(jp_per.jab, u.jabatan) AS jabatan, u.cabang,
              t.id AS target_id, t.peran, t.jenis_nilai, t.nilai_efek,
              t.bobot_kpi, t.bobot_insentif, t.faktor_pengakuan,
              t.target_kpi3, t.target_kpi4, t.target_kpi5,
              EXISTS (SELECT 1 FROM indikator_pita p WHERE p.target_id = t.id) AS ada_pita
         FROM indikator_target t
         JOIN jabatan_produk jp ON jp.alias = t.alias AND jp.produk = t.produk
-        JOIN app_user u ON norm_jabatan(u.jabatan) = t.alias AND u.aktif
-       WHERE t.indikator_id = ${pIndikator} AND t.produk = ${pProduk} AND t.aktif
+        JOIN app_user u ON u.aktif
+        LEFT JOIN LATERAL (
+          SELECT ${pJabPeriode}::jsonb ->> u.nik AS jab
+        ) jp_per ON TRUE
+       WHERE norm_jabatan(COALESCE(jp_per.jab, u.jabatan)) = t.alias
+         AND t.indikator_id = ${pIndikator} AND t.produk = ${pProduk} AND t.aktif
     ),
     hitung AS (
       SELECT dm.${kolomNik} AS nik, (${ekspresi}) AS nilai
