@@ -187,7 +187,7 @@ export default function ArsipMentahClient() {
   return (
     <div className="wz">
       <JudulHalaman
-        eyebrow="Supporting"
+        eyebrow="Data & indikator"
         meta={`Template saat ini: ${jumlahKolom} kolom`}
         judul="Arsip Data Mentah"
         deskripsi={
@@ -272,7 +272,7 @@ export default function ArsipMentahClient() {
         <div className="card wz-kartu wz-terbit">
           <span className="wz-terbit-ikon"><Ikon nama="checkCircle" ukuran={26} /></span>
           <h3>Berkas periode {namaPeriode(hasilUnggah.periode)} sudah dibaca</h3>
-          <dl className="wz-terbit-rinci">
+          <dl className="wz-terbit-rinci tiga">
             <div><dt>Total baris</dt><dd className="num">{hasilUnggah.totalBaris.toLocaleString("id-ID")}</dd></div>
             <div><dt>Valid</dt><dd className="num">{hasilUnggah.barisValid.toLocaleString("id-ID")}</dd></div>
             <div><dt>Ditolak</dt><dd className="num">{hasilUnggah.barisDitolak.toLocaleString("id-ID")}</dd></div>
@@ -287,21 +287,24 @@ export default function ArsipMentahClient() {
             </div>
           )}
 
-          <label className="wz-berkas-ikon" style={{ display: "flex", gap: 8, alignItems: "center", fontWeight: 400 }}>
-            <input type="checkbox" checked={hitungUlang} onChange={(e) => setHitungUlang(e.target.checked)} />
-            <span className="small">
-              Hitung ulang KPI &amp; insentif periode ini segera setelah diterbitkan
-            </span>
-          </label>
-          {hitungUlang && (
-            <label className="wz-berkas-ikon" style={{ display: "flex", gap: 8, alignItems: "center", fontWeight: 400 }}>
-              <input type="checkbox" checked={konfirmasiTerbit} onChange={(e) => setKonfirmasiTerbit(e.target.checked)} />
-              <span className="small">
-                Saya paham ini akan <b>menimpa</b> angka KPI/insentif periode {namaPeriode(hasilUnggah.periode)}
-                {" "}yang mungkin sudah dibayarkan.
+          <div className="am-opsi-grup">
+            <label className="am-opsi">
+              <input type="checkbox" checked={hitungUlang} onChange={(e) => setHitungUlang(e.target.checked)} />
+              <span>
+                <b>Hitung ulang KPI &amp; insentif</b>
+                <small>Langsung dijalankan untuk periode ini setelah arsip diterbitkan.</small>
               </span>
             </label>
-          )}
+            {hitungUlang && (
+              <label className="am-opsi peringatan">
+                <input type="checkbox" checked={konfirmasiTerbit} onChange={(e) => setKonfirmasiTerbit(e.target.checked)} />
+                <span>
+                  <b>Saya paham ini akan menimpa angka periode {namaPeriode(hasilUnggah.periode)}</b>
+                  <small>KPI dan insentif yang mungkin sudah dibayarkan akan dihitung ulang.</small>
+                </span>
+              </label>
+            )}
+          </div>
 
           <div className="wz-kaki tengah">
             <button className="btn ghost" onClick={() => setHasilUnggah(null)}>Batalkan</button>
@@ -343,7 +346,7 @@ export default function ArsipMentahClient() {
                       {b.baris_ditolak > 0 && <span className="faint"> ({b.baris_ditolak} ditolak)</span>}
                     </td>
                     <td className="small muted">{waktu(b.diunggah_pada)}</td>
-                    <td style={{ display: "flex", gap: 6, justifyContent: "flex-end" }}>
+                    <td className="am-aksi">
                       {b.status === "published" && (
                         <button className="btn ghost sm" onClick={() => hitungUlangBatch(b)}>
                           Hitung ulang

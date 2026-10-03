@@ -128,9 +128,7 @@ export const GET = handler(async (req) => {
                WHERE COALESCE(aktif, true)
                ORDER BY urutan, label`),
       q<any>(`SELECT kode, nama FROM produk_master WHERE aktif ORDER BY urutan, kode`),
-      // Semua alias jabatan yang dikenal, bukan hanya yang sudah dipetakan
-      // ke produk. Kalau dibatasi ke jabatan_produk, daftarnya kosong
-      // sebelum pemetaan produk diisi dan admin mengira fiturnya rusak.
+
       q<any>(
         `SELECT alias FROM jabatan_alias
          UNION

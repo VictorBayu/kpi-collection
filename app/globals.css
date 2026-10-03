@@ -5056,3 +5056,22 @@ section.rh-grup.rh-kpi:hover{background:var(--surface);border-color:var(--line);
 /* Prioritas pemulihan cabang: bar pil tidak lagi menggulir sendiri, supaya
    panel "Tampilkan N / halaman" tidak terpotong di dalamnya. */
 .tr-pil.pp-bar{overflow:visible;flex-wrap:wrap}
+
+/* =====================================================================
+   ARSIP DATA MENTAH -- kartu hasil baca & opsi terbit
+   ===================================================================== */
+.wz-terbit-rinci.tiga{grid-template-columns:repeat(3,minmax(0,1fr))}
+.am-opsi-grup{display:flex;flex-direction:column;gap:8px;width:100%;margin-top:14px;text-align:left}
+.am-opsi{display:flex;align-items:flex-start;gap:10px;padding:11px 14px;border:1px solid var(--line);
+  border-radius:10px;background:#fff;cursor:pointer;font-weight:400;transition:border-color .15s,background .15s}
+.am-opsi:hover{border-color:var(--accent-line);background:var(--accent-soft)}
+.am-opsi input[type=checkbox]{flex:none;width:16px;height:16px;margin:2px 0 0;accent-color:var(--accent)}
+.am-opsi > span{display:flex;flex-direction:column;gap:2px;min-width:0}
+.am-opsi b{font-size:13px;font-weight:600;color:var(--ink)}
+.am-opsi small{font-size:12px;line-height:1.4;color:var(--ink-faint)}
+.am-opsi.peringatan{border-color:var(--warn-line);background:var(--warn-soft)}
+.am-opsi.peringatan:hover{border-color:var(--warn-fill);background:var(--warn-soft)}
+.am-opsi.peringatan b{color:var(--warn-ink)}
+.am-opsi.peringatan small{color:var(--warn-ink);opacity:.85}
+.wz-map td.am-aksi{text-align:right;white-space:nowrap}
+.wz-map td.am-aksi .btn + .btn{margin-left:6px}
