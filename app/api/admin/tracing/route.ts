@@ -53,6 +53,7 @@ const SQL_BARIS = `
            ON t.indikator_id = k.indikator_id
           AND t.produk       = k.produk
           AND t.alias        = norm_jabatan(k.jabatan)
+          AND t.periode      = k.periode
     LEFT JOIN indikator_def pm ON pm.id = t.pemilih_id
    WHERE k.nik = $1 AND k.periode = $2::date
    ORDER BY k.produk, k.peran NULLS LAST, k.indikator`;
@@ -108,7 +109,7 @@ const SQL_TARGET_YATIM = `
     FROM indikator_target t
     JOIN indikator_def d ON d.id = t.indikator_id AND d.aktif
     JOIN app_user u ON u.nik = $1
-   WHERE t.aktif
+   WHERE t.aktif AND t.periode = $2::date
      AND t.alias = norm_jabatan(u.jabatan)
      AND NOT EXISTS (
        SELECT 1 FROM kpi_row k
@@ -241,6 +242,7 @@ export const GET = handler(async (req) => {
                        SELECT 1 FROM indikator_target x
                         WHERE x.indikator_id = g.sumber_id
                           AND x.alias = tr.alias AND x.produk = tr.produk
+                          AND x.periode = tr.periode
                           AND x.aktif)) AS sumber_tak_terdaftar
                FROM indikator_gerbang g
                JOIN indikator_target tr ON tr.id = g.target_id

@@ -310,6 +310,7 @@ async function hitungSatu(
           SELECT ${pJabPeriode}::jsonb ->> u.nik AS jab
         ) jp_per ON TRUE
        WHERE norm_jabatan(COALESCE(jp_per.jab, u.jabatan)) = t.alias
+         AND t.periode = ${pPeriode}::date
          AND t.indikator_id = ${pIndikator} AND t.produk = ${pProduk} AND t.aktif
     ),
     hitung AS (
@@ -421,6 +422,7 @@ async function nilaiGerbang(periode: string): Promise<number> {
            ON t.indikator_id = k.indikator_id
           AND t.produk       = k.produk
           AND t.alias        = norm_jabatan(k.jabatan)
+          AND t.periode      = k.periode
           AND t.aktif
         WHERE k.sumber = 'api' AND k.periode = $1 AND k.peran = 'nominal'
      ),
@@ -736,7 +738,14 @@ export async function hitungSemuaIndikator(periode?: string): Promise<HasilHitun
   // Pasangan indikator-produk yang benar-benar terdaftar; yang belum
   // didaftarkan ke jabatan mana pun tidak perlu dihitung.
   const pasangan = await q<{ indikator_id: string; produk: string }>(
-    `SELECT DISTINCT indikator_id, produk FROM indikator_target WHERE aktif`);
+    `SELECT DISTINCT indikator_id, produk FROM indikator_target
+      WHERE aktif AND periode = $1::date`, [p]);
+  if (!pasangan.length) {
+    gagal.push({
+      indikator: "Set indikator periode ini",
+      pesan: `Periode ${p} belum punya pendaftaran indikator. Buat atau duplikasi dulu di menu Create Indicator.`,
+    });
+  }
 
   const perIndikator = new Map<string, string[]>();
   for (const x of pasangan) {

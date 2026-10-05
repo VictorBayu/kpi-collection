@@ -5075,3 +5075,13 @@ section.rh-grup.rh-kpi:hover{background:var(--surface);border-color:var(--line);
 .am-opsi.peringatan small{color:var(--warn-ink);opacity:.85}
 .wz-map td.am-aksi{text-align:right;white-space:nowrap}
 .wz-map td.am-aksi .btn + .btn{margin-left:6px}
+
+/* Periode berlaku indikator */
+.ind-periode{display:grid;gap:8px;padding:0 0 10px}
+.ind-periode-pilih{display:grid;gap:4px}
+.ind-periode-pilih select,.ind-dup-isi select,.ind-dup-isi input[type=month]{width:100%;padding:8px 10px;border:1px solid var(--line,#e2e8f0);border-radius:8px;background:var(--surface,#fff);font:inherit}
+.ind-periode-info{margin:0;padding:8px 10px;border-radius:8px;background:#fffbeb;color:#92400e;font-size:12.5px}
+.ind-dup summary{cursor:pointer;font-size:13px;font-weight:600;color:#4338ca}
+.ind-dup-isi{display:grid;gap:8px;padding-top:8px;font-size:13px}
+.ind-dup-isi label{display:grid;gap:4px}
+.ind-dup-isi .ind-dup-timpa{display:flex;align-items:center;gap:6px}

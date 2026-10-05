@@ -1,4 +1,6 @@
 import { requireMenu, handler, HttpError } from "@/lib/auth";
+import { periodeSah, daftarPeriodeIndikator } from "@/lib/periode-indikator";
+import { periodeBerjalan } from "@/lib/hitung-indikator";
 import { q, auditLog } from "@/lib/db";
 import { daftarSumber } from "@/lib/sumber";
 import { ujiRumus } from "@/lib/hitung-indikator";
@@ -113,15 +115,18 @@ function bacaKomponen(raw: any): Komponen[] {
 /** Daftar indikator, katalog kolom, dan bahan pengisi dropdown. */
 export const GET = handler(async (req) => {
   await requireMenu("admin_indikator");
-  const id = new URL(req.url).searchParams.get("id");
+  const sp = new URL(req.url).searchParams;
+  const id = sp.get("id");
+  const periode = periodeSah(sp.get("periode")) ?? periodeBerjalan();
 
   if (!id) {
-    const [daftar, kolom, produk, jabatan, sumber] = await Promise.all([
+    const [daftar, kolom, produk, jabatan, sumber, periodeAda] = await Promise.all([
       q<any>(
         `SELECT d.id, d.nama, d.satuan, d.kali_seratus, d.peran_pic, d.aktif,
                 (SELECT COUNT(*)::int FROM indikator_komponen k WHERE k.indikator_id = d.id) AS komponen,
-                (SELECT COUNT(*)::int FROM indikator_target t WHERE t.indikator_id = d.id AND t.aktif) AS terdaftar
-           FROM indikator_def d ORDER BY d.nama`),
+                (SELECT COUNT(*)::int FROM indikator_target t WHERE t.indikator_id = d.id AND t.aktif
+                    AND t.periode = $1::date) AS terdaftar
+           FROM indikator_def d ORDER BY d.nama`, [periode]),
       q<any>(`SELECT kolom, label, jenis, agregat, kelompok
                      , COALESCE(sumber,'api') AS sumber
                 FROM mentah_kolom
@@ -137,10 +142,12 @@ export const GET = handler(async (req) => {
           WHERE jabatan IS NOT NULL AND btrim(jabatan) <> ''
          ORDER BY alias`),
       daftarSumber(),
+      daftarPeriodeIndikator(),
     ]);
     // Sumber ikut dikirim supaya pembangun indikator bisa menyaring daftar
     // kolom mengikuti sumber tambahan yang dipilih.
     return Response.json({
+      periode, periodeAda, periodeBerjalan: periodeBerjalan(),
       daftar, kolom, produk, jabatan,
       sumber: sumber.map((s) => ({
         kode: s.kode, nama: s.nama, jenis: s.jenis, keterangan: s.keterangan,
@@ -175,7 +182,8 @@ export const GET = handler(async (req) => {
     `SELECT id, alias, produk, peran, jenis_nilai, nilai_efek, pemilih_id,
             bobot_kpi, bobot_insentif, faktor_pengakuan,
             target_kpi3, target_kpi4, target_kpi5, aktif
-       FROM indikator_target WHERE indikator_id = $1 ORDER BY alias, produk`, [id]);
+       FROM indikator_target WHERE indikator_id = $1 AND periode = $2::date
+      ORDER BY alias, produk`, [id, periode]);
 
   const ids = target.map((t) => t.id);
   const [pita, nominal, gerbang] = await Promise.all([
@@ -235,6 +243,7 @@ export const POST = handler(async (req) => {
 
   const nama = String(b.nama ?? "").trim();
   if (!nama) throw new HttpError(400, "Nama indikator belum diisi.");
+  const periode = periodeSah(b.periode) ?? periodeBerjalan();
 
   const peran = PERAN.includes(b.peran_pic) ? b.peran_pic : "staff";
   const satuan = ["rupiah","persen","unit"].includes(b.satuan) ? b.satuan : "rupiah";
@@ -332,7 +341,7 @@ export const POST = handler(async (req) => {
   // berantai lewat ON DELETE CASCADE saat baris target-nya dihapus, jadi
   // cukup ditulis ulang di sini seperti komponen di atas.
   if (Array.isArray(b.target)) {
-    await q(`DELETE FROM indikator_target WHERE indikator_id = $1`, [id]);
+    await q(`DELETE FROM indikator_target WHERE indikator_id = $1 AND periode = $2::date`, [id, periode]);
     for (const t of b.target) {
       const alias = String(t.alias ?? "").trim().toUpperCase();
       const produk = String(t.produk ?? "").trim().toUpperCase();
@@ -358,9 +367,9 @@ export const POST = handler(async (req) => {
         `INSERT INTO indikator_target
            (indikator_id, alias, produk, peran, jenis_nilai, nilai_efek, pemilih_id,
             bobot_kpi, bobot_insentif, faktor_pengakuan,
-            target_kpi3, target_kpi4, target_kpi5, aktif)
-         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14)
-         ON CONFLICT (indikator_id, alias, produk) DO UPDATE
+            target_kpi3, target_kpi4, target_kpi5, aktif, periode)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15::date)
+         ON CONFLICT (indikator_id, alias, produk, periode) DO UPDATE
            SET peran=EXCLUDED.peran,
                jenis_nilai=EXCLUDED.jenis_nilai,
                nilai_efek=EXCLUDED.nilai_efek,
@@ -381,7 +390,7 @@ export const POST = handler(async (req) => {
          angkaAtauNull(t.target_kpi3),
          angkaAtauNull(t.target_kpi4),
          angkaAtauNull(t.target_kpi5),
-         t.aktif !== false]);
+         t.aktif !== false, periode]);
 
       // Pita nominal dan gerbang hanya berlaku pada peran 'nominal'.
       // Menyimpannya untuk peran lain akan membuat baris yatim yang tidak

@@ -1,8 +1,11 @@
 import * as XLSX from "xlsx";
 import { requireMenu, handler } from "@/lib/auth";
 import { muatLaporanIndikator } from "@/lib/laporan-indikator-db";
+import { periodeSah } from "@/lib/periode-indikator";
+import { periodeBerjalan } from "@/lib/hitung-indikator";
 import {
   saring, saringanDariUrl, statusDari, labelPeran, teksEfek, totalBobot, STATUS_LABEL,
+  kunciBobot, labelBulan,
 } from "@/lib/laporan-indikator";
 
 export const runtime = "nodejs";
@@ -13,14 +16,18 @@ const n = (v: number | null) => (v === null ? "" : v);
 
 export const GET = handler(async (req) => {
   await requireMenu("admin_laporan_indikator");
-  const semua = await muatLaporanIndikator();
+  const param = new URL(req.url).searchParams.get("periode");
+  const semuaPeriode = param === "semua";
+  const periode = semuaPeriode ? null : (periodeSah(param) ?? periodeBerjalan());
+  const semua = await muatLaporanIndikator(periode);
   // Saringan yang sama persis dengan layar (lib/laporan-indikator.ts).
   const baris = saring(semua, saringanDariUrl(new URL(req.url).searchParams));
   const total = totalBobot(semua);
 
   const data = baris.map((b) => {
-    const t = total.get(`${b.jabatan}|${b.produk}`);
+    const t = total.get(kunciBobot(b));
     return {
+      PERIODE: labelBulan(b.periode),
       JABATAN: b.jabatan,
       PRODUK: b.produk,
       "NAMA PRODUK": b.produkNama ?? "",
@@ -46,7 +53,7 @@ export const GET = handler(async (req) => {
   const wb = XLSX.utils.book_new();
   const ws = XLSX.utils.json_to_sheet(data);
   ws["!cols"] = [
-    { wch: 16 }, { wch: 10 }, { wch: 18 }, { wch: 40 }, { wch: 10 }, { wch: 18 },
+    { wch: 16 }, { wch: 16 }, { wch: 10 }, { wch: 18 }, { wch: 40 }, { wch: 10 }, { wch: 18 },
     { wch: 13 }, { wch: 17 }, { wch: 19 }, { wch: 20 }, { wch: 12 }, { wch: 12 },
     { wch: 12 }, { wch: 11 }, { wch: 22 }, { wch: 15 }, { wch: 18 }, { wch: 30 }, { wch: 34 },
   ];
@@ -58,7 +65,7 @@ export const GET = handler(async (req) => {
   return new Response(new Uint8Array(buf), {
     headers: {
       "Content-Type": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-      "Content-Disposition": `attachment; filename="laporan-indikator-${tanggal}.xlsx"`,
+      "Content-Disposition": `attachment; filename="laporan-indikator-${periode ? periode.slice(0, 7) : "semua-periode"}-${tanggal}.xlsx"`,
       "Cache-Control": "no-store",
     },
   });

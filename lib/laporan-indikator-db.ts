@@ -10,9 +10,9 @@ const angka = (v: unknown) => (v === null || v === undefined ? null : Number(v))
  * terpisah, jadi laporan tidak mungkin berbeda dari isi Create Indicator.
  * Pendaftaran & indikator nonaktif tetap ikut; statusnya ditampilkan.
  */
-export async function muatLaporanIndikator(): Promise<BarisLaporan[]> {
+export async function muatLaporanIndikator(periode: string | null = null): Promise<BarisLaporan[]> {
   const rows = await q<any>(
-    `SELECT t.id, d.id AS indikator_id, d.nama AS indikator, d.satuan,
+    `SELECT t.id, to_char(t.periode, 'YYYY-MM-DD') AS periode, d.id AS indikator_id, d.nama AS indikator, d.satuan,
             d.aktif AS aktif_indikator,
             t.alias AS jabatan, t.produk, pm.nama AS produk_nama,
             t.peran, t.jenis_nilai, t.nilai_efek,
@@ -22,10 +22,12 @@ export async function muatLaporanIndikator(): Promise<BarisLaporan[]> {
        FROM indikator_target t
        JOIN indikator_def d ON d.id = t.indikator_id
        LEFT JOIN produk_master pm ON pm.kode = t.produk
-      ORDER BY t.alias, t.produk, d.nama`);
+      WHERE ($1::date IS NULL OR t.periode = $1::date)
+      ORDER BY t.periode DESC, t.alias, t.produk, d.nama`, [periode]);
 
   return rows.map((r) => ({
     id: r.id,
+    periode: r.periode,
     indikatorId: r.indikator_id,
     indikator: r.indikator,
     satuan: r.satuan ?? null,

@@ -178,6 +178,7 @@ export async function progresNik(nik: string) {
               WHERE t.indikator_id = k.indikator_id
                 AND t.produk = k.produk
                 AND t.alias = norm_jabatan(k.jabatan)
+                AND t.periode = k.periode
                 AND t.aktif) AS pita
        FROM kpi_row k
        LEFT JOIN indikator_def d ON d.id = k.indikator_id

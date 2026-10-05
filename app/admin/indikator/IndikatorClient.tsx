@@ -582,6 +582,12 @@ function DetailTarget({ t, ubah, lain, namaSendiri, opsiSalin, salinKe }: {
  * menyimpan apa pun. Tanpa itu, rumus yang keliru baru ketahuan setelah
  * angkanya muncul di dasbor semua orang.
  */
+const BULAN = ["Januari","Februari","Maret","April","Mei","Juni","Juli","Agustus","September","Oktober","November","Desember"];
+function labelBulan(p: string) {
+  const m = /^(\d{4})-(\d{2})/.exec(p ?? "");
+  return m ? `${BULAN[Number(m[2]) - 1]} ${m[1]}` : p;
+}
+
 export default function IndikatorClient() {
   const [daftar, setDaftar] = useState<Ringkas[]>([]);
   const [kolom, setKolom] = useState<Kolom[]>([]);
@@ -589,6 +595,14 @@ export default function IndikatorClient() {
   const [jabatan, setJabatan] = useState<string[]>([]);
   const [sumber, setSumber] = useState<SumberRingkas[]>([]);
   const [nilaiUnik, setNilaiUnik] = useState<Record<string, string[]>>({});
+
+  /** Bulan yang pendaftarannya sedang dilihat/diubah (YYYY-MM-01). */
+  const [periode, setPeriode] = useState("");
+  const [periodeAda, setPeriodeAda] = useState<{ periode: string; pendaftaran: number; indikator: number }[]>([]);
+  const [periodeNow, setPeriodeNow] = useState("");
+  const [dupAsal, setDupAsal] = useState("");
+  const [dupTujuan, setDupTujuan] = useState("");
+  const [dupTimpa, setDupTimpa] = useState(false);
 
   const [pilihId, setPilihId] = useState<string | null>(null);
   const [nama, setNama] = useState("");
@@ -663,10 +677,13 @@ export default function IndikatorClient() {
       .map((d) => ({ id: d.id, nama: d.nama, satuan: d.satuan })),
     [daftar, pilihId]);
 
-  async function muatDaftar() {
-    const r = await fetch("/api/admin/indikator", { cache: "no-store" });
+  async function muatDaftar(p: string = periode) {
+    const r = await fetch(`/api/admin/indikator${p ? `?periode=${p}` : ""}`, { cache: "no-store" });
     const j = await r.json().catch(() => ({}));
     if (!r.ok) { setPesan(j.error ?? "Gagal memuat daftar indikator."); return; }
+    setPeriode(j.periode ?? "");
+    setPeriodeAda(j.periodeAda ?? []);
+    setPeriodeNow(j.periodeBerjalan ?? "");
     setDaftar(j.daftar ?? []);
     setKolom(j.kolom ?? []);
     setProduk(j.produk ?? []);
@@ -707,10 +724,10 @@ export default function IndikatorClient() {
     setDetailBuka(null);
   }
 
-  async function buka(id: string) {
+  async function buka(id: string, p: string = periode) {
     setSibuk(true); setPesan(null); setUji(null);
     try {
-      const r = await fetch(`/api/admin/indikator?id=${id}`, { cache: "no-store" });
+      const r = await fetch(`/api/admin/indikator?id=${id}${p ? `&periode=${p}` : ""}`, { cache: "no-store" });
       const j = await r.json().catch(() => ({}));
       if (!r.ok) { setPesan(j.error ?? "Gagal membuka indikator ini."); return; }
       setPilihId(id);
@@ -766,8 +783,34 @@ export default function IndikatorClient() {
     id: pilihId, nama, deskripsi, satuan,
     kali_seratus: kaliSeratus, peran_pic: peranPic, aktif,
     sumber_kode: sumberKode || null,
-    komponen, target,
+    komponen, target, periode,
   });
+
+  async function gantiPeriode(p: string) {
+    if (!p || p === periode) return;
+    setPesan(null);
+    await muatDaftar(p);
+    if (pilihId) await buka(pilihId, p);
+  }
+
+  async function duplikasi() {
+    if (!dupAsal || !dupTujuan) { setPesan("Pilih periode asal dan tujuan."); return; }
+    const tujuan = `${dupTujuan}-01`;
+    if (!confirm(`Salin seluruh pendaftaran ${labelBulan(dupAsal)} ke ${labelBulan(tujuan)}${dupTimpa ? " (isi yang ada akan DIGANTI)" : ""}?`)) return;
+    setSibuk(true); setPesan(null);
+    try {
+      const r = await fetch("/api/admin/indikator/duplikasi", {
+        method: "POST", headers: { "content-type": "application/json" },
+        body: JSON.stringify({ dari: dupAsal, ke: tujuan, timpa: dupTimpa }),
+      });
+      const j = await r.json().catch(() => ({}));
+      if (!r.ok) { setPesan(j.error ?? "Gagal menduplikasi."); return; }
+      setDupTimpa(false);
+      await muatDaftar(tujuan);
+      if (pilihId) await buka(pilihId, tujuan);
+      setPesan(`${j.disalin} pendaftaran disalin ke ${labelBulan(tujuan)}.`);
+    } finally { setSibuk(false); }
+  }
 
   async function hitungUlang() {
     setSibuk(true); setPesan(null);
@@ -920,6 +963,43 @@ export default function IndikatorClient() {
             <div className="fb-panel-kepala">
               <h2><Ikon nama="formula" ukuran={18} /> Indikator</h2>
               <button className="btn sm" onClick={kosongkan}><Ikon nama="plus" ukuran={14} tebal={2.2} /> Baru</button>
+            </div>
+            <div className="ind-periode">
+              <label className="ind-periode-pilih">
+                <span className="eyebrow">PERIODE BERLAKU</span>
+                <select value={periode} onChange={(e) => gantiPeriode(e.target.value)} disabled={sibuk}>
+                  {[...new Set([...periodeAda.map((x) => x.periode), periodeNow, periode].filter(Boolean))]
+                    .sort().reverse()
+                    .map((p) => {
+                      const a = periodeAda.find((x) => x.periode === p);
+                      return <option key={p} value={p}>
+                        {labelBulan(p)}{a ? ` · ${a.pendaftaran} pendaftaran` : " · belum ada"}{p === periodeNow ? " (berjalan)" : ""}
+                      </option>;
+                    })}
+                </select>
+              </label>
+              {periodeAda.length > 0 && !periodeAda.some((x) => x.periode === periode) && (
+                <p className="ind-periode-info">Periode ini belum punya set indikator, jadi belum ada yang dihitung. Duplikasi dari bulan lain di bawah.</p>
+              )}
+              <details className="ind-dup">
+                <summary>Duplikasi dari bulan lain</summary>
+                <div className="ind-dup-isi">
+                  <label>Salin dari
+                    <select value={dupAsal} onChange={(e) => setDupAsal(e.target.value)}>
+                      <option value="">Pilih bulan…</option>
+                      {periodeAda.map((x) => <option key={x.periode} value={x.periode}>{labelBulan(x.periode)}</option>)}
+                    </select>
+                  </label>
+                  <label>Ke bulan
+                    <input type="month" value={dupTujuan} onChange={(e) => setDupTujuan(e.target.value)} />
+                  </label>
+                  <label className="ind-dup-timpa">
+                    <input type="checkbox" checked={dupTimpa} onChange={(e) => setDupTimpa(e.target.checked)} />
+                    Timpa bila bulan tujuan sudah ada isinya
+                  </label>
+                  <button className="btn sm" onClick={duplikasi} disabled={sibuk}>Duplikasi</button>
+                </div>
+              </details>
             </div>
             <label className="fb-cari">
               <Ikon nama="search" ukuran={15} />

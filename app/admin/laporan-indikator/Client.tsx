@@ -1,12 +1,13 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
 import Ikon from "@/components/Ikon";
 import KotakCari from "@/components/KotakCari";
 import Pilih from "@/components/Pilih";
 import {
   type BarisLaporan, PERAN_LABEL, STATUS_LABEL, labelPeran, normPeran, saring,
-  statusDari, teksEfek, totalBobot,
+  statusDari, teksEfek, totalBobot, kunciBobot, labelBulan,
 } from "@/lib/laporan-indikator";
 
 const PER = 25;
@@ -15,7 +16,11 @@ const persen = (v: number | null) => (v === null ? "—" : `${v.toLocaleString("
 
 const NADA_STATUS = { aktif: "good", daftar_nonaktif: "warn", indikator_nonaktif: "bad" } as const;
 
-export default function Client({ baris }: { baris: BarisLaporan[] }) {
+export default function Client({ baris, periode, periodeOpsi }: {
+  baris: BarisLaporan[]; periode: string; periodeOpsi: { nilai: string; label: string }[];
+}) {
+  const router = useRouter();
+  const semuaPeriode = periode === "semua";
   const [cari, setCari] = useState("");
   const [jabatan, setJabatan] = useState("");
   const [produk, setProduk] = useState("");
@@ -42,7 +47,7 @@ export default function Client({ baris }: { baris: BarisLaporan[] }) {
   const potong = tampil.slice(halIni * PER, halIni * PER + PER);
 
   // Tautan unduh memakai saringan yang sama persis dengan yang di layar.
-  const hrefEkspor = `/api/admin/laporan-indikator/export?${new URLSearchParams(saringan)}`;
+  const hrefEkspor = `/api/admin/laporan-indikator/export?${new URLSearchParams({ ...saringan, periode })}`;
   const adaSaringan = !!(cari || jabatan || produk || peran || status);
 
   return (
@@ -53,6 +58,10 @@ export default function Client({ baris }: { baris: BarisLaporan[] }) {
                      placeholder="Cari indikator, jabatan, atau produk…" />
         </div>
         <div className="ri-saring li-saring">
+          <Pilih nilai={periode} cari={false}
+                 onPilih={(v) => router.push(`/admin/laporan-indikator?periode=${v}`)}
+                 opsi={[...(periodeOpsi.some((o) => o.nilai === periode) || semuaPeriode ? [] : [{ nilai: periode, label: `${labelBulan(periode)} · belum ada` }]),
+                        ...periodeOpsi, { nilai: "semua", label: "Semua periode" }]} />
           <Pilih nilai={jabatan} onPilih={ubah(setJabatan)}
                  opsi={[{ nilai: "", label: "Semua jabatan" },
                         ...daftarJabatan.map((j) => ({ nilai: j, label: j }))]} />
@@ -86,6 +95,7 @@ export default function Client({ baris }: { baris: BarisLaporan[] }) {
         <table className="pa-tabel li-tabel">
           <thead>
             <tr>
+              {semuaPeriode && <th>Periode</th>}
               <th>Jabatan · produk</th>
               <th>Indikator</th>
               <th>Peran</th>
@@ -99,10 +109,11 @@ export default function Client({ baris }: { baris: BarisLaporan[] }) {
             {potong.map((b) => {
               const st = statusDari(b);
               const p = normPeran(b.peran);
-              const t = total.get(`${b.jabatan}|${b.produk}`);
+              const t = total.get(kunciBobot(b));
               const efek = teksEfek(b);
               return (
                 <tr key={b.id} className={st !== "aktif" ? "li-mati" : undefined}>
+                  {semuaPeriode && <td className="num">{labelBulan(b.periode)}</td>}
                   <td>
                     <div className="li-jabatan">{b.jabatan}</div>
                     <span className="pa-sub">
@@ -137,10 +148,10 @@ export default function Client({ baris }: { baris: BarisLaporan[] }) {
               );
             })}
             {!potong.length && (
-              <tr><td colSpan={7} className="empty">
+              <tr><td colSpan={semuaPeriode ? 8 : 7} className="empty">
                 {baris.length
                   ? "Tidak ada pendaftaran yang cocok dengan pencarian atau saringan."
-                  : "Belum ada indikator yang didaftarkan ke jabatan·produk mana pun."}
+                  : `Belum ada indikator terdaftar${semuaPeriode ? "" : ` untuk ${labelBulan(periode)}. Duplikasi dari bulan lain di Create Indicator`}.`}
               </td></tr>
             )}
           </tbody>

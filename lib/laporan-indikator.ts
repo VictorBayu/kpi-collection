@@ -9,6 +9,8 @@
 
 export type BarisLaporan = {
   id: string;
+  /** Bulan berlaku pendaftaran (YYYY-MM-DD, tanggal 1). */
+  periode: string;
   indikatorId: string;
   indikator: string;
   satuan: string | null;
@@ -99,11 +101,21 @@ export function saring(baris: BarisLaporan[], s: Saringan): BarisLaporan[] {
  * supaya angka ini tidak ikut berubah saat admin menyaring satu indikator.
  * Idealnya 100; selain itu tanda susunan bobot belum lengkap/berlebih.
  */
+/** Kunci jumlah bobot: per periode·jabatan·produk. */
+export const kunciBobot = (b: Pick<BarisLaporan, "periode" | "jabatan" | "produk">) =>
+  `${b.periode}|${b.jabatan}|${b.produk}`;
+
+const BULAN = ["Januari","Februari","Maret","April","Mei","Juni","Juli","Agustus","September","Oktober","November","Desember"];
+export function labelBulan(p: string): string {
+  const m = /^(\d{4})-(\d{2})/.exec(p ?? "");
+  return m ? `${BULAN[Number(m[2]) - 1]} ${m[1]}` : p;
+}
+
 export function totalBobot(baris: BarisLaporan[]) {
   const peta = new Map<string, { kpi: number; ins: number }>();
   for (const b of baris) {
     if (statusDari(b) !== "aktif" || normPeran(b.peran) !== "kpi") continue;
-    const kunci = `${b.jabatan}|${b.produk}`;
+    const kunci = kunciBobot(b);
     const t = peta.get(kunci) ?? { kpi: 0, ins: 0 };
     t.kpi += b.bobotKpi ?? 0;
     t.ins += b.bobotInsentif ?? 0;

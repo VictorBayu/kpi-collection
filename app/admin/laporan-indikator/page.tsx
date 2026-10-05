@@ -6,7 +6,9 @@ import { menuSesi } from "@/lib/menu";
 import Ikon from "@/components/Ikon";
 import JudulHalaman, { KartuMetrik, TitikStatus } from "@/components/JudulHalaman";
 import { muatLaporanIndikator } from "@/lib/laporan-indikator-db";
-import { statusDari, totalBobot } from "@/lib/laporan-indikator";
+import { statusDari, totalBobot, labelBulan } from "@/lib/laporan-indikator";
+import { daftarPeriodeIndikator, periodeSah } from "@/lib/periode-indikator";
+import { periodeBerjalan } from "@/lib/hitung-indikator";
 import Client from "./Client";
 
 export const metadata = { title: "Laporan Indikator" };
@@ -14,12 +16,19 @@ export const dynamic = "force-dynamic";
 
 const angka = (v: number) => v.toLocaleString("id-ID");
 
-export default async function Page() {
+export default async function Page({ searchParams }: { searchParams: Promise<{ periode?: string }> }) {
   const s = await readSession();
   if (!s) redirect("/login");
   if (s.peran !== "admin" && !menuSesi(s.peran, s.menu).includes("admin_laporan_indikator")) redirect("/dashboard");
 
-  const baris = await muatLaporanIndikator();
+  const sp = await searchParams;
+  const adaPeriode = await daftarPeriodeIndikator();
+  const semuaPeriode = sp.periode === "semua";
+  // Bawaan: bulan berjalan; bila belum punya set, bulan terbaru yang ada.
+  const bawaan = adaPeriode.some((x) => x.periode === periodeBerjalan())
+    ? periodeBerjalan() : (adaPeriode[0]?.periode ?? periodeBerjalan());
+  const periode = semuaPeriode ? null : (periodeSah(sp.periode) ?? bawaan);
+  const baris = await muatLaporanIndikator(periode);
   const aktif = baris.filter((b) => statusDari(b) === "aktif");
   const pasangan = new Set(aktif.map((b) => `${b.jabatan}|${b.produk}`));
   const tidakGenap = [...totalBobot(baris).values()].filter((t) => Math.abs(t.kpi - 100) > 0.001).length;
@@ -31,7 +40,7 @@ export default async function Page() {
           eyebrow="Data & indikator"
           meta={<><TitikStatus nada={aktif.length ? "good" : "netral"} /> {angka(aktif.length)} pendaftaran aktif</>}
           judul="Laporan indikator"
-          deskripsi="Indikator yang terdaftar di tiap jabatan·produk beserta perannya (Reguler, Reward, Penalty, dll.), bobot KPI, bobot insentif, faktor pengakuan, dan statusnya — dibaca langsung dari Create Indicator."
+          deskripsi="Per periode (bulan berlaku): indikator yang terdaftar di tiap jabatan·produk beserta perannya (Reguler, Reward, Penalty, dll.), bobot KPI, bobot insentif, faktor pengakuan, dan statusnya — dibaca langsung dari Create Indicator."
           aksi={
             <Link className="btn ghost" href="/admin/indikator">
               <Ikon nama="formula" ukuran={16} /> Buka Create Indicator
@@ -54,7 +63,8 @@ export default async function Page() {
                        ikon={<Ikon nama="checkCircle" ukuran={20} />} nada={tidakGenap ? "warn" : "good"} />
         </div>
 
-        <Client baris={baris} />
+        <Client baris={baris} periode={periode ?? "semua"}
+                periodeOpsi={adaPeriode.map((x) => ({ nilai: x.periode, label: `${labelBulan(x.periode)} · ${x.pendaftaran} pendaftaran` }))} />
       </main>
     </AppShell>
   );
