@@ -209,10 +209,33 @@ export type SumberMentah = {
   ekspresiDari(params: unknown[]): string;
 };
 
-const SUMBER_LIVE: SumberMentah = {
-  arsip: false,
-  ekspresiDari: () => "data_mentah",
-};
+/**
+ * Jabatan (alias produk, mis. "FC SA R2") tiap NIK menurut teks PIC di
+ * data_mentah hari ini. Pengguna & Akses menyimpan jabatan master
+ * ("FC SA"), sedangkan indikator didaftarkan per alias — varian R2/R4/MIX
+ * hanya diketahui dari teks PIC API. Hanya alias yang dikenal di
+ * jabatan_produk yang dipakai; selain itu jatuh ke app_user.jabatan.
+ */
+export async function jabatanDariLive(): Promise<Record<string, string>> {
+  const rows = await q<{ nik: string; jab: string }>(
+    `WITH x AS (
+       SELECT nik_staff AS nik, staff_pic AS pic FROM data_mentah
+       UNION ALL SELECT nik_spv, spv_pic FROM data_mentah
+       UNION ALL SELECT nik_bch, bch_pic FROM data_mentah
+     ), j AS (
+       SELECT nik, norm_jabatan(substring(pic from '\\(([^)]*)\\)\\s*$')) AS jab
+         FROM x WHERE nik IS NOT NULL AND pic IS NOT NULL
+     ), c AS (
+       SELECT nik, jab, count(*) n FROM j
+        WHERE jab IS NOT NULL
+          AND EXISTS (SELECT 1 FROM jabatan_produk jp WHERE jp.alias = j.jab)
+        GROUP BY nik, jab
+     )
+     SELECT DISTINCT ON (nik) nik, jab FROM c ORDER BY nik, n DESC, jab`);
+  const out: Record<string, string> = {};
+  for (const r of rows) out[r.nik] = r.jab;
+  return out;
+}
 
 /**
  * Menentukan dari mana mesin hitung harus membaca "data_mentah" untuk
@@ -236,10 +259,13 @@ export async function jabatanDariArsip(batchId: string): Promise<Record<string, 
        UNION ALL SELECT nik_spv, spv_pic FROM arsip_mentah_baris WHERE batch_id = $1
        UNION ALL SELECT nik_bch, bch_pic FROM arsip_mentah_baris WHERE batch_id = $1
      ), j AS (
-       SELECT nik, upper(btrim(substring(pic from '\(([^)]*)\)\s*$'))) AS jab
+       SELECT nik, norm_jabatan(substring(pic from '\\(([^)]*)\\)\\s*$')) AS jab
          FROM x WHERE nik IS NOT NULL AND pic IS NOT NULL
      ), c AS (
-       SELECT nik, jab, count(*) n FROM j WHERE jab IS NOT NULL AND jab <> '' GROUP BY nik, jab
+       SELECT nik, jab, count(*) n FROM j
+        WHERE jab IS NOT NULL
+          AND EXISTS (SELECT 1 FROM jabatan_produk jp WHERE jp.alias = j.jab)
+        GROUP BY nik, jab
      )
      SELECT DISTINCT ON (nik) nik, jab FROM c ORDER BY nik, n DESC, jab`,
     [batchId]);
@@ -253,7 +279,9 @@ export async function sumberUntukPeriode(periode: string): Promise<SumberMentah>
     `SELECT id FROM arsip_mentah_batch WHERE periode = $1 AND status = 'published'`,
     [periode],
   );
-  if (!batch) return SUMBER_LIVE;
+  if (!batch) {
+    return { arsip: false, jabatanPeriode: await jabatanDariLive(), ekspresiDari: () => "data_mentah" };
+  }
 
   const katalog = await kolomArsip();
   const jabatanPeriode = await jabatanDariArsip(batch.id);
