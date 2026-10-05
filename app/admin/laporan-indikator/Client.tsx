@@ -95,7 +95,7 @@ export default function Client({ baris, periode, periodeOpsi }: {
         <table className="pa-tabel li-tabel">
           <thead>
             <tr>
-              {semuaPeriode && <th>Periode</th>}
+              <th>Periode berlaku</th>
               <th>Jabatan · produk</th>
               <th>Indikator</th>
               <th>Peran</th>
@@ -113,7 +113,7 @@ export default function Client({ baris, periode, periodeOpsi }: {
               const efek = teksEfek(b);
               return (
                 <tr key={b.id} className={st !== "aktif" ? "li-mati" : undefined}>
-                  {semuaPeriode && <td className="num">{labelBulan(b.periode)}</td>}
+                  <td className="num" style={{ whiteSpace: "nowrap" }}>{labelBulan(b.periode)}</td>
                   <td>
                     <div className="li-jabatan">{b.jabatan}</div>
                     <span className="pa-sub">
@@ -148,7 +148,7 @@ export default function Client({ baris, periode, periodeOpsi }: {
               );
             })}
             {!potong.length && (
-              <tr><td colSpan={semuaPeriode ? 8 : 7} className="empty">
+              <tr><td colSpan={8} className="empty">
                 {baris.length
                   ? "Tidak ada pendaftaran yang cocok dengan pencarian atau saringan."
                   : `Belum ada indikator terdaftar${semuaPeriode ? "" : ` untuk ${labelBulan(periode)}. Duplikasi dari bulan lain di Create Indicator`}.`}

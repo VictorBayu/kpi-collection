@@ -973,7 +973,7 @@ export default function IndikatorClient() {
                     .map((p) => {
                       const a = periodeAda.find((x) => x.periode === p);
                       return <option key={p} value={p}>
-                        {labelBulan(p)}{a ? ` · ${a.pendaftaran} pendaftaran` : " · belum ada"}{p === periodeNow ? " (berjalan)" : ""}
+                        {labelBulan(p)}{p === periodeNow ? " (berjalan)" : ""}{a ? ` · ${a.pendaftaran}` : " · kosong"}
                       </option>;
                     })}
                 </select>
