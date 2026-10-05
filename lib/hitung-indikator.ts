@@ -24,7 +24,7 @@ export type HasilHitung = {
   insentif: number;
   periode: string;
   gagal: { indikator: string; pesan: string }[];
-  /** true bila dihitung dari arsip data mentah (bukan data_mentah langsung). */
+  /** true bila dihitung dari Rekon Data EOM (bukan data_mentah langsung). */
   dariArsip: boolean;
 };
 
@@ -759,8 +759,8 @@ export async function hitungSemuaIndikator(periode?: string): Promise<HasilHitun
 
   // Sumber data mentah ditentukan SEKALI di sini, dipakai ulang untuk
   // seluruh pasangan indikator×produk periode ini: kalau periode ini
-  // sudah punya arsip data mentah yang diterbitkan (lihat menu "Arsip
-  // Data Mentah"), rumus dihitung dari arsip itu, bukan dari data_mentah
+  // sudah punya Rekon Data EOM yang diterbitkan (lihat menu "Rekon
+  // Data EOM"), rumus dihitung dari arsip itu, bukan dari data_mentah
   // (yang hanya berisi snapshot hari ini). Kalau belum ada arsipnya —
   // termasuk periode berjalan — jatuh balik ke data_mentah seperti biasa.
   const sumber = await sumberUntukPeriode(p);

@@ -3,7 +3,7 @@ import { createHash } from "crypto";
 import { q } from "./db";
 
 /**
- * Arsip data mentah bulanan — untuk hitung ulang periode lampau.
+ * Rekon Data EOM (arsip data mentah bulanan) — untuk hitung ulang periode lampau.
  *
  * `data_mentah` ditulis ulang penuh (TRUNCATE + INSERT) tiap kali data
  * ditarik dari API (lihat lib/tarik-api.ts): tabel itu hanya pernah
@@ -12,7 +12,7 @@ import { q } from "./db";
  * tidak ada lagi untuk dihitung ulang.
  *
  * Berkas ini menyediakan jalan keluarnya: admin mengunggah manual arsip
- * data akhir bulan (Excel, dari layar "Arsip Data Mentah"), disimpan ke
+ * data akhir bulan (Excel, dari layar "Rekon Data EOM"), disimpan ke
  * arsip_mentah_batch/arsip_mentah_baris (lihat db/schema-arsip-mentah-v24.sql),
  * dan lib/hitung-indikator.ts memakainya sebagai pengganti data_mentah
  * ketika menghitung ulang periode yang sudah punya arsip terbit.
@@ -150,7 +150,7 @@ export async function bacaWorkbookArsip(blobUrl: string): Promise<{
   const sha256 = createHash("sha256").update(buf).digest("hex");
 
   const wb = XLSX.read(buf, { type: "buffer", cellDates: true });
-  const sheetName = wb.SheetNames.find((n) => /arsip|data mentah/i.test(n)) ?? wb.SheetNames[0];
+  const sheetName = wb.SheetNames.find((n) => /rekon|eom|arsip|data mentah/i.test(n)) ?? wb.SheetNames[0];
   const ws = wb.Sheets[sheetName];
   if (!ws) throw new Error("Berkas tidak berisi sheet yang bisa dibaca.");
 
@@ -176,7 +176,7 @@ export async function buatTemplateXlsx(): Promise<Buffer> {
   const wb = XLSX.utils.book_new();
 
   const wsData = XLSX.utils.aoa_to_sheet([headers]);
-  XLSX.utils.book_append_sheet(wb, wsData, "Arsip Data Mentah");
+  XLSX.utils.book_append_sheet(wb, wsData, "Rekon Data EOM");
 
   const petunjuk = [
     ["Kolom (header di sheet)", "Label", "Jenis", "Keterangan"],

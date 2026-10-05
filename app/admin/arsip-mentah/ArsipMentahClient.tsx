@@ -55,7 +55,7 @@ async function panggil(url: string, body: unknown) {
 }
 
 /**
- * Arsip Data Mentah — layar untuk mengunggah snapshot data mentah akhir
+ * Rekon Data EOM — layar untuk mengunggah snapshot data mentah akhir
  * bulan, supaya periode itu bisa dihitung ulang nanti kalau ada rumus
  * indikator yang diperbaiki.
  *
@@ -85,7 +85,7 @@ export default function ArsipMentahClient() {
   async function segarkan() {
     const r = await fetch("/api/admin/arsip-mentah", { cache: "no-store" });
     const j = await r.json().catch(() => ({}));
-    if (!r.ok) { setPesan(j.error ?? "Gagal memuat riwayat arsip."); setMuat(false); return; }
+    if (!r.ok) { setPesan(j.error ?? "Gagal memuat riwayat rekon data EOM."); setMuat(false); return; }
     setBatch(j.batch ?? []);
     setJumlahKolom(j.jumlahKolomTemplate ?? 0);
     setMuat(false);
@@ -132,12 +132,12 @@ export default function ArsipMentahClient() {
       });
       if (hitungUlang && r.hitung) {
         setSukses(
-          `Arsip periode ${namaPeriode(hasilUnggah.periode)} diterbitkan dan dihitung ulang: ` +
+          `Rekon data EOM periode ${namaPeriode(hasilUnggah.periode)} diterbitkan dan dihitung ulang: ` +
           `${r.hitung.indikator} indikator, ${r.hitung.baris} baris KPI, ${r.hitung.insentif} baris insentif` +
           (r.hitung.gagal?.length ? `, ${r.hitung.gagal.length} gagal (lihat log admin).` : "."));
       } else {
         setSukses(
-          `Arsip periode ${namaPeriode(hasilUnggah.periode)} diterbitkan. ` +
+          `Rekon data EOM periode ${namaPeriode(hasilUnggah.periode)} diterbitkan. ` +
           `Pemicuan hitung ulang bisa dilakukan kapan saja lewat tombol "Hitung ulang" di baris batch ini.`);
       }
       setHasilUnggah(null);
@@ -153,7 +153,7 @@ export default function ArsipMentahClient() {
 
   async function hitungUlangBatch(b: Batch) {
     if (!confirm(
-      `Hitung ulang KPI dan insentif periode ${namaPeriode(b.periode)} memakai arsip ini?\n\n` +
+      `Hitung ulang KPI dan insentif periode ${namaPeriode(b.periode)} memakai rekon data EOM ini?\n\n` +
       "Ini akan MENIMPA angka KPI/insentif periode tersebut dengan hasil terbaru — " +
       "termasuk kalau ada rumus indikator yang baru saja diubah. Pastikan sudah yakin.")) return;
     setSibuk("Menghitung ulang..."); setPesan(null); setSukses(null);
@@ -189,11 +189,11 @@ export default function ArsipMentahClient() {
       <JudulHalaman
         eyebrow="Data & indikator"
         meta={`Template saat ini: ${jumlahKolom} kolom`}
-        judul="Arsip Data Mentah"
+        judul="Rekon Data EOM"
         deskripsi={
           <>
             Data mentah dari API hanya menyimpan snapshot HARI INI — begitu bulan berganti,
-            data bulan lalu hilang. Unggah arsip akhir bulan di sini supaya periode itu tetap
+            data bulan lalu hilang. Unggah rekon data EOM (akhir bulan) di sini supaya periode itu tetap
             bisa <b>dihitung ulang</b> nanti kalau ada rumus indikator yang diperbaiki.
           </>
         }
@@ -234,7 +234,7 @@ export default function ArsipMentahClient() {
       {!sibuk && !hasilUnggah && (
         <div className="card wz-kartu">
           <div className="wz-kartu-kepala">
-            <h3>Unggah arsip akhir bulan</h3>
+            <h3>Unggah rekon data EOM</h3>
             <p className="muted small">
               Isi template dengan data mentah akhir bulan (dari sistem sumber, mis. CONFINS),
               lalu unggah di sini. Header kolom harus persis seperti template.
@@ -292,7 +292,7 @@ export default function ArsipMentahClient() {
               <input type="checkbox" checked={hitungUlang} onChange={(e) => setHitungUlang(e.target.checked)} />
               <span>
                 <b>Hitung ulang KPI &amp; insentif</b>
-                <small>Langsung dijalankan untuk periode ini setelah arsip diterbitkan.</small>
+                <small>Langsung dijalankan untuk periode ini setelah rekon data EOM diterbitkan.</small>
               </span>
             </label>
             {hitungUlang && (
@@ -319,13 +319,13 @@ export default function ArsipMentahClient() {
 
       <div className="card wz-kartu" style={{ marginTop: 20 }}>
         <div className="wz-kartu-kepala">
-          <h3>Riwayat arsip</h3>
+          <h3>Riwayat rekon data EOM</h3>
           <p className="muted small">Hanya satu batch bisa aktif ("Aktif") per periode.</p>
         </div>
         {muat ? (
           <p className="muted small" style={{ padding: 16 }}>Memuat...</p>
         ) : batch.length === 0 ? (
-          <p className="muted small" style={{ padding: 16 }}>Belum ada arsip yang diunggah.</p>
+          <p className="muted small" style={{ padding: 16 }}>Belum ada rekon data EOM yang diunggah.</p>
         ) : (
           <div className="tabel-scroll">
             <table className="wz-map">

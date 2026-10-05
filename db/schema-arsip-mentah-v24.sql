@@ -1,5 +1,5 @@
 -- =====================================================================
--- v24 — ARSIP DATA MENTAH BULANAN, untuk hitung ulang periode lampau
+-- v24 — REKON DATA EOM (ARSIP DATA MENTAH BULANAN), untuk hitung ulang periode lampau
 --
 -- `data_mentah` di-TRUNCATE dan ditulis ulang penuh tiap kali data
 -- ditarik dari API (lihat lib/tarik-api.ts) -- tabel ini hanya pernah
@@ -9,7 +9,7 @@
 -- dihitung ulang.
 --
 -- Solusinya: admin mengunggah manual arsip data akhir bulan (Excel,
--- dari layar "Arsip Data Mentah"), disimpan di sini, dan mesin hitung
+-- dari layar "Rekon Data EOM"), disimpan di sini, dan mesin hitung
 -- (lib/hitung-indikator.ts) memakainya sebagai pengganti data_mentah
 -- ketika menghitung ulang periode yang sudah punya arsip terbit.
 --

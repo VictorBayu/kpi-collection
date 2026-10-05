@@ -5058,7 +5058,7 @@ section.rh-grup.rh-kpi:hover{background:var(--surface);border-color:var(--line);
 .tr-pil.pp-bar{overflow:visible;flex-wrap:wrap}
 
 /* =====================================================================
-   ARSIP DATA MENTAH -- kartu hasil baca & opsi terbit
+   REKON DATA EOM -- kartu hasil baca & opsi terbit
    ===================================================================== */
 .wz-terbit-rinci.tiga{grid-template-columns:repeat(3,minmax(0,1fr))}
 .am-opsi-grup{display:flex;flex-direction:column;gap:8px;width:100%;margin-top:14px;text-align:left}

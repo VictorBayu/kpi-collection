@@ -6,7 +6,7 @@ export const dynamic = "force-dynamic";
 /**
  * Token unggah langsung ke Vercel Blob, sama seperti /api/import/upload —
  * melewati batas body 4,5 MB pada route handler serverless. Batasnya
- * dinaikkan ke 40 MB (bukan 20 MB seperti impor KPI/insentif): arsip data
+ * dinaikkan ke 40 MB (bukan 20 MB seperti impor KPI/insentif): rekon data
  * mentah membawa puluhan ribu baris kali puluhan kolom sekaligus, jauh
  * lebih besar dari berkas impor per periode.
  */
@@ -28,7 +28,7 @@ export const POST = handler(async (req: Request) => {
       };
     },
     onUploadCompleted: async ({ blob }) => {
-      console.log("arsip data mentah tersimpan:", blob.pathname);
+      console.log("rekon data EOM tersimpan:", blob.pathname);
     },
   });
 

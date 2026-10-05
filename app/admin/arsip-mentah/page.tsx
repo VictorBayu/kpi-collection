@@ -4,7 +4,7 @@ import { readSession } from "@/lib/auth";
 import { menuSesi } from "@/lib/menu";
 import ArsipMentahClient from "./ArsipMentahClient";
 
-export const metadata = { title: "Arsip Data Mentah" };
+export const metadata = { title: "Rekon Data EOM" };
 
 export default async function Page() {
   const s = await readSession();

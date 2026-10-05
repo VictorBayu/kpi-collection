@@ -6,7 +6,7 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 /**
- * Layar "Arsip Data Mentah": riwayat batch yang pernah diunggah, dan
+ * Layar "Rekon Data EOM": riwayat batch yang pernah diunggah, dan
  * kolom template saat ini (supaya UI bisa menunjukkan berapa kolom yang
  * akan diminta sebelum admin mengunduh templatenya).
  */

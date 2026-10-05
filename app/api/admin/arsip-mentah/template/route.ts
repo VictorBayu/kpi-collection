@@ -12,7 +12,7 @@ export const GET = handler(async () => {
   return new Response(new Uint8Array(buf), {
     headers: {
       "Content-Type": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-      "Content-Disposition": 'attachment; filename="template-arsip-data-mentah.xlsx"',
+      "Content-Disposition": 'attachment; filename="template-rekon-data-eom.xlsx"',
     },
   });
 });
