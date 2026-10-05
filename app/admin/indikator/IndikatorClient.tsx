@@ -603,6 +603,10 @@ export default function IndikatorClient() {
   const [dupAsal, setDupAsal] = useState("");
   const [dupTujuan, setDupTujuan] = useState("");
   const [dupTimpa, setDupTimpa] = useState(false);
+  /** Indikator di bulan asal yang bisa dipilih untuk disalin. */
+  const [dupDaftar, setDupDaftar] = useState<{ id: string; nama: string; aktif: boolean; pendaftaran: number }[]>([]);
+  const [dupPilih, setDupPilih] = useState<Set<string>>(new Set());
+  const [dupCari, setDupCari] = useState("");
 
   const [pilihId, setPilihId] = useState<string | null>(null);
   const [nama, setNama] = useState("");
@@ -786,6 +790,20 @@ export default function IndikatorClient() {
     komponen, target, periode,
   });
 
+  async function pilihAsalDup(p: string) {
+    setDupAsal(p); setDupDaftar([]); setDupPilih(new Set()); setDupCari("");
+    if (!p) return;
+    const r = await fetch(`/api/admin/indikator/duplikasi?dari=${p}`, { cache: "no-store" });
+    const j = await r.json().catch(() => ({}));
+    if (!r.ok) { setPesan(j.error ?? "Gagal memuat indikator bulan asal."); return; }
+    setDupDaftar(j.daftar ?? []);
+    setDupPilih(new Set((j.daftar ?? []).map((d: any) => d.id)));
+  }
+
+  function ubahPilihDup(id: string) {
+    setDupPilih((s) => { const n = new Set(s); n.has(id) ? n.delete(id) : n.add(id); return n; });
+  }
+
   async function gantiPeriode(p: string) {
     if (!p || p === periode) return;
     setPesan(null);
@@ -795,20 +813,24 @@ export default function IndikatorClient() {
 
   async function duplikasi() {
     if (!dupAsal || !dupTujuan) { setPesan("Pilih periode asal dan tujuan."); return; }
+    if (!dupPilih.size) { setPesan("Pilih minimal satu indikator untuk disalin."); return; }
     const tujuan = `${dupTujuan}-01`;
-    if (!confirm(`Salin seluruh pendaftaran ${labelBulan(dupAsal)} ke ${labelBulan(tujuan)}${dupTimpa ? " (isi yang ada akan DIGANTI)" : ""}?`)) return;
+    const semua = dupPilih.size === dupDaftar.length;
+    if (!confirm(`Salin ${semua ? "semua" : dupPilih.size} indikator dari ${labelBulan(dupAsal)} ke ${labelBulan(tujuan)}${dupTimpa ? " (pendaftaran indikator itu di bulan tujuan akan DIGANTI)" : ""}?`)) return;
     setSibuk(true); setPesan(null);
     try {
       const r = await fetch("/api/admin/indikator/duplikasi", {
         method: "POST", headers: { "content-type": "application/json" },
-        body: JSON.stringify({ dari: dupAsal, ke: tujuan, timpa: dupTimpa }),
+        body: JSON.stringify({ dari: dupAsal, ke: tujuan, timpa: dupTimpa, indikatorIds: [...dupPilih] }),
       });
       const j = await r.json().catch(() => ({}));
       if (!r.ok) { setPesan(j.error ?? "Gagal menduplikasi."); return; }
       setDupTimpa(false);
       await muatDaftar(tujuan);
       if (pilihId) await buka(pilihId, tujuan);
-      setPesan(`${j.disalin} pendaftaran disalin ke ${labelBulan(tujuan)}.`);
+      const per = (j.peringatan ?? []) as { nama: string; rujuk: string }[];
+      setPesan(`${j.disalin} pendaftaran disalin ke ${labelBulan(tujuan)}.` +
+        (per.length ? ` Perhatian: ${per.map((x) => `"${x.nama}" merujuk "${x.rujuk}" yang belum ada di bulan ini`).join("; ")}.` : ""));
     } finally { setSibuk(false); }
   }
 
@@ -985,17 +1007,43 @@ export default function IndikatorClient() {
                 <summary>Duplikasi dari bulan lain</summary>
                 <div className="ind-dup-isi">
                   <label>Salin dari
-                    <select value={dupAsal} onChange={(e) => setDupAsal(e.target.value)}>
+                    <select value={dupAsal} onChange={(e) => pilihAsalDup(e.target.value)}>
                       <option value="">Pilih bulan…</option>
                       {periodeAda.map((x) => <option key={x.periode} value={x.periode}>{labelBulan(x.periode)}</option>)}
                     </select>
                   </label>
+                  {dupDaftar.length > 0 && (
+                    <div className="ind-dup-daftar">
+                      <div className="ind-dup-daftar-kepala">
+                        <label className="ind-dup-timpa">
+                          <input type="checkbox"
+                                 checked={dupPilih.size === dupDaftar.length}
+                                 ref={(el) => { if (el) el.indeterminate = dupPilih.size > 0 && dupPilih.size < dupDaftar.length; }}
+                                 onChange={(e) => setDupPilih(e.target.checked ? new Set(dupDaftar.map((d) => d.id)) : new Set())} />
+                          <b>Pilih semua</b>
+                        </label>
+                        <span className="faint">{dupPilih.size} dari {dupDaftar.length} dipilih</span>
+                      </div>
+                      <input className="ind-dup-cari" placeholder="Cari indikator…" value={dupCari}
+                             onChange={(e) => setDupCari(e.target.value)} />
+                      <div className="ind-dup-baris">
+                        {dupDaftar
+                          .filter((d) => d.nama.toLowerCase().includes(dupCari.trim().toLowerCase()))
+                          .map((d) => (
+                            <label key={d.id} className="ind-dup-timpa">
+                              <input type="checkbox" checked={dupPilih.has(d.id)} onChange={() => ubahPilihDup(d.id)} />
+                              <span>{d.nama}{!d.aktif && " (nonaktif)"} <i className="faint">· {d.pendaftaran}</i></span>
+                            </label>
+                          ))}
+                      </div>
+                    </div>
+                  )}
                   <label>Ke bulan
                     <input type="month" value={dupTujuan} onChange={(e) => setDupTujuan(e.target.value)} />
                   </label>
                   <label className="ind-dup-timpa">
                     <input type="checkbox" checked={dupTimpa} onChange={(e) => setDupTimpa(e.target.checked)} />
-                    Timpa bila bulan tujuan sudah ada isinya
+                    Timpa bila indikator yang dipilih sudah ada di bulan tujuan
                   </label>
                   <button className="btn sm" onClick={duplikasi} disabled={sibuk}>Duplikasi</button>
                 </div>

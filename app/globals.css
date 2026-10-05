@@ -5085,3 +5085,7 @@ section.rh-grup.rh-kpi:hover{background:var(--surface);border-color:var(--line);
 .ind-dup-isi{display:grid;gap:8px;padding-top:8px;font-size:13px}
 .ind-dup-isi label{display:grid;gap:4px}
 .ind-dup-isi .ind-dup-timpa{display:flex;align-items:center;gap:6px}
+.ind-dup-daftar{display:grid;gap:6px;border:1px solid var(--line,#e2e8f0);border-radius:10px;padding:8px}
+.ind-dup-daftar-kepala{display:flex;justify-content:space-between;align-items:center}
+.ind-dup-cari{width:100%;padding:6px 9px;border:1px solid var(--line,#e2e8f0);border-radius:8px;font:inherit}
+.ind-dup-baris{display:grid;gap:4px;max-height:220px;overflow:auto}
