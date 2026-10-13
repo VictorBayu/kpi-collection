@@ -44,7 +44,7 @@ export const GET = handler(async () => {
 
   const [kelas, cabang, produk] = await Promise.all([
     q<any>(
-      `SELECT cabang, produk, berlaku_mulai, kelas
+      `SELECT cabang, produk, berlaku_mulai, kelas, tier
          FROM cabang_kelas ORDER BY cabang, produk, berlaku_mulai DESC`),
 
     // Daftar cabang diambil dari master cabang API, bukan diketik bebas.
@@ -84,16 +84,21 @@ export const POST = handler(async (req) => {
   const mulai = awalBulan(berlakuMulai);
   if (!mulai) throw new HttpError(400, "Periode mulai berlaku tidak terbaca.");
   if (!KELAS.includes(kelas)) throw new HttpError(400, "Tier harus Large, Medium, atau Small.");
+  // Tier Cabang 1-5 (opsional): default tier per bucket di template Target Tier.
+  const tierRaw = b.tier === "" || b.tier === null || b.tier === undefined ? null : Number(b.tier);
+  if (tierRaw !== null && !(Number.isInteger(tierRaw) && tierRaw >= 1 && tierRaw <= 5)) {
+    throw new HttpError(400, "Tier Cabang harus angka 1 sampai 5, atau dikosongkan.");
+  }
 
   await q(
-    `INSERT INTO cabang_kelas (cabang, produk, berlaku_mulai, kelas)
-     VALUES ($1,$2,$3,$4)
+    `INSERT INTO cabang_kelas (cabang, produk, berlaku_mulai, kelas, tier)
+     VALUES ($1,$2,$3,$4,$5)
      ON CONFLICT (cabang, produk, berlaku_mulai) DO UPDATE
-       SET kelas = EXCLUDED.kelas, updated_at = now()`,
-    [cabang, produk, mulai, kelas]);
+       SET kelas = EXCLUDED.kelas, tier = EXCLUDED.tier, updated_at = now()`,
+    [cabang, produk, mulai, kelas, tierRaw]);
 
   await auditLog(admin.sub, "tier-cabang.simpan", `${cabang}/${produk}`,
-                 { berlaku_mulai: mulai, kelas });
+                 { berlaku_mulai: mulai, kelas, tier: tierRaw });
   return Response.json({ ok: true });
 });
 

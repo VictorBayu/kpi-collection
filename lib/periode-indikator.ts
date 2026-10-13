@@ -69,10 +69,12 @@ export async function duplikasiPeriode(
     `INSERT INTO indikator_target
        (indikator_id, alias, produk, peran, jenis_nilai, nilai_efek, pemilih_id,
         bobot_kpi, bobot_insentif, faktor_pengakuan,
-        target_kpi3, target_kpi4, target_kpi5, aktif, periode)
+        target_kpi3, target_kpi4, target_kpi5, aktif, periode,
+        sumber_target, target_tier_bucket, mekanisme_target_tier)
      SELECT indikator_id, alias, produk, peran, jenis_nilai, nilai_efek, pemilih_id,
             bobot_kpi, bobot_insentif, faktor_pengakuan,
-            target_kpi3, target_kpi4, target_kpi5, aktif, $2::date
+            target_kpi3, target_kpi4, target_kpi5, aktif, $2::date,
+            sumber_target, target_tier_bucket, mekanisme_target_tier
        FROM indikator_target
       WHERE periode = $1::date AND ($3::uuid[] IS NULL OR indikator_id = ANY($3::uuid[]))`,
     [dari, ke, pilih]);

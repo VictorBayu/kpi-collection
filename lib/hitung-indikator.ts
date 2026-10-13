@@ -248,9 +248,51 @@ async function hitungSatu(
       WHEN g.target_kpi3 = 0 THEN 0
       ELSE GREATEST(0, 3 * g.nilai / NULLIF(g.target_kpi3, 0))
     END`;
+  /**
+   * Mesin Target Tier (indikator bersumber tabel target_tier).
+   * Arah: bucket Delq makin KECIL makin baik; Coll1-30 makin BESAR makin
+   * baik. Agar satu rumus melayani keduanya, nilai & tangga Delq dibalik
+   * tandanya (dikali -1) sebelum dibandingkan.
+   *  - standard: ambang = t{tier_aktif}. Lolos -> skor = tier_aktif;
+   *    tidak lolos -> 1. Ambang kosong -> tidak bisa dinilai (NULL).
+   *  - rasio: kelima t1..t5 wajib terisi (NULL -> tidak bisa dinilai,
+   *    tidak jatuh ke standard). Skor diinterpolasi lurus antar-tangga,
+   *    dibatasi 1..5.
+   */
+  const arah = `(CASE WHEN g.target_tier_bucket LIKE 'delq%' THEN -1 ELSE 1 END)`;
+  const v = (x: string) => `(${arah} * ${x})`;
+  const tangga = (k: number, k2: number) =>
+    `WHEN ${v("g.nilai")} >= ${v(`g.tt${k}`)} THEN
+       ${k} + CASE WHEN g.tt${k2} = g.tt${k} THEN 0
+                   ELSE LEAST(1, (${v("g.nilai")} - ${v(`g.tt${k}`)}) / NULLIF(${v(`g.tt${k2}`)} - ${v(`g.tt${k}`)}, 0)) END`;
+  const skorTargetTier = `
+    CASE
+      WHEN NOT g.tt_ada THEN NULL
+      WHEN g.mekanisme_target_tier = 'rasio' THEN
+        CASE
+          WHEN g.tt1 IS NULL OR g.tt2 IS NULL OR g.tt3 IS NULL OR g.tt4 IS NULL OR g.tt5 IS NULL THEN NULL
+          WHEN ${v("g.nilai")} >= ${v("g.tt5")} THEN 5
+          ${tangga(4, 5)}
+          ${tangga(3, 4)}
+          ${tangga(2, 3)}
+          ${tangga(1, 2)}
+          ELSE 1
+        END
+      ELSE
+        CASE
+          WHEN g.tt_tier IS NULL THEN NULL
+          WHEN (CASE g.tt_tier WHEN 1 THEN g.tt1 WHEN 2 THEN g.tt2 WHEN 3 THEN g.tt3
+                               WHEN 4 THEN g.tt4 ELSE g.tt5 END) IS NULL THEN NULL
+          WHEN ${v("g.nilai")} >= ${v(`(CASE g.tt_tier WHEN 1 THEN g.tt1 WHEN 2 THEN g.tt2 WHEN 3 THEN g.tt3 WHEN 4 THEN g.tt4 ELSE g.tt5 END)`)}
+            THEN g.tt_tier
+          ELSE 1
+        END
+    END`;
+
   const skorMentah = `
     CASE
       WHEN g.nilai IS NULL THEN NULL
+      WHEN g.sumber_target = 'target_tier' THEN (${skorTargetTier})
       WHEN g.ada_pita THEN ${skorPita}
       ELSE (${skorLama})
     END`;
@@ -298,8 +340,9 @@ async function hitungSatu(
 
   const sql = `
     WITH terdaftar AS (
-      SELECT u.nik, u.nama, COALESCE(jp_per.jab, u.jabatan) AS jabatan, u.cabang,
+      SELECT u.nik, u.nama, COALESCE(jp_per.jab, u.jabatan) AS jabatan, u.cabang, u.area,
              t.id AS target_id, t.peran, t.jenis_nilai, t.nilai_efek,
+             t.sumber_target, t.target_tier_bucket, t.mekanisme_target_tier,
              t.bobot_kpi, t.bobot_insentif, t.faktor_pengakuan,
              t.target_kpi3, t.target_kpi4, t.target_kpi5,
              EXISTS (SELECT 1 FROM indikator_pita p WHERE p.target_id = t.id) AS ada_pita
@@ -328,12 +371,33 @@ async function hitungSatu(
     -- seluruh portofolio produk itu dihitung penuh untuknya. 100 (nilai
     -- baku) berarti tidak mengubah apa pun.
     gabung AS (
-      SELECT t.nik, t.nama, t.jabatan, t.cabang, t.target_id, t.peran,
+      SELECT t.nik, t.nama, t.jabatan, t.cabang, t.area, t.target_id, t.peran,
              t.jenis_nilai, t.nilai_efek, t.bobot_kpi, t.bobot_insentif,
              t.target_kpi3, t.target_kpi4, t.target_kpi5, t.ada_pita,
+             t.sumber_target, t.target_tier_bucket, t.mekanisme_target_tier,
+             tt.id IS NOT NULL AS tt_ada, tt.tier_aktif AS tt_tier,
+             tt.t1 AS tt1, tt.t2 AS tt2, tt.t3 AS tt3, tt.t4 AS tt4, tt.t5 AS tt5,
+             tt.tipe_lokasi AS tt_lokasi, tt.cabang_atau_area AS tt_tempat,
+             tt.kelompok_produk AS tt_kelompok,
              h.nilai * t.faktor_pengakuan / 100 AS nilai
         FROM terdaftar t
         LEFT JOIN hitung h ON h.nik = t.nik
+        -- Target Tier: dicari per periode, kelompok produk (akhiran alias
+        -- MIX/R2/R4, atau kode produk), dan cabang orangnya; bila baris
+        -- cabang tidak ada, jatuh ke baris area-nya.
+        LEFT JOIN LATERAL (
+          SELECT x.* FROM target_tier x
+           WHERE t.sumber_target = 'target_tier'
+             AND x.periode = ${pPeriode}::date
+             AND x.bucket = t.target_tier_bucket
+             AND x.kelompok_produk = COALESCE(
+                   substring(norm_jabatan(t.jabatan) from '(MIX|R2|R4)$'),
+                   upper(${pProduk}))
+             AND ((x.tipe_lokasi = 'cabang' AND upper(btrim(x.cabang_atau_area)) = upper(btrim(t.cabang)))
+               OR (x.tipe_lokasi = 'area'   AND upper(btrim(x.cabang_atau_area)) = upper(btrim(t.area))))
+           ORDER BY (x.tipe_lokasi = 'cabang') DESC
+           LIMIT 1
+        ) tt ON TRUE
     ),
     -- Skor mentah dihitung SEKALI di sini, bukan tiga kali di dalam
     -- INSERT (skor_kpi, skor_terbobot, skor_terbobot_ins semuanya
@@ -368,8 +432,29 @@ async function hitungSatu(
                 ELSE ROUND((${skor})::numeric * g.bobot_kpi / 100, 2) END,
            CASE WHEN g.peran NOT IN ('kpi','reguler') OR g.bobot_insentif IS NULL THEN NULL
                 ELSE ROUND((${skor})::numeric * g.bobot_insentif / 100, 2) END,
-           g.target_kpi3, g.target_kpi4, g.target_kpi5,
-           ${pSatuan}, ${pCatatan},
+           CASE WHEN g.sumber_target = 'target_tier' THEN g.tt3 ELSE g.target_kpi3 END,
+           CASE WHEN g.sumber_target = 'target_tier' THEN g.tt4 ELSE g.target_kpi4 END,
+           CASE WHEN g.sumber_target = 'target_tier' THEN g.tt5 ELSE g.target_kpi5 END,
+           ${pSatuan},
+           -- Target yang terpakai ikut disimpan di catatan, supaya hasil
+           -- periode lampau tetap bisa dijelaskan walau orangnya pindah
+           -- cabang atau tabel target diubah.
+           CASE WHEN g.sumber_target <> 'target_tier' THEN ${pCatatan}
+                WHEN NOT g.tt_ada THEN ${pCatatan} || ' | TARGET TIER TIDAK DITEMUKAN untuk cabang '
+                     || COALESCE(g.cabang, '-') || ' / area ' || COALESCE(g.area, '-')
+                     || ' · bucket ' || g.target_tier_bucket
+                WHEN g.mekanisme_target_tier = 'rasio'
+                     AND (g.tt1 IS NULL OR g.tt2 IS NULL OR g.tt3 IS NULL OR g.tt4 IS NULL OR g.tt5 IS NULL)
+                  THEN ${pCatatan} || ' | TARGET TIER RASIO BELUM LENGKAP (t1..t5 wajib terisi): '
+                     || g.tt_tempat || ' · ' || g.tt_kelompok || ' · ' || g.target_tier_bucket
+                ELSE ${pCatatan} || ' | Target Tier: ' || g.tt_tempat
+                     || CASE WHEN g.tt_lokasi = 'area' THEN ' (area)' ELSE '' END
+                     || ' · ' || g.tt_kelompok || ' · ' || g.target_tier_bucket
+                     || ' · Tier ' || COALESCE(g.tt_tier::text, '-')
+                     || ' · ' || g.mekanisme_target_tier
+                     || ' · t1..t5 = ' || concat_ws(' / ', COALESCE(g.tt1::text,'-'), COALESCE(g.tt2::text,'-'),
+                          COALESCE(g.tt3::text,'-'), COALESCE(g.tt4::text,'-'), COALESCE(g.tt5::text,'-'))
+           END,
            g.peran, g.jenis_nilai, g.nilai_efek,
            'api', NULL, now()
       FROM skoran g

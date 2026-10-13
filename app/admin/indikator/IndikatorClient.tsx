@@ -45,7 +45,17 @@ type Target = {
   nominal: PitaNominal[];
   gerbang: Gerbang[];
   aktif: boolean;
+  /** manual = KPI3/4/5 atau pita di sini; target_tier = dari menu Target Tier. */
+  sumber_target: string;
+  target_tier_bucket: string;
+  mekanisme_target_tier: string;
 };
+
+const BUCKET_TT = [
+  { nilai: "delq0", label: "Delq 0+" }, { nilai: "delq30", label: "Delq 30+" },
+  { nilai: "delq60", label: "Delq 60+" }, { nilai: "delq90", label: "Delq 90+" },
+  { nilai: "coll1_30", label: "Coll 1-30" },
+];
 
 const PERAN_OPSI = [
   { nilai: "kpi", label: "KPI / Insentif", ket: "diatur lewat bobot KPI dan bobot insentif" },
@@ -542,6 +552,41 @@ function DetailTarget({ t, ubah, lain, namaSendiri, opsiSalin, salinKe }: {
         ))}
       </div>
 
+      <div className="target-detail-baris mt">
+        <label>
+          <span className="faint small">Sumber target</span>
+          <Pilih nilai={t.sumber_target || "manual"} cari={false}
+                 opsi={[{ nilai: "manual", label: "Manual (pita / KPI 3-5)" },
+                        { nilai: "target_tier", label: "Tabel Target Tier" }]}
+                 onPilih={(v) => ubah({ sumber_target: v,
+                   target_tier_bucket: v === "target_tier" ? (t.target_tier_bucket || "delq0") : t.target_tier_bucket })} />
+        </label>
+        {t.sumber_target === "target_tier" && (
+          <>
+            <label>
+              <span className="faint small">Kolom bucket</span>
+              <Pilih nilai={t.target_tier_bucket || "delq0"} cari={false} opsi={BUCKET_TT}
+                     onPilih={(v) => ubah({ target_tier_bucket: v })} />
+            </label>
+            <label>
+              <span className="faint small">Mekanisme</span>
+              <Pilih nilai={t.mekanisme_target_tier || "standard"} cari={false}
+                     opsi={[{ nilai: "standard", label: "Standard (lolos/tidak)" },
+                            { nilai: "rasio", label: "Rasio (interpolasi t1–t5)" }]}
+                     onPilih={(v) => ubah({ mekanisme_target_tier: v })} />
+            </label>
+          </>
+        )}
+      </div>
+      {t.sumber_target === "target_tier" ? (
+        <p className="faint small mt">
+          Target diambil otomatis dari menu <b>Target Tier</b> saat dihitung: periode,
+          kelompok produk (MIX/R2/R4), dan cabang karyawan (jatuh ke area bila baris
+          cabang tidak ada). Standard: lolos ambang tier aktif → skor = tier itu,
+          tidak lolos → 1. Rasio: skor diinterpolasi dari t1–t5 (kelimanya wajib terisi).
+          Delq makin kecil makin baik; Coll makin besar makin baik.
+        </p>
+      ) : (<>
       <p className="faint small mt">
         Pita menggantikan tiga ambang di bawah kalau diisi — cocok untuk target
         bertingkat lebih dari tiga. Kosongkan pita untuk memakai tiga ambang
@@ -551,8 +596,9 @@ function DetailTarget({ t, ubah, lain, namaSendiri, opsiSalin, salinKe }: {
       {t.pita.length > 0 && (
         <SalinPita opsi={opsiSalin} ke={(tujuan) => salinKe(tujuan, "pita")} />
       )}
+      </>)}
 
-      {!t.pita.length && (
+      {!t.pita.length && t.sumber_target !== "target_tier" && (
         <div className="target-detail-baris mt">
           {(["target_kpi3", "target_kpi4", "target_kpi5"] as const).map((f) => (
             <label key={f}>
@@ -769,6 +815,9 @@ export default function IndikatorClient() {
           poin_min: angkaStr(p.poin_min), poin_max: angkaStr(p.poin_max),
         })),
         pemilih_id: t.pemilih_id ?? "",
+        sumber_target: t.sumber_target ?? "manual",
+        target_tier_bucket: t.target_tier_bucket ?? "",
+        mekanisme_target_tier: t.mekanisme_target_tier ?? "standard",
         nominal: (t.nominal ?? []).map((n: any) => ({
           nilai_min: angkaStr(n.nilai_min), nilai_max: angkaStr(n.nilai_max),
           nominal: angkaStr(n.nominal),
@@ -922,6 +971,7 @@ export default function IndikatorClient() {
       bobot_kpi: "", bobot_insentif: "", faktor_pengakuan: "100",
       target_kpi3: "", target_kpi4: "", target_kpi5: "",
       pita: [], pemilih_id: "", nominal: [], gerbang: [],
+      sumber_target: "manual", target_tier_bucket: "", mekanisme_target_tier: "standard",
       aktif: true,
     }]);
     setDetailBuka(target.length);

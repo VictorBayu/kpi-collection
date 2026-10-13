@@ -8,7 +8,8 @@ import Ikon from "@/components/Ikon";
 import JudulHalaman, { KartuMetrik, TitikStatus } from "@/components/JudulHalaman";
 import { namaPeriode } from "@/lib/format";
 
-type Baris = { cabang: string; produk: string; berlaku_mulai: string; kelas: string };
+type Baris = { cabang: string; produk: string; berlaku_mulai: string; kelas: string; tier?: number | null };
+const TIER_OPSI = [{ nilai: "", label: "—" }, ...[1, 2, 3, 4, 5].map((n) => ({ nilai: String(n), label: `Tier ${n}` }))];
 type Cabang = { branch_id: string; cabang: string; area: string | null };
 
 const KELAS_OPSI = [
@@ -127,7 +128,7 @@ export default function KelasCabangClient() {
     .filter((i) => i >= 0 && i < totalHal).sort((a, b) => a - b);
 
   function beriTier(cabang = "", prod = produk[0]?.kode ?? "") {
-    setBaru({ cabang, produk: prod, berlaku_mulai: bulanIni(), kelas: "medium" });
+    setBaru({ cabang, produk: prod, berlaku_mulai: bulanIni(), kelas: "medium", tier: null });
     window.scrollTo({ top: 0, behavior: "smooth" });
   }
 
@@ -255,6 +256,12 @@ export default function KelasCabangClient() {
                   ))}
                 </div>
               </div>
+              <label className="field">
+                <span>Tier Cabang</span>
+                <Pilih nilai={baru.tier ? String(baru.tier) : ""} cari={false} opsi={TIER_OPSI}
+                       onPilih={(v) => setBaru({ ...baru, tier: v ? Number(v) : null })} />
+                <small className="muted">Default tier per bucket di template Target Tier.</small>
+              </label>
             </div>
             <div className="alert-box info">
               <span className="alert-ikon">i</span>
@@ -332,7 +339,7 @@ export default function KelasCabangClient() {
           ) : (
             <table className="pa-tabel tc-tabel">
               <thead>
-                <tr><th>Cabang</th><th>Produk</th><th>Berlaku mulai</th><th style={{ width: 170 }}>Grading</th><th className="r" style={{ width: 70 }}>Aksi</th></tr>
+                <tr><th>Cabang</th><th>Produk</th><th>Berlaku mulai</th><th style={{ width: 170 }}>Grading</th><th style={{ width: 120 }}>Tier Cabang</th><th className="r" style={{ width: 70 }}>Aksi</th></tr>
               </thead>
               <tbody>
                 {tersaring.slice(halIni * PER, halIni * PER + PER).map((b) => (
@@ -345,6 +352,10 @@ export default function KelasCabangClient() {
                         <Pilih nilai={b.kelas} cari={false} onPilih={(v) => simpan({ ...b, kelas: v })} opsi={KELAS_OPSI} />
                       </div>
                     </td>
+                    <td>
+                      <Pilih nilai={b.tier ? String(b.tier) : ""} cari={false} opsi={TIER_OPSI}
+                             onPilih={(v) => simpan({ ...b, tier: v ? Number(v) : null })} />
+                    </td>
                     <td className="r">
                       <button className="pa-ikon-btn pr-mati" title={`Hapus grading ${b.cabang} · ${b.produk}`} disabled={sibuk}
                               onClick={() => hapus(b)}>
@@ -354,7 +365,7 @@ export default function KelasCabangClient() {
                   </tr>
                 ))}
                 {!tersaring.length && (
-                  <tr><td colSpan={5} className="empty">
+                  <tr><td colSpan={6} className="empty">
                     {muat ? "Memuat…" : (cari || saringProduk || saringArea || saringKelas) ? "Tidak ada yang cocok." : "Belum ada grading cabang."}
                   </td></tr>
                 )}

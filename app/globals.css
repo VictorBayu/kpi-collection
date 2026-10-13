@@ -5089,3 +5089,34 @@ section.rh-grup.rh-kpi:hover{background:var(--surface);border-color:var(--line);
 .ind-dup-daftar-kepala{display:flex;justify-content:space-between;align-items:center}
 .ind-dup-cari{width:100%;padding:6px 9px;border:1px solid var(--line,#e2e8f0);border-radius:8px;font:inherit}
 .ind-dup-baris{display:grid;gap:4px;max-height:220px;overflow:auto}
+
+/* =====================================================================
+   TARGET TIER
+   ===================================================================== */
+.tt-pesan{margin:12px 0}
+.tt-kartu{padding:0;overflow:hidden}
+.tt-alat{display:flex;flex-wrap:wrap;gap:12px;align-items:flex-end;padding:16px}
+.tt-field{display:grid;gap:4px;min-width:220px}
+.tt-salin summary{cursor:pointer;font-size:13px;font-weight:600;color:#4338ca;padding:8px 0}
+.tt-salin-isi{display:flex;flex-wrap:wrap;gap:8px;align-items:center;padding-top:6px}
+.tt-cek{display:flex;gap:6px;align-items:center;font-size:13px}
+.tt-pratinjau{margin:0 16px 16px;padding:12px 14px;border:1px solid var(--line,#e2e8f0);border-radius:12px;display:grid;gap:10px}
+.tt-pratinjau-ringkas{display:grid;gap:2px}
+.tt-daftar{border-radius:10px;padding:8px 12px;font-size:13px}
+.tt-daftar.bad{background:#fef2f2;color:#991b1b}
+.tt-daftar.warn{background:#fffbeb;color:#92400e}
+.tt-daftar ul{margin:6px 0 0;padding-left:18px;max-height:180px;overflow:auto}
+.tt-pratinjau-aksi{display:flex;gap:8px}
+.tt-tab{display:flex;flex-wrap:wrap;gap:6px;align-items:center;padding:0 16px 12px}
+.tt-tab>button[role=tab]{border:1px solid var(--line,#e2e8f0);background:var(--surface,#fff);border-radius:999px;padding:6px 14px;font:inherit;font-weight:600;cursor:pointer}
+.tt-tab>button[role=tab].on{background:#4338ca;border-color:#4338ca;color:#fff}
+.tt-sela{width:1px;height:22px;background:var(--line,#e2e8f0);margin:0 6px}
+.tt-chip{border:1px solid var(--line,#e2e8f0);background:transparent;border-radius:8px;padding:5px 10px;font:inherit;font-size:13px;cursor:pointer}
+.tt-chip.on{background:#eef2ff;border-color:#c7d2fe;color:#3730a3;font-weight:600}
+.tt-cari{margin-left:auto}
+.tt-tempat{font-weight:600}
+.tt-sel{cursor:pointer;white-space:nowrap}
+.tt-sel:hover{background:#f8fafc}
+.tt-sel.beda{background:#fef9c3}
+.tt-sel.aktif{font-weight:700;color:#3730a3}
+.tt-input{width:96px;padding:4px 6px;border:1px solid #6366f1;border-radius:6px;text-align:right;font:inherit}
