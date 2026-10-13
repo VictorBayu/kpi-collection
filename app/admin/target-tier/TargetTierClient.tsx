@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import Ikon from "@/components/Ikon";
 import Pilih from "@/components/Pilih";
 import KotakCari from "@/components/KotakCari";
@@ -57,6 +57,8 @@ export default function TargetTierClient() {
   const [edit, setEdit] = useState<{ id: number; kolom: string; nilai: string } | null>(null);
   const [salinDari, setSalinDari] = useState("");
   const [salinTimpa, setSalinTimpa] = useState(false);
+  const inputBerkas = useRef<HTMLInputElement>(null);
+  const MAKS_MB = 5;
 
   async function muat(p: string = periode) {
     const r = await fetch(`/api/admin/target-tier${p ? `?periode=${p}` : ""}`, { cache: "no-store" });
@@ -117,14 +119,14 @@ export default function TargetTierClient() {
     } finally { setSibuk(false); }
   }
 
-  async function salin() {
-    if (!salinDari) { setPesan("Pilih periode asal."); return; }
-    if (!confirm(`Salin target ${labelBulan(salinDari)} ke ${labelBulan(periode)}${salinTimpa ? " (isi yang ada DIGANTI)" : ""}?`)) return;
+  async function salin(asal: string = salinDari) {
+    if (!asal) { setPesan("Pilih periode asal."); return; }
+    if (!confirm(`Salin target ${labelBulan(asal)} ke ${labelBulan(periode)}${salinTimpa ? " (isi yang ada DIGANTI)" : ""}?`)) return;
     setSibuk(true); setPesan(null);
     try {
       const r = await fetch("/api/admin/target-tier", {
         method: "PUT", headers: { "content-type": "application/json" },
-        body: JSON.stringify({ dari: salinDari, ke: periode, timpa: salinTimpa }),
+        body: JSON.stringify({ dari: asal, ke: periode, timpa: salinTimpa }),
       });
       const j = await r.json().catch(() => ({}));
       if (!r.ok) { setPesan(j.error ?? "Gagal menyalin."); return; }
@@ -180,7 +182,7 @@ export default function TargetTierClient() {
 
       <section className="card tt-kartu">
         <div className="tt-unggah-kepala">
-          <h3><Ikon nama="upload" ukuran={18} /> Unggah target Excel</h3>
+          <h3><span className="tt-ikon"><Ikon nama="upload" ukuran={16} /></span> Unggah target Excel</h3>
           <ol className="tt-langkah">
             <li>Pilih <b>periode</b> di bawah.</li>
             <li><a href={`/api/admin/target-tier/template?periode=${periode}`} download>Unduh template {labelBulan(periode)}</a> — kolom <b>Periode</b> sudah terisi {periode.slice(0, 7)}.</li>
@@ -196,12 +198,18 @@ export default function TargetTierClient() {
           <label className="tt-field">
             <span className="eyebrow">UNGGAH EXCEL</span>
             <span className="drop tt-drop">
-              <input type="file" accept=".xlsx,.xls" hidden
-                     onChange={(e) => { setBerkas(e.target.files?.[0] ?? null); setPratinjau(null); }} />
-              <Ikon nama="sheet" ukuran={18} />
+              <input ref={inputBerkas} type="file" accept=".xlsx,.xls" hidden
+                     onChange={(e) => {
+                       const f = e.target.files?.[0] ?? null;
+                       if (f && f.size > MAKS_MB * 1024 * 1024) {
+                         setPesan(`Berkas terlalu besar (maks ${MAKS_MB}MB).`); e.target.value = ""; return;
+                       }
+                       setBerkas(f); setPratinjau(null);
+                     }} />
+              <span className="tt-drop-ikon"><Ikon nama="sheet" ukuran={16} /></span>
               <span className="tt-drop-teks">
                 <b>{berkas ? berkas.name : "Pilih berkas Excel"}</b>
-                <small className="faint">{berkas ? "Klik untuk mengganti berkas" : ".xlsx atau .xls"}</small>
+                <small className="mono">{berkas ? "klik untuk mengganti berkas" : `.xlsx atau .xls (maks ${MAKS_MB}MB)`}</small>
               </span>
             </span>
           </label>
@@ -209,14 +217,14 @@ export default function TargetTierClient() {
             <Ikon nama="upload" ukuran={15} /> Periksa berkas
           </button>
           <details className="tt-salin">
-            <summary>Salin dari periode lain</summary>
+            <summary className="btn tt-salin-btn"><Ikon nama="copy" ukuran={15} /> Salin dari periode lain</summary>
             <div className="tt-salin-isi">
               <Pilih nilai={salinDari} cari={false} onPilih={setSalinDari}
                      opsi={[{ nilai: "", label: "Pilih bulan asal…" },
                             ...bulanLain.map((x) => ({ nilai: x.periode, label: `${labelBulan(x.periode)} · ${x.n}` }))]} />
               <label className="tt-cek"><input type="checkbox" checked={salinTimpa}
                      onChange={(e) => setSalinTimpa(e.target.checked)} /> Timpa isi {labelBulan(periode)}</label>
-              <button className="btn sm" disabled={sibuk} onClick={salin}>Salin</button>
+              <button className="btn sm" disabled={sibuk} onClick={() => salin()}>Salin</button>
               {baris.length > 0 && (
                 <button className="btn ghost sm bahaya" disabled={sibuk} onClick={hapusPeriode}>Hapus target periode ini</button>
               )}
@@ -252,14 +260,15 @@ export default function TargetTierClient() {
           </div>
         )}
 
-        <div className="tt-tab" role="tablist">
-          {KELOMPOK.map((k) => (
-            <button key={k} role="tab" aria-selected={kelompok === k} className={kelompok === k ? "on" : ""}
-                    onClick={() => { setKelompok(k); setHal(0); }}>
-              {k} <span className="num">{baris.filter((b) => b.kelompok_produk === k && b.bucket === bucket).length}</span>
-            </button>
-          ))}
-          <span className="tt-sela" />
+        <div className="tt-tab">
+          <div className="tt-seg" role="tablist">
+            {KELOMPOK.map((k) => (
+              <button key={k} role="tab" aria-selected={kelompok === k} className={kelompok === k ? "on" : ""}
+                      onClick={() => { setKelompok(k); setHal(0); }}>
+                {k} <span className="num">{baris.filter((b) => b.kelompok_produk === k && b.bucket === bucket).length}</span>
+              </button>
+            ))}
+          </div>
           {BUCKET.map((b) => (
             <button key={b.kode} className={"tt-chip" + (bucket === b.kode ? " on" : "")}
                     onClick={() => { setBucket(b.kode); setHal(0); }}>{b.label}</button>
@@ -305,18 +314,34 @@ export default function TargetTierClient() {
                   </tr>
                 );
               })}
-              {!potong.length && (
-                <tr><td colSpan={7} className="empty">
-                  {baris.length ? "Tidak ada baris untuk pilihan ini." : `Belum ada target ${labelBulan(periode)}. Unduh template, isi, lalu unggah — atau salin dari periode lain.`}
-                </td></tr>
-              )}
             </tbody>
           </table>
+          {!potong.length && (baris.length ? (
+            <div className="tt-kosong"><p className="faint">Tidak ada baris untuk pilihan ini.</p></div>
+          ) : (
+            <div className="tt-kosong">
+              <span className="tt-kosong-ikon"><Ikon nama="table" ukuran={26} /></span>
+              <h4>Belum ada target {labelBulan(periode)}</h4>
+              <p>Unduh template, isi, lalu unggah — atau salin target dari periode sebelumnya untuk memulai setup data.</p>
+              <div className="tt-kosong-aksi">
+                {bulanLain[0] && (
+                  <button className="btn ghost" disabled={sibuk} onClick={() => salin(bulanLain[0].periode)}>
+                    <Ikon nama="copy" ukuran={15} /> Salin dari {labelBulan(bulanLain[0].periode)}
+                  </button>
+                )}
+                <button className="btn" onClick={() => inputBerkas.current?.click()}>
+                  <Ikon nama="upload" ukuran={15} /> Unggah Berkas Excel
+                </button>
+              </div>
+            </div>
+          ))}
         </div>
-        <div className="pa-pager">
-          <span className="faint">
-            {saring.length ? <>Menampilkan <b>{halIni * PER + 1}–{Math.min(halIni * PER + PER, saring.length)}</b> dari <b>{saring.length}</b></> : "Tidak ada data"}
-            {" "}· sel kuning = berubah dari bulan lalu · sel tebal = tier aktif · Enter simpan, Esc batal
+        <div className="pa-pager tt-footer">
+          <span className="tt-legenda faint">
+            <Ikon nama="alert" ukuran={14} /> {saring.length ? <>Menampilkan <b>{halIni * PER + 1}–{Math.min(halIni * PER + PER, saring.length)}</b> dari <b>{saring.length}</b></> : "Tidak ada data"}
+            <i className="tt-sw" /> Sel kuning = berubah dari bulan lalu
+            <b>Teks tebal</b> = tier aktif
+            <kbd>Enter</kbd> simpan, <kbd>Esc</kbd> batal
           </span>
           {totalHal > 1 && (
             <div className="pa-pager-btn">
@@ -325,6 +350,7 @@ export default function TargetTierClient() {
               <button className="btn ghost sm" disabled={halIni >= totalHal - 1} onClick={() => setHal(halIni + 1)}>Berikutnya →</button>
             </div>
           )}
+          <span className="faint num tt-total">Menampilkan {potong.length} dari {saring.length} baris</span>
         </div>
       </section>
     </div>
