@@ -179,6 +179,14 @@ export default function TargetTierClient() {
       {pesan && <div className="alert-box info tt-pesan"><span className="alert-ikon">i</span><span>{pesan}</span></div>}
 
       <section className="card tt-kartu">
+        <div className="tt-unggah-kepala">
+          <h3><Ikon nama="upload" ukuran={18} /> Unggah target Excel</h3>
+          <ol className="tt-langkah">
+            <li>Pilih <b>periode</b> di bawah.</li>
+            <li><a href={`/api/admin/target-tier/template?periode=${periode}`} download>Unduh template {labelBulan(periode)}</a> — kolom <b>Periode</b> sudah terisi {periode.slice(0, 7)}.</li>
+            <li>Isi target, lalu pilih berkas dan klik <b>Periksa berkas</b>; simpan bila tidak ada galat.</li>
+          </ol>
+        </div>
         <div className="tt-alat">
           <label className="tt-field">
             <span className="eyebrow">PERIODE</span>
@@ -187,8 +195,15 @@ export default function TargetTierClient() {
           </label>
           <label className="tt-field">
             <span className="eyebrow">UNGGAH EXCEL</span>
-            <input type="file" accept=".xlsx,.xls"
-                   onChange={(e) => { setBerkas(e.target.files?.[0] ?? null); setPratinjau(null); }} />
+            <span className="drop tt-drop">
+              <input type="file" accept=".xlsx,.xls" hidden
+                     onChange={(e) => { setBerkas(e.target.files?.[0] ?? null); setPratinjau(null); }} />
+              <Ikon nama="sheet" ukuran={18} />
+              <span className="tt-drop-teks">
+                <b>{berkas ? berkas.name : "Pilih berkas Excel"}</b>
+                <small className="faint">{berkas ? "Klik untuk mengganti berkas" : ".xlsx atau .xls"}</small>
+              </span>
+            </span>
           </label>
           <button className="btn" disabled={!berkas || sibuk} onClick={() => unggah("pratinjau")}>
             <Ikon nama="upload" ukuran={15} /> Periksa berkas

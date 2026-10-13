@@ -33,7 +33,7 @@ const TIER = [5, 4, 3, 2, 1] as const;
 const kolomTarget = (n: number, b: (typeof BUCKET)[number]) => `TargetT${n}_${b.label}`;
 
 export const HEADER_TEMPLATE = [
-  "Product", "Cabang/Area", "Grading",
+  "Periode", "Product", "Cabang/Area", "Grading",
   ...BUCKET.map((b) => b.kolomTier),
   ...TIER.flatMap((n) => BUCKET.map((b) => kolomTarget(n, b))),
 ];
@@ -94,7 +94,7 @@ export async function buatTemplate(periode: string): Promise<Buffer> {
   const isiBaris = (k: string, tipe: "cabang" | "area", tempat: string) => {
     const g = tipe === "cabang" ? petaGrading.get(`${norm(tempat)}|${k}`) : null;
     const o: Record<string, unknown> = {
-      Product: k, "Cabang/Area": tempat,
+      Periode: periode.slice(0, 7), Product: k, "Cabang/Area": tempat,
       Grading: g?.kelas ? String(g.kelas).toUpperCase() : "",
     };
     for (const b of BUCKET) {
@@ -119,11 +119,12 @@ export async function buatTemplate(periode: string): Promise<Buffer> {
 
   const wb = XLSX.utils.book_new();
   const ws = XLSX.utils.json_to_sheet(data, { header: HEADER_TEMPLATE });
-  ws["!cols"] = HEADER_TEMPLATE.map((h, i) => ({ wch: i < 2 ? 16 : Math.max(10, h.length + 2) }));
+  ws["!cols"] = HEADER_TEMPLATE.map((h, i) => ({ wch: i < 3 ? 16 : Math.max(10, h.length + 2) }));
   XLSX.utils.book_append_sheet(wb, ws, "TARGET TIER");
 
   const petunjuk = [
     ["Kolom", "Keterangan"],
+    ["Periode", "Bulan berlaku target, format YYYY-MM (mis. 2026-10). Satu berkas = satu periode; harus sama dengan periode yang dipilih saat unggah."],
     ["Product", "MIX, R2, atau R4."],
     ["Cabang/Area", "Nama cabang (sesuai master cabang) atau nama area untuk target level area."],
     ["Grading", "Hanya referensi, TIDAK diimpor. Grading dikelola di menu Grading Cabang."],
@@ -163,8 +164,22 @@ function angkaSel(cell: XLSX.CellObject | undefined, satuan: string): number | n
   return Math.round(n * 1e6) / 1e6;
 }
 
+/** "2026-10", "2026-10-01", tanggal Excel, atau "10/2026" -> YYYY-MM-01. */
+function bacaPeriode(v: unknown): string | null {
+  if (v instanceof Date) {
+    const j = new Date(v.getTime() + 12 * 3600 * 1000);
+    return `${j.getUTCFullYear()}-${String(j.getUTCMonth() + 1).padStart(2, "0")}-01`;
+  }
+  const t = String(v ?? "").trim();
+  let m = /^(\d{4})[-/.](\d{1,2})(?:[-/.]\d{1,2})?$/.exec(t);
+  if (m && Number(m[2]) >= 1 && Number(m[2]) <= 12) return `${m[1]}-${m[2].padStart(2, "0")}-01`;
+  m = /^(\d{1,2})[-/.](\d{4})$/.exec(t);
+  if (m && Number(m[1]) >= 1 && Number(m[1]) <= 12) return `${m[2]}-${m[1].padStart(2, "0")}-01`;
+  return null;
+}
+
 export async function bacaFile(buf: ArrayBuffer, periode: string): Promise<HasilBaca> {
-  const wb = XLSX.read(buf, { type: "array", cellNF: true });
+  const wb = XLSX.read(buf, { type: "array", cellNF: true, cellDates: true });
   const nama = wb.SheetNames.find((n) => /target/i.test(n)) ?? wb.SheetNames[0];
   const ws = wb.Sheets[nama];
   if (!ws || !ws["!ref"]) throw new Error("Berkas tidak punya lembar data yang bisa dibaca.");
@@ -179,7 +194,7 @@ export async function bacaFile(buf: ArrayBuffer, periode: string): Promise<Hasil
 
   const galat: string[] = [];
   const peringatan: string[] = [];
-  for (const wajib of ["Product", "Cabang/Area"]) {
+  for (const wajib of ["Periode", "Product", "Cabang/Area"]) {
     if (idx(wajib) < 0) galat.push(`Kolom "${wajib}" tidak ditemukan di baris judul.`);
   }
   // Kolom target dikenali lewat pola TargetT{n}_{bucket}.
@@ -202,10 +217,18 @@ export async function bacaFile(buf: ArrayBuffer, periode: string): Promise<Hasil
 
   for (let r = rng.s.r + 1; r <= rng.e.r; r++) {
     const no = r + 1; // nomor baris Excel
+    const periodeRaw = sel(r, idx("Periode"))?.v;
     const produkRaw = norm(sel(r, idx("Product"))?.v);
     const tempatRaw = norm(sel(r, idx("Cabang/Area"))?.v);
     if (!produkRaw && !tempatRaw) continue;
     barisFile++;
+
+    const pb = bacaPeriode(periodeRaw);
+    if (!pb) { galat.push(`Baris ${no}: Periode "${periodeRaw ?? ""}" tidak terbaca (pakai YYYY-MM, mis. ${periode.slice(0, 7)}).`); continue; }
+    if (pb !== periode) {
+      galat.push(`Baris ${no}: Periode ${pb.slice(0, 7)} berbeda dari periode yang dipilih (${periode.slice(0, 7)}). Satu berkas hanya untuk satu periode.`);
+      continue;
+    }
 
     if (!KELOMPOK.includes(produkRaw as Kelompok)) {
       galat.push(`Baris ${no}: Product "${produkRaw || "(kosong)"}" tidak dikenal (MIX/R2/R4).`);
