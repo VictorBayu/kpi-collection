@@ -5160,3 +5160,5 @@ section.rh-grup.rh-kpi:hover{background:var(--surface);border-color:var(--line);
 .tt-sw{display:inline-block;width:9px;height:9px;border-radius:50%;background:#fde047;margin-left:6px}
 .tt-legenda kbd{border:1px solid var(--line,#e2e8f0);border-radius:5px;padding:1px 6px;font-size:11px;background:#f8fafc}
 .tt-total{font-size:11.5px}
+.tt-salin>summary.tt-salin-btn:hover,.tt-salin[open]>summary.tt-salin-btn{background:#e0e7ff;color:#3730a3;border-color:#a5b4fc;box-shadow:none;transform:none}
+.tt-salin>summary.tt-salin-btn:hover svg,.tt-salin>summary.tt-salin-btn svg{color:inherit;stroke:currentColor}
