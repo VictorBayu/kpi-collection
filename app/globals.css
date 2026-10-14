@@ -5162,3 +5162,13 @@ section.rh-grup.rh-kpi:hover{background:var(--surface);border-color:var(--line);
 .tt-total{font-size:11.5px}
 .tt-salin>summary.tt-salin-btn:hover,.tt-salin[open]>summary.tt-salin-btn{background:#e0e7ff;color:#3730a3;border-color:#a5b4fc;box-shadow:none;transform:none}
 .tt-salin>summary.tt-salin-btn:hover svg,.tt-salin>summary.tt-salin-btn svg{color:inherit;stroke:currentColor}
+
+/* Grading Cabang — unggah Excel */
+.gc-unggah{margin:12px 0}
+.gc-bulan{padding:9px 12px;border:1px solid var(--line,#e2e8f0);border-radius:10px;background:var(--surface,#fff);font:inherit;min-width:180px}
+.gc-kolom{display:grid;gap:8px;padding:14px 20px;border-bottom:1px solid var(--line,#e2e8f0)}
+.gc-kolom-daftar{display:flex;flex-wrap:wrap;gap:6px}
+.gc-kolom-chip{display:inline-flex;align-items:center;gap:6px;border:1px solid var(--line,#e2e8f0);background:#f8fafc;border-radius:8px;padding:4px 10px;font-size:12.5px;font-weight:600}
+.gc-kolom-chip em{font-style:normal;font-weight:500;font-size:11px;color:var(--muted,#64748b)}
+.gc-kolom-chip.wajib{background:#eef2ff;border-color:#c7d2fe;color:#3730a3}
+.gc-kolom-chip.wajib em{color:#4f46e5}

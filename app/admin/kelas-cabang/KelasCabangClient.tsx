@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import Pilih from "@/components/Pilih";
 import KotakCari from "@/components/KotakCari";
 import Ikon from "@/components/Ikon";
@@ -11,6 +11,13 @@ import { namaPeriode } from "@/lib/format";
 type Baris = { cabang: string; produk: string; berlaku_mulai: string; kelas: string; tier?: number | null };
 const TIER_OPSI = [{ nilai: "", label: "—" }, ...[1, 2, 3, 4, 5].map((n) => ({ nilai: String(n), label: `Tier ${n}` }))];
 type Cabang = { branch_id: string; cabang: string; area: string | null };
+type KolomTpl = { header: string; wajib: boolean; impor: boolean; petunjuk: string };
+type Pratinjau = {
+  ringkas: { barisFile: number; baru: number; berubah: number; sama: number };
+  galat: string[]; jumlahGalat: number; peringatan: string[];
+  contoh: { cabang: string; produk: string; periode: string; kelas: string; tier: number | null; status: string }[];
+  kolomDikenal: string[]; kolomAbaikan: string[];
+};
 
 const KELAS_OPSI = [
   { nilai: "large", label: "Large" },
@@ -53,6 +60,30 @@ export default function KelasCabangClient() {
   const [saringKelas, setSaringKelas] = useState("");   // "" | large | medium | small | belum
   const [saringArea, setSaringArea] = useState("");
   const [hal, setHal] = useState(0);
+  const [kolomTpl, setKolomTpl] = useState<KolomTpl[]>([]);
+  const [unggahBuka, setUnggahBuka] = useState(false);
+  const [periodeUnggah, setPeriodeUnggah] = useState(() => bulanIni().slice(0, 7));
+  const [berkas, setBerkas] = useState<File | null>(null);
+  const [pratinjau, setPratinjau] = useState<Pratinjau | null>(null);
+  const [kabar, setKabar] = useState<string | null>(null);
+  const inputBerkas = useRef<HTMLInputElement>(null);
+
+  async function unggah(mode: "pratinjau" | "simpan") {
+    if (!berkas) { setPesan("Pilih berkas Excel dulu."); return; }
+    setSibuk(true); setPesan(null); setKabar(null);
+    try {
+      const fd = new FormData();
+      fd.set("file", berkas); fd.set("periode", periodeUnggah); fd.set("mode", mode);
+      const r = await fetch("/api/admin/kelas-cabang/unggah", { method: "POST", body: fd });
+      const j = await r.json().catch(() => ({}));
+      if (!r.ok) { setPesan(j.error ?? "Gagal membaca berkas."); return; }
+      if (mode === "pratinjau") { setPratinjau(j); return; }
+      setPratinjau(null); setBerkas(null);
+      if (inputBerkas.current) inputBerkas.current.value = "";
+      setKabar(`${j.disimpan} baris grading tersimpan (${j.ringkas.baru} baru, ${j.ringkas.berubah} berubah, ${j.ringkas.sama} tidak berubah).`);
+      await segarkan();
+    } finally { setSibuk(false); }
+  }
 
   async function segarkan() {
     const r = await fetch("/api/admin/kelas-cabang", { cache: "no-store" });
@@ -61,6 +92,7 @@ export default function KelasCabangClient() {
     setBaris(j.kelas ?? []);
     setCabangList(j.cabang ?? []);
     setProduk(j.produk ?? []);
+    setKolomTpl(j.kolomTemplate ?? []);
     setMuat(false);
   }
   useEffect(() => { segarkan(); }, []);
@@ -152,9 +184,14 @@ export default function KelasCabangClient() {
         deskripsi={<>Grading cabang (Large/Medium/Small) per produk, dipakai jabatan bermekanisme “tabel tier” — disilang dengan
           tier orangnya untuk menentukan nominal di <Link className="lnk" href="/admin/tier">Tabel Tier Insentif</Link>.</>}
         aksi={
-          <button className="btn" disabled={!cabangList.length} onClick={() => beriTier()}>
-            <Ikon nama="plus" ukuran={16} tebal={2.2} /> Tambah grading cabang
-          </button>
+          <>
+            <button className="btn ghost" onClick={() => setUnggahBuka((v) => !v)}>
+              <Ikon nama="upload" ukuran={16} /> Unggah Excel
+            </button>
+            <button className="btn" disabled={!cabangList.length} onClick={() => beriTier()}>
+              <Ikon nama="plus" ukuran={16} tebal={2.2} /> Tambah grading cabang
+            </button>
+          </>
         }
       />
 
@@ -163,6 +200,112 @@ export default function KelasCabangClient() {
           <span className="alert-ikon">!</span><span>{pesan}</span>
           <button className="alert-tutup" onClick={() => setPesan(null)} aria-label="Tutup pesan">×</button>
         </div>
+      )}
+
+      {kabar && (
+        <div className="alert-box info tr-pesan"><span className="alert-ikon">i</span><span>{kabar}</span>
+          <button className="alert-tutup" onClick={() => setKabar(null)} aria-label="Tutup pesan">×</button></div>
+      )}
+
+      {unggahBuka && (
+        <section className="card tt-kartu gc-unggah">
+          <div className="tt-unggah-kepala">
+            <h3><span className="tt-ikon"><Ikon nama="upload" ukuran={16} /></span> Unggah Grading &amp; Tier Cabang via Excel</h3>
+            <ol className="tt-langkah">
+              <li>Pilih <b>periode berlaku</b>, lalu <a href={`/api/admin/kelas-cabang/template?periode=${periodeUnggah}`} download>unduh template</a> — sudah berisi semua cabang × produk beserta grading yang berlaku.</li>
+              <li>Ubah Grading / Tier Cabang yang perlu, lalu pilih berkas dan klik <b>Periksa berkas</b>.</li>
+              <li>Simpan bila tidak ada galat. Baris lama tetap tersimpan sebagai riwayat.</li>
+            </ol>
+          </div>
+          <div className="tt-alat">
+            <label className="tt-field">
+              <span className="eyebrow">PERIODE BERLAKU</span>
+              <input type="month" className="num gc-bulan" value={periodeUnggah}
+                     onChange={(e) => { setPeriodeUnggah(e.target.value); setPratinjau(null); }} />
+            </label>
+            <label className="tt-field">
+              <span className="eyebrow">UNGGAH EXCEL</span>
+              <span className="drop tt-drop">
+                <input ref={inputBerkas} type="file" accept=".xlsx,.xls" hidden
+                       onChange={(e) => {
+                         const f = e.target.files?.[0] ?? null;
+                         if (f && f.size > 5 * 1024 * 1024) { setPesan("Berkas terlalu besar (maks 5MB)."); e.target.value = ""; return; }
+                         setBerkas(f); setPratinjau(null);
+                       }} />
+                <span className="tt-drop-ikon"><Ikon nama="sheet" ukuran={16} /></span>
+                <span className="tt-drop-teks">
+                  <b>{berkas ? berkas.name : "Pilih berkas Excel"}</b>
+                  <small className="mono">{berkas ? "klik untuk mengganti berkas" : ".xlsx atau .xls (maks 5MB)"}</small>
+                </span>
+              </span>
+            </label>
+            <button className="btn" disabled={!berkas || sibuk} onClick={() => unggah("pratinjau")}>
+              <Ikon nama="upload" ukuran={15} /> {sibuk && !pratinjau ? "Memeriksa…" : "Periksa berkas"}
+            </button>
+            <a className="btn tint" href={`/api/admin/kelas-cabang/template?periode=${periodeUnggah}`} download>
+              <Ikon nama="download" ukuran={15} /> Unduh template
+            </a>
+          </div>
+
+          {kolomTpl.length > 0 && (
+            <div className="gc-kolom">
+              <span className="eyebrow">KOLOM TEMPLATE</span>
+              <div className="gc-kolom-daftar">
+                {kolomTpl.map((k) => (
+                  <span key={k.header} className={"gc-kolom-chip" + (k.wajib ? " wajib" : "")} title={k.petunjuk}>
+                    {k.header}<em>{!k.impor ? "referensi" : k.wajib ? "wajib" : "opsional"}</em>
+                  </span>
+                ))}
+              </div>
+              <small className="faint">Format mengikuti daftar kolom sistem: urutan kolom di Excel bebas, dan kolom baru di template otomatis dikenali.</small>
+            </div>
+          )}
+
+          {pratinjau && (
+            <div className="tt-pratinjau">
+              <div className="tt-pratinjau-ringkas">
+                <b>Hasil periksa</b>
+                <span>{pratinjau.ringkas.barisFile} baris terbaca · {pratinjau.ringkas.baru} baru · {pratinjau.ringkas.berubah} berubah · {pratinjau.ringkas.sama} tidak berubah</span>
+              </div>
+              {pratinjau.jumlahGalat > 0 && (
+                <div className="tt-daftar bad">
+                  <b>{pratinjau.jumlahGalat} galat — harus diperbaiki sebelum disimpan</b>
+                  <ul>{pratinjau.galat.map((g, i) => <li key={i}>{g}</li>)}</ul>
+                </div>
+              )}
+              {pratinjau.peringatan.length > 0 && (
+                <div className="tt-daftar warn">
+                  <b>Peringatan</b>
+                  <ul>{pratinjau.peringatan.map((g, i) => <li key={i}>{g}</li>)}</ul>
+                </div>
+              )}
+              {pratinjau.contoh.length > 0 && (
+                <div className="tabel-scroll">
+                  <table className="pa-tabel">
+                    <thead><tr><th>Cabang</th><th>Produk</th><th>Berlaku</th><th>Grading</th><th className="r">Tier</th><th>Status</th></tr></thead>
+                    <tbody>
+                      {pratinjau.contoh.map((c, i) => (
+                        <tr key={i}>
+                          <td>{c.cabang}</td><td><span className="sp-produk">{c.produk}</span></td>
+                          <td className="num">{c.periode.slice(0, 7)}</td><td>{namaKelas(c.kelas)}</td>
+                          <td className="r num">{c.tier ?? "—"}</td>
+                          <td><span className={"pa-status " + (c.status === "baru" ? "good" : "warn")}>{c.status}</span></td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+              <div className="tt-pratinjau-aksi">
+                <button className="btn" disabled={sibuk || pratinjau.jumlahGalat > 0 || pratinjau.ringkas.baru + pratinjau.ringkas.berubah === 0}
+                        onClick={() => unggah("simpan")}>
+                  <Ikon nama="check" ukuran={15} /> {sibuk ? "Menyimpan…" : "Simpan grading"}
+                </button>
+                <button className="btn ghost" onClick={() => setPratinjau(null)}>Batal</button>
+              </div>
+            </div>
+          )}
+        </section>
       )}
 
       <div className="km-grid">

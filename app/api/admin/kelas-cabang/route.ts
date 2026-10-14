@@ -1,6 +1,7 @@
 import { requireAdmin, requireMenu, handler, HttpError } from "@/lib/auth";
 import { q, auditLog } from "@/lib/db";
 import { toISODate } from "@/lib/format";
+import { kolomUntukUI } from "@/lib/grading-cabang";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -66,6 +67,7 @@ export const GET = handler(async () => {
     // tidak perlu menebak bentuknya.
     kelas: kelas.map((k: any) => ({ ...k, berlaku_mulai: toISODate(k.berlaku_mulai) })),
     cabang, produk,
+    kolomTemplate: kolomUntukUI(),
   });
 });
 
