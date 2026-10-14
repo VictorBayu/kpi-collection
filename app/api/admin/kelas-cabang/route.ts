@@ -66,7 +66,12 @@ export const GET = handler(async () => {
     // ditampilkan apa adanya. Dinormalkan sekali di sini supaya klien
     // tidak perlu menebak bentuknya.
     kelas: kelas.map((k: any) => ({ ...k, berlaku_mulai: toISODate(k.berlaku_mulai) })),
-    cabang, produk,
+    // Master cabang API memuat satu nama dengan beberapa branch_id (mis.
+    // 460 & 560). Grading kuncinya NAMA cabang, jadi satu nama = satu entri;
+    // tanpa ini hitungan "pasangan cabang·produk" menggelembung.
+    cabang: cabang.filter((c: any, i: number, a: any[]) =>
+      a.findIndex((x) => x.cabang.trim().toUpperCase() === c.cabang.trim().toUpperCase()) === i),
+    produk,
     kolomTemplate: kolomUntukUI(),
   });
 });

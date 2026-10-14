@@ -133,11 +133,20 @@ export const kolomUntukUI = () => KOLOM.map((k) => ({
 /* ------------------------------------------------------------------ */
 
 async function muatKonteks(periodeBawaan: string) {
-  const [cab, prod] = await Promise.all([
+  const [cabMentah, prod] = await Promise.all([
     q<{ branch_id: string; cabang: string; area: string | null }>(
       `SELECT branch_id, cabang, area FROM cabang_api WHERE aktif ORDER BY area NULLS LAST, cabang`),
     q<{ kode: string; nama: string }>(`SELECT kode, nama FROM produk_master WHERE aktif ORDER BY urutan, kode`),
   ]);
+  // Master cabang bisa memuat nama yang sama lebih dari sekali (mis. beda
+  // branch_id). Grading kuncinya NAMA cabang, jadi satu nama = satu baris.
+  const sudah = new Set<string>();
+  const cab = cabMentah.filter((c) => {
+    const kn = norm(c.cabang);
+    if (sudah.has(kn)) return false;
+    sudah.add(kn);
+    return true;
+  });
   const cabang = new Map<string, string>();
   for (const c of cab) { cabang.set(norm(c.cabang), c.cabang); if (c.branch_id) cabang.set(norm(c.branch_id), c.cabang); }
   const produk = new Map(prod.map((p) => [norm(p.kode), p.kode]));
