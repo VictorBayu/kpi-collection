@@ -52,8 +52,17 @@ const norm = (v: unknown) => String(v ?? "").replace(/\s+/g, " ").trim().toUpper
 
 /** Daftar cabang & area yang dikenal (master cabang API). */
 export async function lokasiDikenal() {
-  const rows = await q<{ cabang: string; area: string | null }>(
+  const mentah = await q<{ cabang: string; area: string | null }>(
     `SELECT cabang, area FROM cabang_api WHERE aktif ORDER BY area NULLS LAST, cabang`);
+  // Master cabang memuat satu nama dengan beberapa branch_id (mis. 460 & 560).
+  // Target kuncinya NAMA cabang, jadi satu nama = satu baris.
+  const sudah = new Set<string>();
+  const rows = mentah.filter((r) => {
+    const k = norm(r.cabang);
+    if (sudah.has(k)) return false;
+    sudah.add(k);
+    return true;
+  });
   return {
     rows,
     cabang: new Map(rows.map((r) => [norm(r.cabang), r.cabang])),
