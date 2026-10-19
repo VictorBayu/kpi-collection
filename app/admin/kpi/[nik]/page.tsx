@@ -20,6 +20,8 @@ export const metadata = { title: "Detail KPI karyawan" };
  * dan butuh membandingkan angka dengan cepat. Karena itu di sini kartu besar
  * diganti tabel padat, dan seluruh isi — ringkasan, indikator, insentif —
  * disusun agar muat dalam satu layar tanpa menggulir bolak-balik.
+ * 
+ * 
  */
 export default async function DetailKpi({
   params, searchParams,
