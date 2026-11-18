@@ -256,15 +256,12 @@ async function hitungSatu(
    *  - standard: ambang = t{tier_aktif}. Lolos -> skor = tier_aktif;
    *    tidak lolos -> 1. Ambang kosong -> tidak bisa dinilai (NULL).
    *  - rasio: kelima t1..t5 wajib terisi (NULL -> tidak bisa dinilai,
-   *    tidak jatuh ke standard). Skor diinterpolasi lurus antar-tangga,
-   *    dibatasi 1..5.
+   *    tidak jatuh ke standard). BERTANGGA, bukan interpolasi: skor = n
+   *    tertinggi (5..1) yang t{n}-nya sudah terlampaui pencapaian, searah
+   *    indikator. Belum melewati t1 -> skor 1 (lantai, bukan 0).
    */
   const arah = `(CASE WHEN g.target_tier_bucket LIKE 'delq%' THEN -1 ELSE 1 END)`;
   const v = (x: string) => `(${arah} * ${x})`;
-  const tangga = (k: number, k2: number) =>
-    `WHEN ${v("g.nilai")} >= ${v(`g.tt${k}`)} THEN
-       ${k} + CASE WHEN g.tt${k2} = g.tt${k} THEN 0
-                   ELSE LEAST(1, (${v("g.nilai")} - ${v(`g.tt${k}`)}) / NULLIF(${v(`g.tt${k2}`)} - ${v(`g.tt${k}`)}, 0)) END`;
   const skorTargetTier = `
     CASE
       WHEN NOT g.tt_ada THEN NULL
@@ -272,10 +269,9 @@ async function hitungSatu(
         CASE
           WHEN g.tt1 IS NULL OR g.tt2 IS NULL OR g.tt3 IS NULL OR g.tt4 IS NULL OR g.tt5 IS NULL THEN NULL
           WHEN ${v("g.nilai")} >= ${v("g.tt5")} THEN 5
-          ${tangga(4, 5)}
-          ${tangga(3, 4)}
-          ${tangga(2, 3)}
-          ${tangga(1, 2)}
+          WHEN ${v("g.nilai")} >= ${v("g.tt4")} THEN 4
+          WHEN ${v("g.nilai")} >= ${v("g.tt3")} THEN 3
+          WHEN ${v("g.nilai")} >= ${v("g.tt2")} THEN 2
           ELSE 1
         END
       ELSE

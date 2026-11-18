@@ -572,7 +572,7 @@ function DetailTarget({ t, ubah, lain, namaSendiri, opsiSalin, salinKe }: {
               <span className="faint small">Mekanisme</span>
               <Pilih nilai={t.mekanisme_target_tier || "standard"} cari={false}
                      opsi={[{ nilai: "standard", label: "Standard (lolos/tidak)" },
-                            { nilai: "rasio", label: "Rasio (interpolasi t1–t5)" }]}
+                            { nilai: "rasio", label: "Rasio (bertangga t1–t5)" }]}
                      onPilih={(v) => ubah({ mekanisme_target_tier: v })} />
             </label>
           </>
@@ -583,7 +583,7 @@ function DetailTarget({ t, ubah, lain, namaSendiri, opsiSalin, salinKe }: {
           Target diambil otomatis dari menu <b>Target Tier</b> saat dihitung: periode,
           kelompok produk (MIX/R2/R4), dan cabang karyawan (jatuh ke area bila baris
           cabang tidak ada). Standard: lolos ambang tier aktif → skor = tier itu,
-          tidak lolos → 1. Rasio: skor diinterpolasi dari t1–t5 (kelimanya wajib terisi).
+          tidak lolos → 1. Rasio: skor = tier tertinggi (t5→t1) yang sudah terlampaui, minimal 1 (kelimanya wajib terisi).
           Delq makin kecil makin baik; Coll makin besar makin baik.
         </p>
       ) : (<>
