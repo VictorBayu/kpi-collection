@@ -138,7 +138,7 @@ export async function buatTemplate(periode: string): Promise<Buffer> {
     ["Cabang/Area", "Nama cabang (sesuai master cabang) atau nama area untuk target level area."],
     ["Grading", "Hanya referensi, TIDAK diimpor. Grading dikelola di menu Grading Cabang."],
     ["Tier 0+ .. Tier 90+, Tier Coll1-30", "Tier aktif (1-5) per bucket. Terisi dari Tier Cabang di Grading Cabang; boleh ditimpa per bucket."],
-    ["TargetT{n}_{bucket}", "Target tier n untuk bucket itu. MIX & R2 dalam persen (13,74 atau format % Excel), R4 dalam rupiah."],
+    ["TargetT{n}_{bucket}", "Target tier n untuk bucket itu. Rasio ditulis sebagai pecahan (0,0601) atau format % Excel (6,01%); amount ditulis dalam rupiah. Jenisnya dikenali per baris dari angkanya (≤ 1 = rasio, > 1 = amount), jadi satu produk boleh berisi cabang bertarget rasio dan cabang bertarget amount."],
     ["Sel kosong", "Belum berlaku (disimpan kosong, BUKAN 0). Isi 0 hanya bila target 0 memang sah."],
     ["Arah", "Delq: makin kecil makin baik (T5 paling ketat = paling kecil). Coll: makin besar makin baik."],
   ];
@@ -157,20 +157,25 @@ export type HasilBaca = {
   ringkas: { barisFile: number; barisTarget: number; berubah: number; baru: number };
 };
 
-/** Angka dari sel. Persen yang diformat % di Excel (0,1374) dijadikan 13,74. */
-function angkaSel(cell: XLSX.CellObject | undefined, satuan: string): number | null | "salah" {
+/**
+ * Angka dari sel, disimpan APA ADANYA: rasio sebagai pecahan (0,0601 =
+ * 6,01%; sel berformat % di Excel memang sudah pecahan), amount sebagai
+ * rupiah. Teks "6,01%" dibagi 100 supaya ikut jadi pecahan.
+ */
+function angkaSel(cell: XLSX.CellObject | undefined, _satuan?: string): number | null | "salah" {
   if (!cell || cell.v === null || cell.v === undefined || cell.v === "") return null;
   let n: number;
   if (typeof cell.v === "number") n = cell.v;
   else {
-    const s = String(cell.v).trim().replace(/%$/, "").replace(/\./g, "").replace(",", ".");
+    const mentah = String(cell.v).trim();
+    const persen = mentah.endsWith("%");
+    const s = mentah.replace(/%$/, "").replace(/\./g, "").replace(",", ".");
     if (!s) return null;
     n = Number(s);
     if (!Number.isFinite(n)) return "salah";
-    return n;
+    if (persen) n = n / 100;
   }
-  if (satuan === "persen" && typeof cell.z === "string" && cell.z.includes("%")) n = n * 100;
-  return Math.round(n * 1e6) / 1e6;
+  return Math.round(n * 1e9) / 1e9;
 }
 
 /** "2026-10", "2026-10-01", tanggal Excel, atau "10/2026" -> YYYY-MM-01. */
@@ -255,7 +260,7 @@ export async function bacaFile(buf: ArrayBuffer, periode: string): Promise<Hasil
       continue;
     }
     kunciTerlihat.set(kunciBaris, no);
-    const satuan = satuanKelompok(produkRaw);
+    const satuan = satuanKelompok(produkRaw); // hanya bawaan; ditentukan ulang per bucket dari angkanya
 
     for (const b of BUCKET) {
       const t: Record<number, number | null> = {};
@@ -278,6 +283,16 @@ export async function bacaFile(buf: ArrayBuffer, periode: string): Promise<Hasil
       if (!adaIsi && tier === null) continue; // bucket ini tidak dipakai di baris ini
 
       const label = `Baris ${no} ${produkRaw} · ${tempat} · ${b.label}`;
+      // Jenis target per baris dari angkanya: semua <= 1 = rasio (pecahan),
+      // semua > 1 = amount (rupiah). Campur = galat.
+      const bukanNol = TIER.map((n) => t[n]).filter((x): x is number => x !== null && x !== 0);
+      const adaKecil = bukanNol.some((x) => Math.abs(x) <= 1);
+      const adaBesar = bukanNol.some((x) => Math.abs(x) > 1);
+      if (adaKecil && adaBesar) {
+        galat.push(`${label}: target campur rasio (≤ 1) dan amount (> 1) dalam satu bucket.`);
+        continue;
+      }
+      const satuanBaris = adaBesar ? "nominal" : "persen";
       if (tier !== null && t[tier] === null) peringatan.push(`${label}: Tier ${tier} aktif tapi TargetT${tier} kosong — tidak bisa dinilai (standard).`);
       const terisi = TIER.filter((n) => t[n] !== null).map((n) => ({ n, v: t[n] as number }));
       if (terisi.some((x) => x.v === 0)) peringatan.push(`${label}: ada target bernilai 0. Kosongkan sel bila tier itu belum berlaku.`);
@@ -292,7 +307,7 @@ export async function bacaFile(buf: ArrayBuffer, periode: string): Promise<Hasil
       }
       hasil.push({
         kelompok_produk: produkRaw, tipe_lokasi: tipe, cabang_atau_area: tempat, bucket: b.kode,
-        satuan, tier_aktif: tier,
+        satuan: satuanBaris, tier_aktif: tier,
         t1: t[1] ?? null, t2: t[2] ?? null, t3: t[3] ?? null, t4: t[4] ?? null, t5: t[5] ?? null,
       });
     }

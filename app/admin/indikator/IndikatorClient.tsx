@@ -49,6 +49,8 @@ type Target = {
   sumber_target: string;
   target_tier_bucket: string;
   mekanisme_target_tier: string;
+  /** Indikator pendamping (rumus amount) untuk cabang yang target-nya amount. */
+  indikator_amount_id: string;
 };
 
 const BUCKET_TT = [
@@ -575,6 +577,13 @@ function DetailTarget({ t, ubah, lain, namaSendiri, opsiSalin, salinKe }: {
                             { nilai: "rasio", label: "Rasio (bertangga t1–t5)" }]}
                      onPilih={(v) => ubah({ mekanisme_target_tier: v })} />
             </label>
+            <label>
+              <span className="faint small">Rumus untuk cabang bertarget amount</span>
+              <Pilih nilai={t.indikator_amount_id || ""} cari
+                     opsi={[{ nilai: "", label: "— belum dipilih —" },
+                            ...lain.map((l) => ({ nilai: l.id, label: l.nama, ket: l.satuan }))]}
+                     onPilih={(v) => ubah({ indikator_amount_id: v })} />
+            </label>
           </>
         )}
       </div>
@@ -584,7 +593,10 @@ function DetailTarget({ t, ubah, lain, namaSendiri, opsiSalin, salinKe }: {
           kelompok produk (MIX/R2/R4), dan cabang karyawan (jatuh ke area bila baris
           cabang tidak ada). Standard: lolos ambang tier aktif → skor = tier itu,
           tidak lolos → 1. Rasio: skor = tier tertinggi (t5→t1) yang sudah terlampaui, minimal 1 (kelimanya wajib terisi).
-          Delq makin kecil makin baik; Coll makin besar makin baik.
+          Delq makin kecil makin baik; Coll makin besar makin baik. Cabang yang targetnya
+          <b> rasio</b> dinilai dengan rumus indikator ini; cabang yang targetnya <b>amount</b>
+          (mis. sebagian cabang R4) dinilai dengan indikator pada pilihan "Rumus untuk cabang
+          bertarget amount" — bila belum dipilih, cabang itu tidak bisa dinilai dan ditandai.
         </p>
       ) : (<>
       <p className="faint small mt">
@@ -818,6 +830,7 @@ export default function IndikatorClient() {
         sumber_target: t.sumber_target ?? "manual",
         target_tier_bucket: t.target_tier_bucket ?? "",
         mekanisme_target_tier: t.mekanisme_target_tier ?? "standard",
+        indikator_amount_id: t.indikator_amount_id ?? "",
         nominal: (t.nominal ?? []).map((n: any) => ({
           nilai_min: angkaStr(n.nilai_min), nilai_max: angkaStr(n.nilai_max),
           nominal: angkaStr(n.nominal),
@@ -971,7 +984,7 @@ export default function IndikatorClient() {
       bobot_kpi: "", bobot_insentif: "", faktor_pengakuan: "100",
       target_kpi3: "", target_kpi4: "", target_kpi5: "",
       pita: [], pemilih_id: "", nominal: [], gerbang: [],
-      sumber_target: "manual", target_tier_bucket: "", mekanisme_target_tier: "standard",
+      sumber_target: "manual", target_tier_bucket: "", mekanisme_target_tier: "standard", indikator_amount_id: "",
       aktif: true,
     }]);
     setDetailBuka(target.length);

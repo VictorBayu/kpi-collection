@@ -33,7 +33,8 @@ const PER = 30;
 /** 13,74% · Rp1,45 M · Rp850 rb */
 function tampil(v: number | null, satuan: string) {
   if (v === null || v === undefined) return "—";
-  if (satuan === "persen") return `${v.toLocaleString("id-ID", { maximumFractionDigits: 2 })}%`;
+  // Rasio disimpan sebagai pecahan (0,0601) -> tampil 6,01%.
+  if (satuan === "persen") return `${(v * 100).toLocaleString("id-ID", { maximumFractionDigits: 2 })}%`;
   const a = Math.abs(v);
   if (a >= 1e9) return `Rp${(v / 1e9).toLocaleString("id-ID", { maximumFractionDigits: 2 })} M`;
   if (a >= 1e6) return `Rp${(v / 1e6).toLocaleString("id-ID", { maximumFractionDigits: 2 })} jt`;
@@ -54,7 +55,7 @@ export default function TargetTierClient() {
   const [pesan, setPesan] = useState<string | null>(null);
   const [berkas, setBerkas] = useState<File | null>(null);
   const [pratinjau, setPratinjau] = useState<Pratinjau | null>(null);
-  const [edit, setEdit] = useState<{ id: number; kolom: string; nilai: string } | null>(null);
+  const [edit, setEdit] = useState<{ id: number; kolom: string; nilai: string; persen?: boolean } | null>(null);
   const [salinDari, setSalinDari] = useState("");
   const [salinTimpa, setSalinTimpa] = useState(false);
   const inputBerkas = useRef<HTMLInputElement>(null);
@@ -110,7 +111,10 @@ export default function TargetTierClient() {
     try {
       const r = await fetch("/api/admin/target-tier", {
         method: "PATCH", headers: { "content-type": "application/json" },
-        body: JSON.stringify({ id: edit.id, kolom: edit.kolom, nilai: edit.nilai }),
+        // Sel rasio diedit dalam persen (6,01) lalu disimpan sebagai pecahan.
+        body: JSON.stringify({ id: edit.id, kolom: edit.kolom,
+          nilai: edit.persen && edit.nilai.trim() !== ""
+            ? String(Number(edit.nilai.replace(",", ".")) / 100) : edit.nilai }),
       });
       const j = await r.json().catch(() => ({}));
       if (!r.ok) { setPesan(j.error ?? "Gagal menyimpan sel."); return; }
@@ -292,7 +296,7 @@ export default function TargetTierClient() {
                   <tr key={b.id}>
                     <td>
                       <div className="tt-tempat">{b.cabang_atau_area}</div>
-                      <span className="pa-sub">{b.tipe_lokasi === "area" ? "level area" : "cabang"} · {b.satuan}</span>
+                      <span className="pa-sub">{b.tipe_lokasi === "area" ? "level area" : "cabang"} · {b.satuan === "nominal" ? "amount" : "rasio"}</span>
                     </td>
                     {KOLOM.map((c) => {
                       const beda = !!l && l[c] !== b[c];
@@ -301,7 +305,9 @@ export default function TargetTierClient() {
                       return (
                         <td key={c} className={"r num tt-sel" + (beda ? " beda" : "") + (aktif ? " aktif" : "")}
                             title={beda ? `Bulan lalu: ${c === "tier_aktif" ? (l![c] ?? "—") : tampil(l![c] as number | null, b.satuan)}` : "Klik untuk ubah"}
-                            onClick={() => !sedang && setEdit({ id: b.id, kolom: c, nilai: b[c] === null ? "" : String(b[c]) })}>
+                            onClick={() => !sedang && setEdit({ id: b.id, kolom: c, persen: c !== "tier_aktif" && b.satuan === "persen",
+                              nilai: b[c] === null ? "" : String(c !== "tier_aktif" && b.satuan === "persen"
+                                ? Math.round((b[c] as number) * 1e6) / 1e4 : b[c]) })}>
                           {sedang ? (
                             <input autoFocus className="num tt-input" value={edit!.nilai}
                                    onChange={(e) => setEdit({ ...edit!, nilai: e.target.value })}

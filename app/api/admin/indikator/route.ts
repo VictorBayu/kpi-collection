@@ -182,7 +182,7 @@ export const GET = handler(async (req) => {
     `SELECT id, alias, produk, peran, jenis_nilai, nilai_efek, pemilih_id,
             bobot_kpi, bobot_insentif, faktor_pengakuan,
             target_kpi3, target_kpi4, target_kpi5, aktif,
-            sumber_target, target_tier_bucket, mekanisme_target_tier
+            sumber_target, target_tier_bucket, mekanisme_target_tier, indikator_amount_id
        FROM indikator_target WHERE indikator_id = $1 AND periode = $2::date
       ORDER BY alias, produk`, [id, periode]);
 
@@ -373,8 +373,8 @@ export const POST = handler(async (req) => {
            (indikator_id, alias, produk, peran, jenis_nilai, nilai_efek, pemilih_id,
             bobot_kpi, bobot_insentif, faktor_pengakuan,
             target_kpi3, target_kpi4, target_kpi5, aktif, periode,
-            sumber_target, target_tier_bucket, mekanisme_target_tier)
-         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15::date,$16,$17,$18)
+            sumber_target, target_tier_bucket, mekanisme_target_tier, indikator_amount_id)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15::date,$16,$17,$18,$19)
          ON CONFLICT (indikator_id, alias, produk, periode) DO UPDATE
            SET peran=EXCLUDED.peran,
                jenis_nilai=EXCLUDED.jenis_nilai,
@@ -388,7 +388,8 @@ export const POST = handler(async (req) => {
                aktif=EXCLUDED.aktif,
                sumber_target=EXCLUDED.sumber_target,
                target_tier_bucket=EXCLUDED.target_tier_bucket,
-               mekanisme_target_tier=EXCLUDED.mekanisme_target_tier, updated_at=now()
+               mekanisme_target_tier=EXCLUDED.mekanisme_target_tier,
+               indikator_amount_id=EXCLUDED.indikator_amount_id, updated_at=now()
          RETURNING id`,
         [id, alias, produk, peranTarget, jenisNilai,
          angkaAtauNull(t.nilai_efek),
@@ -401,7 +402,9 @@ export const POST = handler(async (req) => {
          angkaAtauNull(t.target_kpi5),
          t.aktif !== false, periode,
          sumberTarget, sumberTarget === "target_tier" ? bucketTT : null,
-         t.mekanisme_target_tier === "rasio" ? "rasio" : "standard"]);
+         t.mekanisme_target_tier === "rasio" ? "rasio" : "standard",
+         sumberTarget === "target_tier" && t.indikator_amount_id && t.indikator_amount_id !== id
+           ? String(t.indikator_amount_id) : null]);
 
       // Pita nominal dan gerbang hanya berlaku pada peran 'nominal'.
       // Menyimpannya untuk peran lain akan membuat baris yatim yang tidak

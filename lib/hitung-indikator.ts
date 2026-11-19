@@ -197,6 +197,7 @@ async function hitungSatu(
   periode: string,
   kat: Awaited<ReturnType<typeof muatKatalog>>,
   sumber: SumberMentah,
+  semua?: Map<string, DefIndikator>,
 ): Promise<number> {
   const params: any[] = [];
   kat.resetPakai();
@@ -204,6 +205,24 @@ async function hitungSatu(
     { komponen: d.komponen, kali_seratus: d.kali_seratus },
     kat.kolomSah, params,
   );
+  // Target Tier bisa berisi cabang bertarget RASIO dan cabang bertarget
+  // AMOUNT dalam satu produk. Cabang amount dinilai dengan rumus indikator
+  // pendamping (indikator_amount_id) — dihitung berdampingan di sini.
+  const pendamping = await q<{ id: string }>(
+    `SELECT DISTINCT indikator_amount_id AS id FROM indikator_target
+      WHERE indikator_id = $1 AND produk = $2 AND periode = $3::date AND aktif
+        AND sumber_target = 'target_tier' AND indikator_amount_id IS NOT NULL`,
+    [d.id, produk, periode]);
+  if (pendamping.length > 1) {
+    throw new Error("Pendaftaran indikator ini memakai lebih dari satu rumus amount untuk produk yang sama; samakan dulu di Create Indicator.");
+  }
+  const defAmount = pendamping[0] ? semua?.get(pendamping[0].id) : undefined;
+  if (pendamping[0] && !defAmount) {
+    throw new Error("Indikator rumus amount yang dipilih tidak aktif / tidak ditemukan.");
+  }
+  const ekspresiAmount = defAmount
+    ? susunRumus({ komponen: defAmount.komponen, kali_seratus: false }, kat.kolomSah, params)
+    : "NULL::numeric";
   // Sumber tambahan digabung hanya bila rumusnya benar-benar memakainya.
   const joinPendukung = kat.gabungDipakai();
 
@@ -219,6 +238,7 @@ async function hitungSatu(
   const pJabPeriode = `$${params.push(sumber.jabatanPeriode ? JSON.stringify(sumber.jabatanPeriode) : null)}`;
   const pNama      = `$${params.push(d.nama)}`;
   const pSatuan    = `$${params.push(d.satuan)}`;
+  const pKali      = `$${params.push(!!d.kali_seratus)}::boolean`;
   const pCatatan   = `$${params.push(catatan)}`;
 
   /**
@@ -353,7 +373,7 @@ async function hitungSatu(
          AND t.indikator_id = ${pIndikator} AND t.produk = ${pProduk} AND t.aktif
     ),
     hitung AS (
-      SELECT dm.${kolomNik} AS nik, (${ekspresi}) AS nilai
+      SELECT dm.${kolomNik} AS nik, (${ekspresi}) AS nilai, (${ekspresiAmount}) AS nilai_amount
         FROM ${sumber.ekspresiDari(params)} dm${joinPendukung}
        WHERE dm.${kolomNik} IS NOT NULL
          AND upper(btrim(COALESCE(dm.product, ''))) = upper(${pProduk})
@@ -372,10 +392,21 @@ async function hitungSatu(
              t.target_kpi3, t.target_kpi4, t.target_kpi5, t.ada_pita,
              t.sumber_target, t.target_tier_bucket, t.mekanisme_target_tier,
              tt.id IS NOT NULL AS tt_ada, tt.tier_aktif AS tt_tier,
-             tt.t1 AS tt1, tt.t2 AS tt2, tt.t3 AS tt3, tt.t4 AS tt4, tt.t5 AS tt5,
+             -- Target rasio disimpan sebagai pecahan (0,0601); dinilai dalam
+             -- persen (6,01) supaya pencapaian & target di kpi_row terbaca.
+             tt.satuan AS tt_satuan,
+             tt.t1 * CASE WHEN tt.satuan = 'persen' THEN 100 ELSE 1 END AS tt1,
+             tt.t2 * CASE WHEN tt.satuan = 'persen' THEN 100 ELSE 1 END AS tt2,
+             tt.t3 * CASE WHEN tt.satuan = 'persen' THEN 100 ELSE 1 END AS tt3,
+             tt.t4 * CASE WHEN tt.satuan = 'persen' THEN 100 ELSE 1 END AS tt4,
+             tt.t5 * CASE WHEN tt.satuan = 'persen' THEN 100 ELSE 1 END AS tt5,
              tt.tipe_lokasi AS tt_lokasi, tt.cabang_atau_area AS tt_tempat,
              tt.kelompok_produk AS tt_kelompok,
-             h.nilai * t.faktor_pengakuan / 100 AS nilai
+             -- Target amount -> rumus pendamping; target rasio -> rumus ini,
+             -- disamakan ke persen (pecahan x100 bila rumusnya belum x100).
+             (CASE WHEN t.sumber_target = 'target_tier' AND tt.satuan = 'nominal' THEN h.nilai_amount
+                   WHEN t.sumber_target = 'target_tier' AND tt.satuan = 'persen' AND NOT ${pKali} THEN h.nilai * 100
+                   ELSE h.nilai END) * t.faktor_pengakuan / 100 AS nilai
         FROM terdaftar t
         LEFT JOIN hitung h ON h.nik = t.nik
         -- Target Tier: dicari per periode, kelompok produk (akhiran alias
@@ -431,7 +462,9 @@ async function hitungSatu(
            CASE WHEN g.sumber_target = 'target_tier' THEN g.tt3 ELSE g.target_kpi3 END,
            CASE WHEN g.sumber_target = 'target_tier' THEN g.tt4 ELSE g.target_kpi4 END,
            CASE WHEN g.sumber_target = 'target_tier' THEN g.tt5 ELSE g.target_kpi5 END,
-           ${pSatuan},
+           CASE WHEN g.sumber_target = 'target_tier' AND g.tt_satuan = 'nominal' THEN 'rupiah'
+                WHEN g.sumber_target = 'target_tier' AND g.tt_satuan = 'persen' THEN 'persen'
+                ELSE ${pSatuan} END,
            -- Target yang terpakai ikut disimpan di catatan, supaya hasil
            -- periode lampau tetap bisa dijelaskan walau orangnya pindah
            -- cabang atau tabel target diubah.
@@ -439,6 +472,9 @@ async function hitungSatu(
                 WHEN NOT g.tt_ada THEN ${pCatatan} || ' | TARGET TIER TIDAK DITEMUKAN untuk cabang '
                      || COALESCE(g.cabang, '-') || ' / area ' || COALESCE(g.area, '-')
                      || ' · bucket ' || g.target_tier_bucket
+                WHEN g.tt_satuan = 'nominal' AND ${String(!defAmount)}
+                  THEN ${pCatatan} || ' | TARGET TIER AMOUNT tapi rumus amount belum dipilih di Create Indicator: '
+                     || g.tt_tempat || ' · ' || g.tt_kelompok || ' · ' || g.target_tier_bucket
                 WHEN g.mekanisme_target_tier = 'rasio'
                      AND (g.tt1 IS NULL OR g.tt2 IS NULL OR g.tt3 IS NULL OR g.tt4 IS NULL OR g.tt5 IS NULL)
                   THEN ${pCatatan} || ' | TARGET TIER RASIO BELUM LENGKAP (t1..t5 wajib terisi): '
@@ -448,6 +484,7 @@ async function hitungSatu(
                      || ' · ' || g.tt_kelompok || ' · ' || g.target_tier_bucket
                      || ' · Tier ' || COALESCE(g.tt_tier::text, '-')
                      || ' · ' || g.mekanisme_target_tier
+                     || ' · ' || CASE WHEN g.tt_satuan = 'nominal' THEN 'amount' ELSE 'rasio %' END
                      || ' · t1..t5 = ' || concat_ws(' / ', COALESCE(g.tt1::text,'-'), COALESCE(g.tt2::text,'-'),
                           COALESCE(g.tt3::text,'-'), COALESCE(g.tt4::text,'-'), COALESCE(g.tt5::text,'-'))
            END,
@@ -846,6 +883,7 @@ export async function hitungSemuaIndikator(periode?: string): Promise<HasilHitun
   // termasuk periode berjalan — jatuh balik ke data_mentah seperti biasa.
   const sumber = await sumberUntukPeriode(p);
 
+  const petaDef = new Map(daftar.map((x) => [x.id, x]));
   for (const d of daftar) {
     const produkList = perIndikator.get(d.id) ?? [];
     if (!produkList.length) continue;
@@ -853,7 +891,7 @@ export async function hitungSemuaIndikator(periode?: string): Promise<HasilHitun
     let adaYangJalan = false;
     for (const produk of produkList) {
       try {
-        baris += await hitungSatu(d, produk, p, kat, sumber);
+        baris += await hitungSatu(d, produk, p, kat, sumber, petaDef);
         adaYangJalan = true;
       } catch (e) {
         gagal.push({
