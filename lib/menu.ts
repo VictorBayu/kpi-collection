@@ -58,6 +58,7 @@ export const MENU: Menu[] = [
   { kode: "admin_sampel",    label: "Sample Data API",      href: "/admin/sampel-data", grup: "Data & indikator", ikon: "code" },
   { kode: "admin_riwayat",   label: "Riwayat impor Excel",  href: "/admin/riwayat",     grup: "Data & indikator", ikon: "history" },
   { kode: "admin_arsip_mentah", label: "Rekon Data EOM", href: "/admin/arsip-mentah", grup: "Data & indikator", ikon: "sheet" },
+  { kode: "admin_report_bulanan", label: "Report Bulanan", href: "/admin/report-bulanan", grup: "Data & indikator", ikon: "history" },
 
   // — grup: Master —
   { kode: "admin_import",       label: "Unggah data",         href: "/admin/import",       grup: "Master", ikon: "upload" },
