@@ -672,6 +672,7 @@ export default function IndikatorClient() {
   const [satuan, setSatuan] = useState("persen");
   const [kaliSeratus, setKaliSeratus] = useState(true);
   const [peranPic, setPeranPic] = useState("staff");
+  const [cakupan, setCakupan] = useState("pic");
   const [aktif, setAktif] = useState(true);
   /** Sumber TAMBAHAN yang dipakai indikator ini. Kosong = hanya data utama. */
   const [sumberKode, setSumberKode] = useState("");
@@ -780,7 +781,7 @@ export default function IndikatorClient() {
 
   function kosongkan() {
     setPilihId(null); setNama(""); setDeskripsi("");
-    setSatuan("persen"); setKaliSeratus(true); setPeranPic("staff"); setAktif(true);
+    setSatuan("persen"); setKaliSeratus(true); setPeranPic("staff"); setCakupan("pic"); setAktif(true);
     setSumberKode("");
     setKomponen([kartuKosong(true)]); setTarget([]); setUji(null); setPesan(null);
     setDetailBuka(null);
@@ -796,6 +797,7 @@ export default function IndikatorClient() {
       setNama(j.def.nama); setDeskripsi(j.def.deskripsi ?? "");
       setSatuan(j.def.satuan); setKaliSeratus(j.def.kali_seratus);
       setPeranPic(j.def.peran_pic);
+      setCakupan(j.def.cakupan === "cabang" ? "cabang" : "pic");
       setAktif(j.def.aktif !== false);
       setSumberKode(j.def.sumber_kode ?? "");
       setKomponen((j.komponen ?? []).map((k: any) => ({
@@ -847,7 +849,7 @@ export default function IndikatorClient() {
 
   const badan = () => ({
     id: pilihId, nama, deskripsi, satuan,
-    kali_seratus: kaliSeratus, peran_pic: peranPic, aktif,
+    kali_seratus: kaliSeratus, peran_pic: peranPic, cakupan, aktif,
     sumber_kode: sumberKode || null,
     komponen, target, periode,
   });
@@ -905,9 +907,13 @@ export default function IndikatorClient() {
       });
       const j = await r.json();
       if (!r.ok) { setPesan(j.error ?? "Gagal menghitung ulang."); return; }
+      const gagal: { indikator: string; pesan: string }[] = j.hitung?.gagal ?? [];
       setPesan(
         `Hitung ulang selesai — ${j.hitung?.indikator ?? 0} indikator, ` +
-        `${j.hitung?.baris ?? 0} baris KPI.`
+        `${j.hitung?.baris ?? 0} baris KPI.` +
+        (gagal.length
+          ? ` ${gagal.length} gagal: ` + gagal.slice(0, 5).map((x) => `${x.indikator} → ${x.pesan}`).join(" | ")
+          : "")
       );
     } finally { setSibuk(false); }
   }
@@ -1217,6 +1223,14 @@ export default function IndikatorClient() {
                              { nilai: "staff", label: "Staf pelaksana", ket: "kolom staff_pic" },
                              { nilai: "spv", label: "Supervisor", ket: "kolom spv_pic" },
                              { nilai: "bch", label: "Kepala cabang", ket: "kolom bch_pic" },
+                           ]} />
+                  </label>
+                  <label className="field">
+                    <span>Cakupan baris</span>
+                    <Pilih nilai={cakupan} cari={false} onPilih={setCakupan}
+                           opsi={[
+                             { nilai: "pic", label: "Baris milik PIC", ket: "hanya kontrak atas namanya" },
+                             { nilai: "cabang", label: "Seluruh cabang PIC", ket: "semua kontrak cabangnya" },
                            ]} />
                   </label>
                   <label className="field">

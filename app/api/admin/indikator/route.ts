@@ -156,7 +156,7 @@ export const GET = handler(async (req) => {
   }
 
   const [def] = await q<any>(
-    `SELECT id, nama, deskripsi, satuan, kali_seratus, peran_pic, aktif, sumber_kode
+    `SELECT id, nama, deskripsi, satuan, kali_seratus, peran_pic, aktif, sumber_kode, cakupan
        FROM indikator_def WHERE id = $1`, [id]);
   if (!def) throw new HttpError(404, "Indikator tidak ditemukan.");
 
@@ -279,10 +279,11 @@ export const POST = handler(async (req) => {
     await q(
       `UPDATE indikator_def
           SET nama=$2, deskripsi=$3, satuan=$4, kali_seratus=$5,
-              peran_pic=$6, aktif=$7, sumber_kode=$8, diubah_pada=now()
+              peran_pic=$6, aktif=$7, sumber_kode=$8,
+              cakupan=$9, diubah_pada=now()
         WHERE id=$1`,
       [id, nama, b.deskripsi ?? null, satuan, !!b.kali_seratus, peran,
-       aktifBaru, sumberKode]);
+       aktifBaru, sumberKode, b.cakupan === "cabang" ? "cabang" : "pic"]);
 
     // Sama seperti saat dihapus: baris KPI yang sudah terlanjur dihitung
     // ikut dibuang begitu dinonaktifkan, supaya KPI Harian dan Tracing KPI
@@ -300,10 +301,10 @@ export const POST = handler(async (req) => {
   } else {
     const [baru] = await q<any>(
       `INSERT INTO indikator_def
-         (nama, deskripsi, satuan, kali_seratus, peran_pic, aktif, sumber_kode)
-       VALUES ($1,$2,$3,$4,$5,$6,$7) RETURNING id`,
+         (nama, deskripsi, satuan, kali_seratus, peran_pic, aktif, sumber_kode, cakupan)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8) RETURNING id`,
       [nama, b.deskripsi ?? null, satuan, !!b.kali_seratus, peran,
-       b.aktif !== false, sumberKode]);
+       b.aktif !== false, sumberKode, b.cakupan === "cabang" ? "cabang" : "pic"]);
     id = baru.id;
   }
 

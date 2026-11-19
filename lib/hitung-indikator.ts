@@ -34,6 +34,8 @@ type DefIndikator = {
   satuan: string;
   kali_seratus: boolean;
   peran_pic: "staff" | "spv" | "bch";
+  /** pic = baris milik PIC; cabang = seluruh baris cabang tempat ia PIC. */
+  cakupan?: "pic" | "cabang";
   komponen: Komponen[];
 };
 
@@ -123,7 +125,7 @@ async function muatKatalog() {
 /** Seluruh definisi indikator aktif beserta komponen dan syaratnya. */
 async function muatIndikator(): Promise<DefIndikator[]> {
   const def = await q<any>(
-    `SELECT id, nama, satuan, kali_seratus, peran_pic
+    `SELECT id, nama, satuan, kali_seratus, peran_pic, cakupan
        FROM indikator_def WHERE aktif ORDER BY nama`);
   if (!def.length) return [];
 
@@ -372,12 +374,27 @@ async function hitungSatu(
          AND t.periode = ${pPeriode}::date
          AND t.indikator_id = ${pIndikator} AND t.produk = ${pProduk} AND t.aktif
     ),
-    hitung AS (
+    hitung AS (${d.cakupan === "cabang" ? `
+      -- Cakupan CABANG: orang dipetakan ke cabang tempat ia muncul sebagai
+      -- PIC (nama cabang dari cabang_api, jadi semua branch_id bernama sama
+      -- ikut), lalu rumus dihitung atas SELURUH baris cabang itu.
+      SELECT pc.nik, (${ekspresi}) AS nilai, (${ekspresiAmount}) AS nilai_amount
+        FROM ${sumber.ekspresiDari(params)} dm
+        JOIN cabang_api ca_dm ON ca_dm.branch_id = dm.branch_id
+        JOIN (
+          SELECT DISTINCT dm2.${kolomNik} AS nik, upper(btrim(ca2.cabang)) AS cab
+            FROM ${sumber.ekspresiDari(params)} dm2
+            JOIN cabang_api ca2 ON ca2.branch_id = dm2.branch_id
+           WHERE dm2.${kolomNik} IS NOT NULL
+             AND upper(btrim(COALESCE(dm2.product, ''))) = upper(${pProduk})
+        ) pc ON pc.cab = upper(btrim(ca_dm.cabang))${joinPendukung}
+       WHERE upper(btrim(COALESCE(dm.product, ''))) = upper(${pProduk})
+       GROUP BY pc.nik` : `
       SELECT dm.${kolomNik} AS nik, (${ekspresi}) AS nilai, (${ekspresiAmount}) AS nilai_amount
         FROM ${sumber.ekspresiDari(params)} dm${joinPendukung}
        WHERE dm.${kolomNik} IS NOT NULL
          AND upper(btrim(COALESCE(dm.product, ''))) = upper(${pProduk})
-       GROUP BY dm.${kolomNik}
+       GROUP BY dm.${kolomNik}`}
     ),
     -- Pengakuan sebagian diterapkan di sini, sebelum dicocokkan ke
     -- pita/target apa pun — bukan cuma di tampilan. Jabatan yang
