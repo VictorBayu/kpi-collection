@@ -281,7 +281,7 @@ export const GET = handler(async (req) => {
         // mesin. pembagi_min/pagu_min ikut dibawa hanya untuk mendeteksi
         // baris pagu antarproduk yang tidak seragam, lalu diperingatkan.
         `WITH gabung AS (
-           SELECT norm_jabatan(i.jabatan) AS alias,
+           SELECT norm_jabatan(i.jabatan) AS alias, g.mekanisme,
                   SUM(i.skor_insentif)  AS skor_gabungan,
                   MAX(g.pembagi)        AS pembagi_gabungan,
                   MAX(g.nominal)        AS pagu_gabungan,
@@ -293,8 +293,8 @@ export const GET = handler(async (req) => {
              FROM insentif_row i
              JOIN insentif_pagu g
                ON g.alias = norm_jabatan(i.jabatan) AND g.produk = i.produk AND g.aktif
-            WHERE i.nik = $1 AND i.periode = $2::date AND g.mekanisme = 'pagu'
-            GROUP BY norm_jabatan(i.jabatan)
+            WHERE i.nik = $1 AND i.periode = $2::date AND g.mekanisme IN ('pagu','pagu_kelas')
+            GROUP BY norm_jabatan(i.jabatan), g.mekanisme
          )
          SELECT i.produk, i.kategori, i.jabatan, i.cabang,
                 i.skor_insentif, i.tier, i.kelas_cabang,
@@ -308,7 +308,7 @@ export const GET = handler(async (req) => {
            FROM insentif_row i
            LEFT JOIN insentif_pagu g
                   ON g.alias = norm_jabatan(i.jabatan) AND g.produk = i.produk
-           LEFT JOIN gabung gb ON gb.alias = norm_jabatan(i.jabatan)
+           LEFT JOIN gabung gb ON gb.alias = norm_jabatan(i.jabatan) AND gb.mekanisme = g.mekanisme
           WHERE i.nik = $1 AND i.periode = $2::date
           ORDER BY i.produk`, [nik, periode]),
 
@@ -576,11 +576,11 @@ function temuan(
     // jabatan ini, bukan skor produk ini sendirian — kalau dinilai per produk,
     // orang yang jabatannya menghandle dua produk akan diberi peringatan
     // "di bawah ambang" padahal gabungannya lolos dan insentifnya cair.
-    const gabungan = i.mekanisme === "pagu" && Number(i.jml_produk_gabungan ?? 1) > 1;
+    const gabungan = (i.mekanisme === "pagu" || i.mekanisme === "pagu_kelas") && Number(i.jml_produk_gabungan ?? 1) > 1;
     const skorDinilai = gabungan ? n(i.skor_gabungan) : n(i.skor_insentif);
     const ambangDinilai = Number((gabungan ? i.ambang_gabungan : i.skor_minimal) ?? 0);
 
-    if (i.mekanisme === "pagu" && skorDinilai !== null && skorDinilai < ambangDinilai) {
+    if ((i.mekanisme === "pagu" || i.mekanisme === "pagu_kelas") && skorDinilai !== null && skorDinilai < ambangDinilai) {
       out.push({
         nada: "info",
         pesan: gabungan
@@ -593,7 +593,7 @@ function temuan(
     // angka terbesar, jadi selisihnya perlu disadari admin, bukan diam-diam
     // menentukan nominal yang dibayarkan.
     if (gabungan) {
-      if (Number(i.pagu_gabungan) !== Number(i.pagu_min)) {
+      if (i.mekanisme === "pagu" && Number(i.pagu_gabungan) !== Number(i.pagu_min)) {
         out.push({
           nada: "warn",
           pesan: `${nm}: pagu jabatan ini beda-beda antarproduk (${Number(i.pagu_min).toLocaleString('id-ID')} s/d ${Number(i.pagu_gabungan).toLocaleString('id-ID')}). Karena satu orang hanya punya satu pagu, mesin memakai yang terbesar — samakan baris Pagu Insentif untuk semua produk jabatan ini kalau itu bukan yang dimaksud.`,

@@ -736,7 +736,7 @@ async function hitungInsentif(periode: string): Promise<number> {
      -- Jabatan yang cuma menghandle satu produk tidak berubah sama
      -- sekali: gabungannya ya cuma dirinya sendiri, porsinya 100%.
      gabung_pagu AS (
-       SELECT l.nik, norm_jabatan(l.jabatan) AS alias,
+       SELECT l.nik, norm_jabatan(l.jabatan) AS alias, g.mekanisme,
               SUM(l.total_skor)   AS skor_gabungan,
               MAX(g.pembagi)      AS pembagi_gabungan,
               MAX(g.nominal)      AS pagu_gabungan,
@@ -745,8 +745,11 @@ async function hitungInsentif(periode: string): Promise<number> {
          FROM lengkap l
          JOIN insentif_pagu g
            ON g.alias = norm_jabatan(l.jabatan) AND g.produk = l.produk AND g.aktif
-        WHERE g.mekanisme = 'pagu'
-        GROUP BY l.nik, norm_jabatan(l.jabatan)
+        -- 'pagu_kelas' ikut digabung: jabatan MIX (mis. BCH F MIX R2+R4)
+        -- dinilai ambang minimalnya dari skor R2+R4 yang sudah terbobot,
+        -- bukan tiap produk sendiri-sendiri.
+        WHERE g.mekanisme IN ('pagu','pagu_kelas')
+        GROUP BY l.nik, norm_jabatan(l.jabatan), g.mekanisme
      ),
      pokok AS (
        SELECT l.*, g.alias, g.mekanisme,
@@ -765,7 +768,8 @@ async function hitungInsentif(periode: string): Promise<number> {
                 -- (pagu kelas = baris tier 1 di Tabel Tier Insentif).
                 WHEN g.mekanisme = 'pagu_kelas' THEN
                   CASE
-                    WHEN l.total_skor IS NULL OR l.total_skor < g.skor_minimal THEN 0
+                    WHEN gp.skor_gabungan IS NULL
+                      OR gp.skor_gabungan < gp.ambang_gabungan THEN 0
                     ELSE COALESCE(ROUND(
                       l.total_skor / NULLIF(g.pembagi, 0) *
                       (SELECT it.nominal FROM insentif_tier it
@@ -800,7 +804,7 @@ async function hitungInsentif(periode: string): Promise<number> {
          JOIN insentif_pagu g
            ON g.alias = norm_jabatan(l.jabatan) AND g.produk = l.produk AND g.aktif
          LEFT JOIN gabung_pagu gp
-           ON gp.nik = l.nik AND gp.alias = norm_jabatan(l.jabatan) AND g.mekanisme = 'pagu'
+           ON gp.nik = l.nik AND gp.alias = norm_jabatan(l.jabatan) AND gp.mekanisme = g.mekanisme
      )
      INSERT INTO insentif_row
        (periode, nik, kategori, produk, jabatan, cabang,
@@ -862,10 +866,17 @@ async function hitungInsentif(periode: string): Promise<number> {
                 ROUND(p.total_skor, 2) || ' / ' || p.pembagi ||
                 ' x pagu ' || p.pagu_nominal
               WHEN p.mekanisme = 'pagu_kelas' AND
-                   (p.total_skor IS NULL OR p.total_skor < p.skor_minimal)
-                THEN 'Skor ' || COALESCE(ROUND(p.total_skor, 2)::text, '-') ||
-                     ' di bawah minimal ' || p.skor_minimal
+                   (p.skor_gabungan IS NULL OR p.skor_gabungan < p.ambang_gabungan)
+                THEN CASE WHEN p.jml_produk_gabungan > 1
+                       THEN 'Skor gabungan ' || COALESCE(ROUND(p.skor_gabungan, 2)::text, '-') ||
+                            ' dari ' || p.jml_produk_gabungan || ' produk di bawah minimal ' || p.ambang_gabungan
+                       ELSE 'Skor ' || COALESCE(ROUND(p.total_skor, 2)::text, '-') ||
+                            ' di bawah minimal ' || p.skor_minimal END
               WHEN p.mekanisme = 'pagu_kelas' THEN
+                CASE WHEN p.jml_produk_gabungan > 1
+                     THEN 'Skor gabungan ' || ROUND(p.skor_gabungan, 2) || ' lolos minimal ' ||
+                          p.ambang_gabungan || '; bagian ' || p.produk || ': '
+                     ELSE '' END ||
                 ROUND(p.total_skor, 2) || ' / ' || p.pembagi ||
                 ' x pagu kelas ' || COALESCE(p.kelas, '-') || ' ' ||
                 COALESCE(p.pagu_kelas_nominal::text, '(belum ada di Tabel Tier)')
