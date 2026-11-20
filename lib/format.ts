@@ -22,6 +22,9 @@ export const waktu = (iso: string | Date | null) =>
 /** Menerjemahkan nilai ke satuan yang dipahami pembaca. */
 export function nilai(v: number | null, satuan: string): string {
   if (v === null || v === undefined) return "—";
+  // persen100: angka sudah dalam skala persen (19,2 = 19,2%) — hasil mesin API.
+  if (satuan === "persen100")
+    return new Intl.NumberFormat("id-ID", { maximumFractionDigits: 2 }).format(v) + "%";
   if (satuan === "persen") return Math.round(v * 100) + "%";
   if (satuan === "unit") return nf.format(v) + " unit";
   return rpSingkat(v);
@@ -81,4 +84,17 @@ export function nilaiBanding(
   const targetRasio = t3 !== null && Math.abs(t3) <= 1.5;
   if (targetRasio && rasio !== null) return { v: rasio, satuan: "persen" };
   return { v: pencapaian, satuan: pencapaian === null ? "rupiah" : tebakSatuan("", pencapaian) };
+}
+
+/**
+ * Satuan tampil satu baris KPI. Baris hasil mesin API membawa satuan dari
+ * definisi indikatornya (persen sudah dikali 100), jadi itu yang dipakai;
+ * tebakan dari nama indikator hanya cadangan untuk baris Excel lama.
+ */
+export function satuanBaris(d: { indikator: string; pencapaian: number | null;
+  satuan?: string | null; sumber?: string | null }): string {
+  const s = (d.satuan ?? "").toLowerCase();
+  if (s === "persen") return d.sumber === "api" ? "persen100" : "persen";
+  if (s === "rupiah" || s === "unit") return s;
+  return tebakSatuan(d.indikator, d.pencapaian);
 }

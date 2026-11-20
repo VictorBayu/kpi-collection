@@ -775,15 +775,19 @@ function KartuInsentif({ ins, tier }: { ins: any; tier: any[] }) {
       <div className="trc-rumus-terang num">
         {mek === "pagu_kelas" ? (
           <>
-            {Number(ins.jml_produk_gabungan ?? 1) > 1 && (
-              <><span>Skor rata-rata produk <b>{angka(n(ins.skor_gabungan))}</b> ≥ minimal <b>{angka(n(ins.ambang_gabungan))}</b>?</span><i>→</i></>
+            {Number(ins.jml_produk_gabungan ?? 1) > 1 ? (
+              <span>Skor (R2+R4)×{angka(100 / Number(ins.jml_produk_gabungan), 0)}% <b>{angka(n(ins.skor_gabungan))}</b></span>
+            ) : (
+              <span>Skor insentif <b>{angka(n(ins.skor_insentif))}</b></span>
             )}
-            <span>Skor insentif <b>{angka(n(ins.skor_insentif))}</b></span>
             <i>÷</i>
             <span>Pembagi <b>{angka(n(ins.pembagi))}</b></span>
             <i>×</i>
             <span>Pagu kelas <b>{ins.kelas_cabang ?? "—"}</b>{" "}
               <b>{rp(n(tier.find((t: any) => t.produk === ins.produk && String(t.tier) === "1" && t.kelas === ins.kelas_cabang)?.nominal))}</b></span>
+            {Number(ins.jml_produk_gabungan ?? 1) > 1 && (
+              <><i>×</i><span>Bagian produk ini <b>1/{ins.jml_produk_gabungan}</b></span></>
+            )}
             <i>=</i>
             <span>Nominal dasar <b>{rp(n(ins.nominal_dasar))}</b></span>
           </>

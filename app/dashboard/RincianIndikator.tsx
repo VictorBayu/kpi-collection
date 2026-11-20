@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from "react";
 import Ladder, { kalimatJarak, tingkat } from "@/components/Ladder";
-import { angka, nilai, tebakSatuan, nilaiBanding } from "@/lib/format";
+import { angka, nilai, tebakSatuan, satuanBaris, nilaiBanding } from "@/lib/format";
 
 type Ind = {
   produk: string | null; indikator: string;
@@ -10,6 +10,7 @@ type Ind = {
   skor_kpi: number | null; skor_terbobot: number | null;
   target_kpi3: number | null; target_kpi4: number | null; target_kpi5: number | null;
   catatan: string | null;
+  satuan?: string | null; sumber?: string | null;
 };
 
 /**
@@ -28,7 +29,7 @@ export default function RincianIndikator({ data }: { data: Ind[] }) {
   const [terbuka, setTerbuka] = useState<number | null>(null);
 
   const olah = useMemo(() => data.map((d, i) => {
-    const satuanTampil = tebakSatuan(d.indikator, d.pencapaian);
+    const satuanTampil = satuanBaris(d);
     const band = nilaiBanding(d.pencapaian, d.rasio, d.target_kpi3);
     // Tingkat dibaca dari skor yang sudah dihitung mesin. Menghitung ulang
     // dari tiga ambang memberi jawaban lain begitu targetnya berupa pita

@@ -775,11 +775,18 @@ async function hitungInsentif(periode: string): Promise<number> {
                   CASE
                     WHEN gp.skor_gabungan IS NULL
                       OR gp.skor_gabungan < gp.ambang_gabungan THEN 0
+                    -- Jabatan MIX: skor rata-rata (R2+R4) x 50% dipakai
+                    -- untuk nominal, bukan skor produk ini sendiri. Tiap
+                    -- produk menyumbang 1/n dari pagu kelasnya, jadi total
+                    -- orang = skor rata-rata / pembagi x rata-rata pagu
+                    -- kelas (= pagu itu sendiri bila kelasnya sama).
+                    -- Jabatan satu produk: n = 1, skor rata-rata = skornya.
                     ELSE COALESCE(ROUND(
-                      l.total_skor / NULLIF(g.pembagi, 0) *
+                      gp.skor_gabungan / NULLIF(g.pembagi, 0) *
                       (SELECT it.nominal FROM insentif_tier it
                         WHERE it.alias = g.alias AND it.produk = g.produk
                           AND it.tier = 1 AND it.kelas = l.kelas)
+                      / NULLIF(gp.jml_produk_gabungan, 0)
                     , 0), 0)
                   END
                 WHEN g.mekanisme = 'tier' THEN
@@ -879,12 +886,14 @@ async function hitungInsentif(periode: string): Promise<number> {
                             ' di bawah minimal ' || p.skor_minimal END
               WHEN p.mekanisme = 'pagu_kelas' THEN
                 CASE WHEN p.jml_produk_gabungan > 1
-                     THEN 'Skor rata-rata ' || ROUND(p.skor_gabungan, 2) || ' lolos minimal ' ||
-                          p.ambang_gabungan || '; bagian ' || p.produk || ': '
-                     ELSE '' END ||
-                ROUND(p.total_skor, 2) || ' / ' || p.pembagi ||
-                ' x pagu kelas ' || COALESCE(p.kelas, '-') || ' ' ||
-                COALESCE(p.pagu_kelas_nominal::text, '(belum ada di Tabel Tier)')
+                     THEN 'Skor rata-rata ' || ROUND(p.skor_gabungan, 2) || ' (lolos minimal ' ||
+                          p.ambang_gabungan || ') / ' || p.pembagi ||
+                          ' x pagu kelas ' || COALESCE(p.kelas, '-') || ' ' ||
+                          COALESCE(p.pagu_kelas_nominal::text, '(belum ada di Tabel Tier)') ||
+                          ' x 1/' || p.jml_produk_gabungan || ' (bagian ' || p.produk || ')'
+                     ELSE ROUND(p.total_skor, 2) || ' / ' || p.pembagi ||
+                          ' x pagu kelas ' || COALESCE(p.kelas, '-') || ' ' ||
+                          COALESCE(p.pagu_kelas_nominal::text, '(belum ada di Tabel Tier)') END
               ELSE 'Mekanisme insentif tidak dikenal'
             END,
             now()

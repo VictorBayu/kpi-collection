@@ -8,7 +8,7 @@ import { menuSesi } from "@/lib/menu";
 import { periodeTersedia, indikatorNik, insentifKaryawan, ringkasan, trenKpi } from "@/lib/kpi";
 import Ikon from "@/components/Ikon";
 import { q } from "@/lib/db";
-import { rp, rpSingkat, angka, nilai, namaPeriode, toISODate, tebakSatuan, nilaiBanding } from "@/lib/format";
+import { rp, rpSingkat, angka, nilai, namaPeriode, toISODate, tebakSatuan, satuanBaris, nilaiBanding } from "@/lib/format";
 
 export const metadata = { title: "Detail KPI karyawan" };
 
@@ -66,7 +66,7 @@ export default async function DetailKpi({
   // menghitung ulang memberi jawaban berbeda dari skor yang tersimpan —
   // itulah sebabnya sempat ada baris berskor 5,00 tapi diwarnai merah.
   const olah = ind.map((d) => {
-    const satuanTampil = tebakSatuan(d.indikator, d.pencapaian);
+    const satuanTampil = satuanBaris(d);
     const band = nilaiBanding(d.pencapaian, d.rasio, d.target_kpi3);
     const s = d.skor_kpi === null || d.skor_kpi === undefined ? null : Number(d.skor_kpi);
     const tk = s === null ? null : s >= 5 ? 5 : s >= 4 ? 4 : s >= 3 ? 3 : 0;

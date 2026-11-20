@@ -80,7 +80,7 @@ export async function jabatanBerdata(periode: string) {
 export async function ringkasNasional(periode: string) {
   const [r] = await q<any>(
     `WITH per_orang AS (
-       SELECT nik, SUM(skor_terbobot) AS skor
+       SELECT nik, (SUM(skor_terbobot) * 100 / GREATEST(100, COALESCE(SUM(bobot) FILTER (WHERE skor_terbobot IS NOT NULL), 0))) AS skor
          FROM v_kpi_aktif WHERE periode = $1 GROUP BY nik
      ),
      ins AS (
@@ -113,7 +113,7 @@ export async function ringkasNasional(periode: string) {
 export async function perArea(periode: string) {
   const rows = await q<any>(
     `WITH per_orang AS (
-       SELECT k.nik, SUM(k.skor_terbobot) AS skor,
+       SELECT k.nik, (SUM(k.skor_terbobot) * 100 / GREATEST(100, COALESCE(SUM(k.bobot) FILTER (WHERE k.skor_terbobot IS NOT NULL), 0))) AS skor,
               norm_wilayah(k.cabang) AS cabang
          FROM v_kpi_aktif k WHERE k.periode = $1
         GROUP BY k.nik, norm_wilayah(k.cabang)
@@ -195,7 +195,7 @@ export async function komposisiJabatan(periode: string) {
     `WITH per_orang AS (
        SELECT k.nik,
               COALESCE(NULLIF(BTRIM(k.jabatan), ''), '(TANPA JABATAN)') AS jabatan,
-              SUM(k.skor_terbobot) AS skor
+              (SUM(k.skor_terbobot) * 100 / GREATEST(100, COALESCE(SUM(k.bobot) FILTER (WHERE k.skor_terbobot IS NOT NULL), 0))) AS skor
          FROM v_kpi_aktif k WHERE k.periode = $1
         GROUP BY k.nik, 2
      )
@@ -228,7 +228,7 @@ export async function komposisiJabatan(periode: string) {
 export async function trenPeriode(batas = 12) {
   const rows = await q<any>(
     `WITH per_orang AS (
-       SELECT periode, nik, SUM(skor_terbobot) AS skor
+       SELECT periode, nik, (SUM(skor_terbobot) * 100 / GREATEST(100, COALESCE(SUM(bobot) FILTER (WHERE skor_terbobot IS NOT NULL), 0))) AS skor
          FROM v_kpi_aktif GROUP BY periode, nik
      ),
      ins AS (
@@ -271,7 +271,7 @@ export async function sebaranSkor(periode: string) {
        SELECT k.nik,
               COALESCE(NULLIF(BTRIM(u.area), ''), '(TANPA AREA)')  AS area,
               COALESCE(NULLIF(BTRIM(u.cabang), ''), '(TANPA CABANG)') AS cabang,
-              SUM(k.skor_terbobot) AS skor
+              (SUM(k.skor_terbobot) * 100 / GREATEST(100, COALESCE(SUM(k.bobot) FILTER (WHERE k.skor_terbobot IS NOT NULL), 0))) AS skor
          FROM v_kpi_aktif k
          LEFT JOIN app_user u ON u.nik = k.nik
         WHERE k.periode = $1
@@ -332,7 +332,7 @@ export async function ujungCabang(periode: string, n = 8) {
   const rows = await q<any>(
     `WITH per_orang AS (
        SELECT periode, norm_wilayah(cabang) AS cabang, nik,
-              SUM(skor_terbobot) AS skor
+              (SUM(skor_terbobot) * 100 / GREATEST(100, COALESCE(SUM(bobot) FILTER (WHERE skor_terbobot IS NOT NULL), 0))) AS skor
          FROM v_kpi_aktif
         WHERE periode IN ($1::date, ($1::date - INTERVAL '1 month')::date)
         GROUP BY 1, 2, nik
@@ -392,7 +392,7 @@ export async function ujungCabang(periode: string, n = 8) {
 export async function biayaVsSkor(periode: string) {
   const rows = await q<any>(
     `WITH skor AS (
-       SELECT norm_wilayah(cabang) AS cabang, nik, SUM(skor_terbobot) AS skor
+       SELECT norm_wilayah(cabang) AS cabang, nik, (SUM(skor_terbobot) * 100 / GREATEST(100, COALESCE(SUM(bobot) FILTER (WHERE skor_terbobot IS NOT NULL), 0))) AS skor
          FROM v_kpi_aktif WHERE periode = $1 GROUP BY 1, nik
      ),
      per_cabang AS (
@@ -444,7 +444,7 @@ export async function semuaCabang(periode: string) {
   const rows = await q<any>(
     `WITH per_orang AS (
        SELECT periode, norm_wilayah(cabang) AS cabang, nik,
-              SUM(skor_terbobot) AS skor
+              (SUM(skor_terbobot) * 100 / GREATEST(100, COALESCE(SUM(bobot) FILTER (WHERE skor_terbobot IS NOT NULL), 0))) AS skor
          FROM v_kpi_aktif
         WHERE periode IN ($1::date, ($1::date - INTERVAL '1 month')::date)
         GROUP BY 1, 2, nik

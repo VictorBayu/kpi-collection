@@ -18,7 +18,7 @@ export async function ringkasTim(atasanNik: string, periode: string) {
   const [r] = await q<any>(
     `WITH tim AS (SELECT nik FROM ${TIM}),
      skor AS (
-       SELECT k.nik, SUM(k.skor_terbobot) AS skor
+       SELECT k.nik, (SUM(k.skor_terbobot) * 100 / GREATEST(100, COALESCE(SUM(k.bobot) FILTER (WHERE k.skor_terbobot IS NOT NULL), 0))) AS skor
          FROM v_kpi_aktif k JOIN tim t ON t.nik = k.nik
         WHERE k.periode = $2 GROUP BY k.nik)
      SELECT (SELECT COUNT(*)::int FROM tim)                          AS anggota,
@@ -98,7 +98,7 @@ export async function perluPerhatian(atasanNik: string, periode: string, n = 8) 
   const rows = await q<any>(
     `WITH tim AS (SELECT nik, nama, jabatan, cabang FROM ${TIM}),
      skor AS (
-       SELECT k.nik, SUM(k.skor_terbobot) AS skor
+       SELECT k.nik, (SUM(k.skor_terbobot) * 100 / GREATEST(100, COALESCE(SUM(k.bobot) FILTER (WHERE k.skor_terbobot IS NOT NULL), 0))) AS skor
          FROM v_kpi_aktif k JOIN tim t ON t.nik = k.nik
         WHERE k.periode = $2 GROUP BY k.nik),
      lemah AS (
@@ -129,7 +129,7 @@ export async function cabangTim(atasanNik: string, periode: string) {
   const rows = await q<any>(
     `WITH tim AS (SELECT nik, cabang FROM ${TIM}),
      skor AS (
-       SELECT k.nik, SUM(k.skor_terbobot) AS skor
+       SELECT k.nik, (SUM(k.skor_terbobot) * 100 / GREATEST(100, COALESCE(SUM(k.bobot) FILTER (WHERE k.skor_terbobot IS NOT NULL), 0))) AS skor
          FROM v_kpi_aktif k JOIN tim t ON t.nik = k.nik
         WHERE k.periode = $2 GROUP BY k.nik)
      SELECT COALESCE(NULLIF(BTRIM(t.cabang),''),'(TANPA CABANG)') AS cabang,
@@ -153,7 +153,7 @@ export async function sebaranTim(atasanNik: string, periode: string) {
   const rows = await q<any>(
     `WITH tim AS (SELECT nik, cabang FROM ${TIM}),
      skor AS (
-       SELECT k.nik, MAX(t.cabang) AS cabang, SUM(k.skor_terbobot) AS skor
+       SELECT k.nik, MAX(t.cabang) AS cabang, (SUM(k.skor_terbobot) * 100 / GREATEST(100, COALESCE(SUM(k.bobot) FILTER (WHERE k.skor_terbobot IS NOT NULL), 0))) AS skor
          FROM v_kpi_aktif k JOIN tim t ON t.nik = k.nik
         WHERE k.periode = $2 GROUP BY k.nik)
      SELECT FLOOR(LEAST(skor,5)*2)/2 AS pita,
@@ -195,7 +195,7 @@ export async function trenTim(atasanNik: string, batas = 6) {
   const rows = await q<any>(
     `WITH tim AS (SELECT nik FROM ${TIM}),
      per_periode AS (
-       SELECT k.periode, k.nik, SUM(k.skor_terbobot) AS skor
+       SELECT k.periode, k.nik, (SUM(k.skor_terbobot) * 100 / GREATEST(100, COALESCE(SUM(k.bobot) FILTER (WHERE k.skor_terbobot IS NOT NULL), 0))) AS skor
          FROM v_kpi_aktif k JOIN tim t ON t.nik = k.nik
         GROUP BY k.periode, k.nik)
      SELECT periode, ROUND(AVG(skor),2) AS skor, COUNT(*)::int AS orang
