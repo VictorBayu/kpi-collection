@@ -319,8 +319,12 @@ export const GET = handler(async (req) => {
         ? q<any>(
             `SELECT it.produk, it.tier, it.kelas, it.nominal
                FROM insentif_tier it
-               JOIN app_user u ON u.nik = $1
-              WHERE it.alias = norm_jabatan(u.jabatan)
+               LEFT JOIN app_user u ON u.nik = $1
+              -- Alias tabel tier mengikuti alias jabatan di Pagu Insentif,
+              -- yaitu jabatan yang tertulis di baris insentif (mis. BCH F MIX),
+              -- bukan jabatan profil pengguna (mis. BCH F).
+              WHERE (it.alias = norm_jabatan(u.jabatan)
+                     OR it.alias IN (SELECT norm_jabatan(i.jabatan) FROM insentif_row i WHERE i.nik = $1))
                 AND it.produk = ANY($2::text[])
               ORDER BY it.produk, it.tier, it.kelas`, [nik, produkList])
         : [],
