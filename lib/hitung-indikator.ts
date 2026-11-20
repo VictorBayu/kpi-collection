@@ -36,6 +36,8 @@ type DefIndikator = {
   peran_pic: "staff" | "spv" | "bch";
   /** pic = baris milik PIC; cabang = seluruh baris cabang tempat ia PIC. */
   cakupan?: "pic" | "cabang";
+  /** Peran PIC lain yang ikut dihitung dengan rumus yang sama. */
+  peran_pic_tambahan?: string[];
   komponen: Komponen[];
 };
 
@@ -125,7 +127,7 @@ async function muatKatalog() {
 /** Seluruh definisi indikator aktif beserta komponen dan syaratnya. */
 async function muatIndikator(): Promise<DefIndikator[]> {
   const def = await q<any>(
-    `SELECT id, nama, satuan, kali_seratus, peran_pic, cakupan
+    `SELECT id, nama, satuan, kali_seratus, peran_pic, cakupan, peran_pic_tambahan
        FROM indikator_def WHERE aktif ORDER BY nama`);
   if (!def.length) return [];
 
@@ -229,6 +231,13 @@ async function hitungSatu(
   const joinPendukung = kat.gabungDipakai();
 
   const kolomNik = KOLOM_PIC[d.peran_pic] ?? "nik_staff";
+  // Semua kolom PIC yang dipilih (utama + tambahan), tanpa duplikat.
+  const kolomList = [...new Set([kolomNik,
+    ...(d.peran_pic_tambahan ?? []).map((p) => KOLOM_PIC[p]).filter(Boolean)])];
+  // NIK unik per baris dari kolom-kolom itu: satu baris tidak terhitung dua
+  // kali walau NIK yang sama kebetulan ada di dua kolom PIC.
+  const lateralNik = (a: string) =>
+    `CROSS JOIN LATERAL (SELECT DISTINCT x AS nik FROM (VALUES ${kolomList.map((k) => `(${a}.${k})`).join(", ")}) t(x) WHERE x IS NOT NULL) `;
   const catatan = bacaRumus(
     { komponen: d.komponen, kali_seratus: d.kali_seratus }, kat.labelKolom);
 
@@ -382,19 +391,19 @@ async function hitungSatu(
         FROM ${sumber.ekspresiDari(params)} dm
         JOIN cabang_api ca_dm ON ca_dm.branch_id = dm.branch_id
         JOIN (
-          SELECT DISTINCT dm2.${kolomNik} AS nik, upper(btrim(ca2.cabang)) AS cab
+          SELECT DISTINCT v2.nik, upper(btrim(ca2.cabang)) AS cab
             FROM ${sumber.ekspresiDari(params)} dm2
+            ${lateralNik("dm2")}v2
             JOIN cabang_api ca2 ON ca2.branch_id = dm2.branch_id
-           WHERE dm2.${kolomNik} IS NOT NULL
-             AND upper(btrim(COALESCE(dm2.product, ''))) = upper(${pProduk})
+           WHERE upper(btrim(COALESCE(dm2.product, ''))) = upper(${pProduk})
         ) pc ON pc.cab = upper(btrim(ca_dm.cabang))${joinPendukung}
        WHERE upper(btrim(COALESCE(dm.product, ''))) = upper(${pProduk})
        GROUP BY pc.nik` : `
-      SELECT dm.${kolomNik} AS nik, (${ekspresi}) AS nilai, (${ekspresiAmount}) AS nilai_amount
+      SELECT v.nik, (${ekspresi}) AS nilai, (${ekspresiAmount}) AS nilai_amount
         FROM ${sumber.ekspresiDari(params)} dm${joinPendukung}
-       WHERE dm.${kolomNik} IS NOT NULL
-         AND upper(btrim(COALESCE(dm.product, ''))) = upper(${pProduk})
-       GROUP BY dm.${kolomNik}`}
+        ${lateralNik("dm")}v
+       WHERE upper(btrim(COALESCE(dm.product, ''))) = upper(${pProduk})
+       GROUP BY v.nik`}
     ),
     -- Pengakuan sebagian diterapkan di sini, sebelum dicocokkan ke
     -- pita/target apa pun — bukan cuma di tampilan. Jabatan yang

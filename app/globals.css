@@ -5172,3 +5172,5 @@ section.rh-grup.rh-kpi:hover{background:var(--surface);border-color:var(--line);
 .gc-kolom-chip em{font-style:normal;font-weight:500;font-size:11px;color:var(--muted,#64748b)}
 .gc-kolom-chip.wajib{background:#eef2ff;border-color:#c7d2fe;color:#3730a3}
 .gc-kolom-chip.wajib em{color:#4f46e5}
+.ind-pic-tambah{display:flex;flex-wrap:wrap;gap:10px;align-items:center;margin-top:6px}
+.ind-pic-cek{display:inline-flex;align-items:center;gap:5px;font-size:12.5px;font-weight:500}

@@ -673,6 +673,7 @@ export default function IndikatorClient() {
   const [kaliSeratus, setKaliSeratus] = useState(true);
   const [peranPic, setPeranPic] = useState("staff");
   const [cakupan, setCakupan] = useState("pic");
+  const [picTambahan, setPicTambahan] = useState<string[]>([]);
   const [aktif, setAktif] = useState(true);
   /** Sumber TAMBAHAN yang dipakai indikator ini. Kosong = hanya data utama. */
   const [sumberKode, setSumberKode] = useState("");
@@ -781,7 +782,7 @@ export default function IndikatorClient() {
 
   function kosongkan() {
     setPilihId(null); setNama(""); setDeskripsi("");
-    setSatuan("persen"); setKaliSeratus(true); setPeranPic("staff"); setCakupan("pic"); setAktif(true);
+    setSatuan("persen"); setKaliSeratus(true); setPeranPic("staff"); setCakupan("pic"); setPicTambahan([]); setAktif(true);
     setSumberKode("");
     setKomponen([kartuKosong(true)]); setTarget([]); setUji(null); setPesan(null);
     setDetailBuka(null);
@@ -798,6 +799,7 @@ export default function IndikatorClient() {
       setSatuan(j.def.satuan); setKaliSeratus(j.def.kali_seratus);
       setPeranPic(j.def.peran_pic);
       setCakupan(j.def.cakupan === "cabang" ? "cabang" : "pic");
+      setPicTambahan(Array.isArray(j.def.peran_pic_tambahan) ? j.def.peran_pic_tambahan : []);
       setAktif(j.def.aktif !== false);
       setSumberKode(j.def.sumber_kode ?? "");
       setKomponen((j.komponen ?? []).map((k: any) => ({
@@ -849,7 +851,8 @@ export default function IndikatorClient() {
 
   const badan = () => ({
     id: pilihId, nama, deskripsi, satuan,
-    kali_seratus: kaliSeratus, peran_pic: peranPic, cakupan, aktif,
+    kali_seratus: kaliSeratus, peran_pic: peranPic, cakupan,
+    peran_pic_tambahan: picTambahan.filter((p) => p !== peranPic), aktif,
     sumber_kode: sumberKode || null,
     komponen, target, periode,
   });
@@ -1216,7 +1219,7 @@ export default function IndikatorClient() {
               <div className="fb-atribut">
                 <span className="eyebrow">KONFIGURASI ATRIBUT INDIKATOR</span>
                 <div className="ind-atur fb-atur">
-                  <label className="field">
+                  <div className="field">
                     <span>Dihitung untuk</span>
                     <Pilih nilai={peranPic} cari={false} onPilih={setPeranPic}
                            opsi={[
@@ -1224,7 +1227,19 @@ export default function IndikatorClient() {
                              { nilai: "spv", label: "Supervisor", ket: "kolom spv_pic" },
                              { nilai: "bch", label: "Kepala cabang", ket: "kolom bch_pic" },
                            ]} />
-                  </label>
+                    <span className="ind-pic-tambah">
+                      <small className="faint">Juga untuk:</small>
+                      {[["staff", "Staf"], ["spv", "Supervisor"], ["bch", "Kepala cabang"]]
+                        .filter(([k]) => k !== peranPic).map(([k, l]) => (
+                          <label key={k} className="ind-pic-cek">
+                            <input type="checkbox" checked={picTambahan.includes(k)}
+                                   onChange={(e) => setPicTambahan(e.target.checked
+                                     ? [...picTambahan, k] : picTambahan.filter((x) => x !== k))} />
+                            {l}
+                          </label>
+                        ))}
+                    </span>
+                  </div>
                   <label className="field">
                     <span>Cakupan baris</span>
                     <Pilih nilai={cakupan} cari={false} onPilih={setCakupan}

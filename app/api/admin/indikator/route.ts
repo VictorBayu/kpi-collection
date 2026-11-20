@@ -156,7 +156,8 @@ export const GET = handler(async (req) => {
   }
 
   const [def] = await q<any>(
-    `SELECT id, nama, deskripsi, satuan, kali_seratus, peran_pic, aktif, sumber_kode, cakupan
+    `SELECT id, nama, deskripsi, satuan, kali_seratus, peran_pic, aktif, sumber_kode, cakupan,
+            peran_pic_tambahan
        FROM indikator_def WHERE id = $1`, [id]);
   if (!def) throw new HttpError(404, "Indikator tidak ditemukan.");
 
@@ -247,6 +248,8 @@ export const POST = handler(async (req) => {
   const periode = periodeSah(b.periode) ?? periodeBerjalan();
 
   const peran = PERAN.includes(b.peran_pic) ? b.peran_pic : "staff";
+  const picTambahan = [...new Set((Array.isArray(b.peran_pic_tambahan) ? b.peran_pic_tambahan : [])
+    .map(String).filter((p: string) => PERAN.includes(p) && p !== peran))];
   const satuan = ["rupiah","persen","unit"].includes(b.satuan) ? b.satuan : "rupiah";
   const komponen = bacaKomponen(b.komponen);
 
@@ -280,10 +283,10 @@ export const POST = handler(async (req) => {
       `UPDATE indikator_def
           SET nama=$2, deskripsi=$3, satuan=$4, kali_seratus=$5,
               peran_pic=$6, aktif=$7, sumber_kode=$8,
-              cakupan=$9, diubah_pada=now()
+              cakupan=$9, peran_pic_tambahan=$10::text[], diubah_pada=now()
         WHERE id=$1`,
       [id, nama, b.deskripsi ?? null, satuan, !!b.kali_seratus, peran,
-       aktifBaru, sumberKode, b.cakupan === "cabang" ? "cabang" : "pic"]);
+       aktifBaru, sumberKode, b.cakupan === "cabang" ? "cabang" : "pic", picTambahan]);
 
     // Sama seperti saat dihapus: baris KPI yang sudah terlanjur dihitung
     // ikut dibuang begitu dinonaktifkan, supaya KPI Harian dan Tracing KPI
@@ -301,10 +304,10 @@ export const POST = handler(async (req) => {
   } else {
     const [baru] = await q<any>(
       `INSERT INTO indikator_def
-         (nama, deskripsi, satuan, kali_seratus, peran_pic, aktif, sumber_kode, cakupan)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8) RETURNING id`,
+         (nama, deskripsi, satuan, kali_seratus, peran_pic, aktif, sumber_kode, cakupan, peran_pic_tambahan)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9::text[]) RETURNING id`,
       [nama, b.deskripsi ?? null, satuan, !!b.kali_seratus, peran,
-       b.aktif !== false, sumberKode, b.cakupan === "cabang" ? "cabang" : "pic"]);
+       b.aktif !== false, sumberKode, b.cakupan === "cabang" ? "cabang" : "pic", picTambahan]);
     id = baru.id;
   }
 
