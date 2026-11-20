@@ -1219,7 +1219,7 @@ export default function IndikatorClient() {
               <div className="fb-atribut">
                 <span className="eyebrow">KONFIGURASI ATRIBUT INDIKATOR</span>
                 <div className="ind-atur fb-atur">
-                  <div className="field">
+                  <label className="field">
                     <span>Dihitung untuk</span>
                     <Pilih nilai={peranPic} cari={false} onPilih={setPeranPic}
                            opsi={[
@@ -1227,19 +1227,7 @@ export default function IndikatorClient() {
                              { nilai: "spv", label: "Supervisor", ket: "kolom spv_pic" },
                              { nilai: "bch", label: "Kepala cabang", ket: "kolom bch_pic" },
                            ]} />
-                    <span className="ind-pic-tambah">
-                      <small className="faint">Juga untuk:</small>
-                      {[["staff", "Staf"], ["spv", "Supervisor"], ["bch", "Kepala cabang"]]
-                        .filter(([k]) => k !== peranPic).map(([k, l]) => (
-                          <label key={k} className="ind-pic-cek">
-                            <input type="checkbox" checked={picTambahan.includes(k)}
-                                   onChange={(e) => setPicTambahan(e.target.checked
-                                     ? [...picTambahan, k] : picTambahan.filter((x) => x !== k))} />
-                            {l}
-                          </label>
-                        ))}
-                    </span>
-                  </div>
+                  </label>
                   <label className="field">
                     <span>Cakupan baris</span>
                     <Pilih nilai={cakupan} cari={false} onPilih={setCakupan}
@@ -1272,6 +1260,26 @@ export default function IndikatorClient() {
                                })),
                            ]} />
                   </label>
+                </div>
+                <div className="ind-pic-baris" role="group" aria-label="Juga dihitung untuk">
+                  <span className="ind-pic-judul">Juga dihitung untuk</span>
+                  {[["staff", "Staf pelaksana"], ["spv", "Supervisor"], ["bch", "Kepala cabang"]]
+                    .filter(([k]) => k !== peranPic).map(([k, l]) => {
+                      const on = picTambahan.includes(k);
+                      return (
+                        <button key={k} type="button" aria-pressed={on}
+                                className={"ind-pic-chip" + (on ? " on" : "")}
+                                onClick={() => setPicTambahan(on
+                                  ? picTambahan.filter((x) => x !== k) : [...picTambahan, k])}>
+                          {on && <Ikon nama="check" ukuran={13} />}{l}
+                        </button>
+                      );
+                    })}
+                  <span className="ind-pic-ket faint">
+                    {picTambahan.filter((k) => k !== peranPic).length
+                      ? "rumus yang sama dipakai untuk peran ini juga"
+                      : "opsional"}
+                  </span>
                 </div>
                 <label className="fb-kali">
                   <input type="checkbox" checked={kaliSeratus}
