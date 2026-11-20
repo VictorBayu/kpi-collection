@@ -346,6 +346,33 @@ export const POST = handler(async (req) => {
   // berantai lewat ON DELETE CASCADE saat baris target-nya dihapus, jadi
   // cukup ditulis ulang di sini seperti komponen di atas.
   if (Array.isArray(b.target)) {
+    // Pita diperiksa SEBELUM apa pun dihapus: pita yang tumpang tindih
+    // (mis. diisi menurun untuk indikator "makin kecil makin baik") membuat
+    // dua band cocok sekaligus, dan mesin diam-diam memakai yang pertama
+    // sehingga skornya salah. Lebih baik ditolak dengan pesan yang jelas.
+    for (const t of b.target) {
+      const pita: any[] = Array.isArray(t.pita) ? t.pita : [];
+      let akhirSebelumnya: number | null = null;
+      pita.forEach((p, i) => {
+        const num = (v: unknown) =>
+          v === "" || v === null || v === undefined ? null : Number(v);
+        const lo = num(p.nilai_min);
+        const hi = num(p.nilai_max);
+        const label = `Pita ke-${i + 1} (${String(t.alias ?? "").toUpperCase()} ${String(t.produk ?? "").toUpperCase()})`;
+        if (lo !== null && hi !== null && lo >= hi) {
+          throw new HttpError(400,
+            `${label}: "Dari (≥)" (${lo}) harus lebih kecil dari "Sampai (<)" (${hi}). ` +
+            `Untuk indikator yang makin kecil makin baik, tetap urutkan batas dari kecil ke besar ` +
+            `dan balik poinnya (batas kecil = poin tinggi).`);
+        }
+        if (akhirSebelumnya !== null && lo !== null && lo < akhirSebelumnya) {
+          throw new HttpError(400,
+            `${label}: mulai dari ${lo}, padahal pita sebelumnya sudah sampai ${akhirSebelumnya} — ` +
+            `pita tumpang tindih. Urutkan dari batas terkecil ke terbesar.`);
+        }
+        if (hi !== null) akhirSebelumnya = hi;
+      });
+    }
     await q(`DELETE FROM indikator_target WHERE indikator_id = $1 AND periode = $2::date`, [id, periode]);
     for (const t of b.target) {
       const alias = String(t.alias ?? "").trim().toUpperCase();
