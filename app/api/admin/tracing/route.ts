@@ -282,7 +282,8 @@ export const GET = handler(async (req) => {
         // baris pagu antarproduk yang tidak seragam, lalu diperingatkan.
         `WITH gabung AS (
            SELECT norm_jabatan(i.jabatan) AS alias, g.mekanisme,
-                  SUM(i.skor_insentif)  AS skor_gabungan,
+                  CASE WHEN g.mekanisme = 'pagu_kelas'
+                       THEN AVG(i.skor_insentif) ELSE SUM(i.skor_insentif) END AS skor_gabungan,
                   MAX(g.pembagi)        AS pembagi_gabungan,
                   MAX(g.nominal)        AS pagu_gabungan,
                   MIN(g.pembagi)        AS pembagi_min,

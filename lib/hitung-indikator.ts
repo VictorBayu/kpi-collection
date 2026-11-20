@@ -737,7 +737,12 @@ async function hitungInsentif(periode: string): Promise<number> {
      -- sekali: gabungannya ya cuma dirinya sendiri, porsinya 100%.
      gabung_pagu AS (
        SELECT l.nik, norm_jabatan(l.jabatan) AS alias, g.mekanisme,
-              SUM(l.total_skor)   AS skor_gabungan,
+              -- 'pagu'      : skor dijumlahkan (bobot sudah dibagi antarproduk).
+              -- 'pagu_kelas': skor tiap produk berbobot penuh 100, jadi
+              --               digabung dengan DIRATA-RATAKAN (jumlah x 50%
+              --               untuk dua produk) supaya tetap skala 1-5.
+              CASE WHEN g.mekanisme = 'pagu_kelas'
+                   THEN AVG(l.total_skor) ELSE SUM(l.total_skor) END AS skor_gabungan,
               MAX(g.pembagi)      AS pembagi_gabungan,
               MAX(g.nominal)      AS pagu_gabungan,
               MAX(g.skor_minimal) AS ambang_gabungan,
@@ -868,13 +873,13 @@ async function hitungInsentif(periode: string): Promise<number> {
               WHEN p.mekanisme = 'pagu_kelas' AND
                    (p.skor_gabungan IS NULL OR p.skor_gabungan < p.ambang_gabungan)
                 THEN CASE WHEN p.jml_produk_gabungan > 1
-                       THEN 'Skor gabungan ' || COALESCE(ROUND(p.skor_gabungan, 2)::text, '-') ||
+                       THEN 'Skor rata-rata ' || COALESCE(ROUND(p.skor_gabungan, 2)::text, '-') ||
                             ' dari ' || p.jml_produk_gabungan || ' produk di bawah minimal ' || p.ambang_gabungan
                        ELSE 'Skor ' || COALESCE(ROUND(p.total_skor, 2)::text, '-') ||
                             ' di bawah minimal ' || p.skor_minimal END
               WHEN p.mekanisme = 'pagu_kelas' THEN
                 CASE WHEN p.jml_produk_gabungan > 1
-                     THEN 'Skor gabungan ' || ROUND(p.skor_gabungan, 2) || ' lolos minimal ' ||
+                     THEN 'Skor rata-rata ' || ROUND(p.skor_gabungan, 2) || ' lolos minimal ' ||
                           p.ambang_gabungan || '; bagian ' || p.produk || ': '
                      ELSE '' END ||
                 ROUND(p.total_skor, 2) || ' / ' || p.pembagi ||

@@ -776,7 +776,7 @@ function KartuInsentif({ ins, tier }: { ins: any; tier: any[] }) {
         {mek === "pagu_kelas" ? (
           <>
             {Number(ins.jml_produk_gabungan ?? 1) > 1 && (
-              <><span>Skor gabungan <b>{angka(n(ins.skor_gabungan))}</b> ≥ minimal <b>{angka(n(ins.ambang_gabungan))}</b>?</span><i>→</i></>
+              <><span>Skor rata-rata produk <b>{angka(n(ins.skor_gabungan))}</b> ≥ minimal <b>{angka(n(ins.ambang_gabungan))}</b>?</span><i>→</i></>
             )}
             <span>Skor insentif <b>{angka(n(ins.skor_insentif))}</b></span>
             <i>÷</i>

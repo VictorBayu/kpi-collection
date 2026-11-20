@@ -71,7 +71,7 @@ export async function cabangHarian() {
   const periode = periodeHarian();
   const rows = await q<any>(
     `WITH per_karyawan AS (
-       SELECT norm_wilayah(cabang) AS cabang, nik, SUM(skor_terbobot) AS skor
+       SELECT norm_wilayah(cabang) AS cabang, nik, SUM(skor_terbobot) * 100 / GREATEST(100, COALESCE(SUM(bobot) FILTER (WHERE skor_terbobot IS NOT NULL), 0)) AS skor
          FROM kpi_row
         WHERE sumber = 'api' AND periode = $1
         GROUP BY 1, nik
@@ -104,7 +104,7 @@ export async function karyawanHarian(cabang: string) {
   const periode = periodeHarian();
   const rows = await q<any>(
     `WITH skor AS (
-       SELECT nik, SUM(skor_terbobot) AS skor FROM kpi_row
+       SELECT nik, SUM(skor_terbobot) * 100 / GREATEST(100, COALESCE(SUM(bobot) FILTER (WHERE skor_terbobot IS NOT NULL), 0)) AS skor FROM kpi_row
         WHERE sumber='api' AND periode=$1
           AND COALESCE(UPPER(TRIM(cabang)),'(TANPA CABANG)') = $2
         GROUP BY nik),
@@ -224,7 +224,7 @@ export async function ringkasHarian(nik: string) {
   const periode = periodeHarian();
   const [r] = await q<any>(
     `SELECT
-       (SELECT SUM(skor_terbobot) FROM kpi_row
+       (SELECT SUM(skor_terbobot) * 100 / GREATEST(100, COALESCE(SUM(bobot) FILTER (WHERE skor_terbobot IS NOT NULL), 0)) FROM kpi_row
          WHERE sumber='api' AND periode=$1 AND nik=$2)              AS skor,
        (SELECT COUNT(*)::int FROM kpi_row
          WHERE sumber='api' AND periode=$1 AND nik=$2
@@ -266,7 +266,7 @@ export async function timHarian(atasanNik: string) {
   const rows = await q<any>(
     `WITH tim AS (${SQL_TIM_TERLIHAT})
      , skor AS (
-       SELECT k.nik, SUM(k.skor_terbobot) AS skor
+       SELECT k.nik, SUM(k.skor_terbobot) * 100 / GREATEST(100, COALESCE(SUM(k.bobot) FILTER (WHERE k.skor_terbobot IS NOT NULL), 0)) AS skor
          FROM kpi_row k JOIN tim t ON t.nik = k.nik
         WHERE k.sumber='api' AND k.periode=$2 GROUP BY k.nik)
      , ins AS (
