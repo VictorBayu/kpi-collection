@@ -148,7 +148,13 @@ export default function PaguClient() {
                            ket: "dari indikator berperan Nominal bersyarat" },
                        ]} />
               </label>
-              {baru.mekanisme === "tier" || baru.mekanisme === "bersyarat" ? null : (
+              {baru.mekanisme === "tier" ? (
+                <label>
+                  <span className="faint small">Skor minimal</span>
+                  <input className="num" inputMode="decimal" value={baru.skor_minimal}
+                         onChange={(e) => setBaru({ ...baru, skor_minimal: e.target.value })} />
+                </label>
+              ) : baru.mekanisme === "bersyarat" ? null : (
                 <>
                   <label>
                     <span className="faint small">Pagu (Rp)</span>
@@ -182,7 +188,9 @@ export default function PaguClient() {
                 Nominalnya dicari dari{" "}
                 <Link className="lnk" href="/admin/tier">Tabel Tier Insentif</Link>{" "}
                 berdasar tier (dari indikator berperan "Penentu tier") dan kelas
-                cabang orangnya. Isi tabel itu setelah pagu ini disimpan.
+                cabang orangnya. Tanpa indikator penentu tier, semua orang
+                dianggap tier 1 — cukup isi tier 1 per kelas cabang. Nominal
+                baru cair bila skor total mencapai skor minimal di atas.
               </p>
             ) : (
               <p className="faint small">
@@ -255,13 +263,24 @@ export default function PaguClient() {
                              { nilai: "bersyarat", label: "Nominal bersyarat" },
                            ]} />
                   </td>
-                  {tier || bersyarat ? (
+                  {tier ? (
+                    <>
+                      <td>
+                        <Link className="lnk small" href="/admin/tier">
+                          Diatur di Tabel Tier Insentif →
+                        </Link>
+                      </td>
+                      <td>
+                        <input className="num r" inputMode="decimal" value={p.skor_minimal}
+                               onChange={(e) => ubah({ skor_minimal: e.target.value })}
+                               onBlur={() => simpan(p)} />
+                      </td>
+                      <td />
+                    </>
+                  ) : bersyarat ? (
                     <td colSpan={3}>
-                      <Link className="lnk small"
-                            href={bersyarat ? "/admin/indikator" : "/admin/tier"}>
-                        {bersyarat
-                          ? "Diatur pada indikator berperan Nominal bersyarat →"
-                          : "Diatur di Tabel Tier Insentif →"}
+                      <Link className="lnk small" href="/admin/indikator">
+                        Diatur pada indikator berperan Nominal bersyarat →
                       </Link>
                     </td>
                   ) : (

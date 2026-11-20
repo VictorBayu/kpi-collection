@@ -557,21 +557,18 @@ function temuan(
       out.push({ nada: "warn", pesan: `${nm}: baris pagunya ada tapi nonaktif.` });
     }
     if (i.mekanisme === "tier") {
-      if (n(i.tier) === null) {
-        out.push({
-          nada: "bad",
-          pesan: `${nm}: mekanismenya tier, tapi tidak ada indikator berperan 'tier' yang menghasilkan angka tier. Nominalnya nol.`,
-        });
-      } else if (!i.kelas_cabang) {
+      // Tanpa indikator penentu tier, orangnya otomatis tier 1.
+      const tierPakai = n(i.tier) ?? 1;
+      if (!i.kelas_cabang) {
         out.push({
           nada: "bad",
           pesan: `${nm}: kelas cabang ${i.cabang} belum ditetapkan untuk periode ini, jadi sel tabel tier tidak ketemu.`,
         });
       } else if (!tierTabel.some((t) =>
-        t.produk === i.produk && String(t.tier) === String(i.tier) && t.kelas === i.kelas_cabang)) {
+        t.produk === i.produk && String(t.tier) === String(tierPakai) && t.kelas === i.kelas_cabang)) {
         out.push({
           nada: "bad",
-          pesan: `${nm}: tidak ada baris di Tabel Tier untuk tier ${i.tier} × kelas ${i.kelas_cabang}. Nominalnya jatuh ke nol.`,
+          pesan: `${nm}: tidak ada baris di Tabel Tier untuk tier ${tierPakai} × kelas ${i.kelas_cabang}. Nominalnya jatuh ke nol.`,
         });
       }
     }

@@ -755,10 +755,16 @@ async function hitungInsentif(periode: string): Promise<number> {
               gp.ambang_gabungan, gp.jml_produk_gabungan,
               CASE
                 WHEN g.mekanisme = 'bersyarat' THEN l.nominal_bersyarat
+                -- Tier: tanpa indikator penentu tier, orangnya dianggap tier 1
+                -- (jabatan yang nominalnya hanya bergantung grading cabang).
+                -- Skor total tetap harus mencapai skor minimal jabatan ini.
                 WHEN g.mekanisme = 'tier' THEN
-                  COALESCE((SELECT it.nominal FROM insentif_tier it
+                  CASE
+                    WHEN l.total_skor IS NULL OR l.total_skor < g.skor_minimal THEN 0
+                    ELSE COALESCE((SELECT it.nominal FROM insentif_tier it
                              WHERE it.alias = g.alias AND it.produk = g.produk
-                               AND it.tier = l.tier AND it.kelas = l.kelas), 0)
+                               AND it.tier = COALESCE(l.tier, 1) AND it.kelas = l.kelas), 0)
+                  END
                 WHEN g.mekanisme = 'pagu' THEN
                   CASE
                     WHEN gp.skor_gabungan IS NULL
@@ -787,7 +793,9 @@ async function hitungInsentif(periode: string): Promise<number> {
         nominal_dasar, nominal_reward, nominal_penalty, nominal,
         sumber, batch_id, keterangan, dihitung_pada)
      SELECT $1::date, p.nik, 'Insentif ' || p.produk, p.produk, p.jabatan, p.cabang,
-            ROUND(p.total_skor, 2), p.tier, p.kelas,
+            ROUND(p.total_skor, 2),
+            CASE WHEN p.mekanisme = 'tier' THEN COALESCE(p.tier, 1) ELSE p.tier END,
+            p.kelas,
             p.nominal_dasar,
             ROUND(p.reward_nominal + (p.reward_persen / 100) * p.nominal_dasar, 0),
             ROUND(p.penalty_nominal + (p.penalty_persen / 100) * p.nominal_dasar, 0),
@@ -806,12 +814,15 @@ async function hitungInsentif(periode: string): Promise<number> {
                     THEN 'Tidak cair — ' || p.sebab_gagal
                   ELSE 'Semua syarat terpenuhi, nominal dari pita'
                 END
+              WHEN p.mekanisme = 'tier' AND
+                   (p.total_skor IS NULL OR p.total_skor < p.skor_minimal)
+                THEN 'Skor ' || COALESCE(ROUND(p.total_skor, 2)::text, '-') ||
+                     ' di bawah minimal ' || p.skor_minimal
               WHEN p.mekanisme = 'tier' THEN
-                'Tier ' || COALESCE(p.tier::text, '-') ||
+                'Tier ' || COALESCE(p.tier::text, '1 (tanpa indikator tier)') ||
                 ' x kelas ' || COALESCE(p.kelas, '-') ||
-                CASE WHEN p.kelas IS NULL OR p.tier IS NULL
-                       OR p.nominal_dasar = 0 AND p.tier IS NOT NULL AND p.kelas IS NOT NULL
-                     THEN ' (cek: tier/kelas belum lengkap atau tidak ada di tabel)'
+                CASE WHEN p.kelas IS NULL OR p.nominal_dasar = 0
+                     THEN ' (cek: kelas belum ditetapkan atau tidak ada di tabel tier)'
                      ELSE '' END
               -- Mekanisme 'pagu' dengan lebih dari satu produk gabungan
               -- (jabatan menghandle beberapa produk sekaligus, mis. MBS
