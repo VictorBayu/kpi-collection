@@ -67,7 +67,7 @@ export const POST = handler(async (req) => {
   if (!alias) throw new HttpError(400, "Jabatan belum dipilih.");
   if (!produk) throw new HttpError(400, "Produk belum dipilih.");
 
-  const mekanisme = ["tier", "bersyarat"].includes(b.mekanisme) ? b.mekanisme : "pagu";
+  const mekanisme = ["tier", "bersyarat", "pagu_kelas"].includes(b.mekanisme) ? b.mekanisme : "pagu";
   const nominal = Number(b.nominal ?? 0);
   const skorMin = Number(b.skor_minimal ?? 3);
   const pembagi = Number(b.pembagi ?? 5);

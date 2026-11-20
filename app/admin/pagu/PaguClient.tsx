@@ -50,7 +50,7 @@ export default function PaguClient() {
       nominal: String(p.nominal ?? 0),
       skor_minimal: String(p.skor_minimal ?? 3),
       pembagi: String(p.pembagi ?? 5),
-      mekanisme: ["tier", "bersyarat"].includes(p.mekanisme) ? p.mekanisme : "pagu",
+      mekanisme: ["tier", "bersyarat", "pagu_kelas"].includes(p.mekanisme) ? p.mekanisme : "pagu",
     })));
     setProduk(j.produk ?? []);
     setSaran(j.jabatan ?? []);
@@ -148,12 +148,21 @@ export default function PaguClient() {
                            ket: "dari indikator berperan Nominal bersyarat" },
                        ]} />
               </label>
-              {baru.mekanisme === "tier" ? (
-                <label>
-                  <span className="faint small">Skor minimal</span>
-                  <input className="num" inputMode="decimal" value={baru.skor_minimal}
-                         onChange={(e) => setBaru({ ...baru, skor_minimal: e.target.value })} />
-                </label>
+              {baru.mekanisme === "tier" || baru.mekanisme === "pagu_kelas" ? (
+                <>
+                  <label>
+                    <span className="faint small">Skor minimal</span>
+                    <input className="num" inputMode="decimal" value={baru.skor_minimal}
+                           onChange={(e) => setBaru({ ...baru, skor_minimal: e.target.value })} />
+                  </label>
+                  {baru.mekanisme === "pagu_kelas" && (
+                    <label>
+                      <span className="faint small">Pembagi</span>
+                      <input className="num" inputMode="decimal" value={baru.pembagi}
+                             onChange={(e) => setBaru({ ...baru, pembagi: e.target.value })} />
+                    </label>
+                  )}
+                </>
               ) : baru.mekanisme === "bersyarat" ? null : (
                 <>
                   <label>
@@ -182,6 +191,13 @@ export default function PaguClient() {
                 cair penuh bila semua syarat lolos, nol bila ada yang gagal.
                 Tidak ada pagu, skor minimal, maupun pembagi yang perlu diisi
                 di sini karena besarnya tidak mengikuti skor.
+              </p>
+            ) : baru.mekanisme === "pagu_kelas" ? (
+              <p className="faint small">
+                Nominal = skor ÷ pembagi × pagu menurut grading cabang. Pagu
+                tiap kelas (Large/Medium/Small) diisi di{" "}
+                <Link className="lnk" href="/admin/tier">Tabel Tier Insentif</Link>{" "}
+                sebagai baris <b>tier 1</b>. Cair bila skor mencapai skor minimal.
               </p>
             ) : baru.mekanisme === "tier" ? (
               <p className="faint small">
@@ -246,6 +262,7 @@ export default function PaguClient() {
               // jadi ketiga kolom angka diganti tautan ke tempat aslinya
               // diatur — bukan dibiarkan kosong dan membingungkan.
               const tier = p.mekanisme === "tier";
+              const paguKelas = p.mekanisme === "pagu_kelas";
               const bersyarat = p.mekanisme === "bersyarat";
               return (
                 <tr key={p.alias + p.produk}>
@@ -260,10 +277,11 @@ export default function PaguClient() {
                            opsi={[
                              { nilai: "pagu", label: "Rumus pagu" },
                              { nilai: "tier", label: "Tabel tier" },
+                             { nilai: "pagu_kelas", label: "Pagu per grading cabang" },
                              { nilai: "bersyarat", label: "Nominal bersyarat" },
                            ]} />
                   </td>
-                  {tier ? (
+                  {tier || paguKelas ? (
                     <>
                       <td>
                         <Link className="lnk small" href="/admin/tier">
@@ -275,7 +293,13 @@ export default function PaguClient() {
                                onChange={(e) => ubah({ skor_minimal: e.target.value })}
                                onBlur={() => simpan(p)} />
                       </td>
-                      <td />
+                      <td>
+                        {paguKelas && (
+                          <input className="num r" inputMode="decimal" value={p.pembagi}
+                                 onChange={(e) => ubah({ pembagi: e.target.value })}
+                                 onBlur={() => simpan(p)} />
+                        )}
+                      </td>
                     </>
                   ) : bersyarat ? (
                     <td colSpan={3}>

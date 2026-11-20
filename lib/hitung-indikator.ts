@@ -751,6 +751,9 @@ async function hitungInsentif(periode: string): Promise<number> {
      pokok AS (
        SELECT l.*, g.alias, g.mekanisme,
               g.nominal AS pagu_nominal, g.skor_minimal, g.pembagi,
+              (SELECT it.nominal FROM insentif_tier it
+                WHERE it.alias = g.alias AND it.produk = g.produk
+                  AND it.tier = 1 AND it.kelas = l.kelas) AS pagu_kelas_nominal,
               gp.skor_gabungan, gp.pembagi_gabungan, gp.pagu_gabungan,
               gp.ambang_gabungan, gp.jml_produk_gabungan,
               CASE
@@ -758,6 +761,18 @@ async function hitungInsentif(periode: string): Promise<number> {
                 -- Tier: tanpa indikator penentu tier, orangnya dianggap tier 1
                 -- (jabatan yang nominalnya hanya bergantung grading cabang).
                 -- Skor total tetap harus mencapai skor minimal jabatan ini.
+                -- Pagu per grading cabang: skor / pembagi x pagu kelas
+                -- (pagu kelas = baris tier 1 di Tabel Tier Insentif).
+                WHEN g.mekanisme = 'pagu_kelas' THEN
+                  CASE
+                    WHEN l.total_skor IS NULL OR l.total_skor < g.skor_minimal THEN 0
+                    ELSE COALESCE(ROUND(
+                      l.total_skor / NULLIF(g.pembagi, 0) *
+                      (SELECT it.nominal FROM insentif_tier it
+                        WHERE it.alias = g.alias AND it.produk = g.produk
+                          AND it.tier = 1 AND it.kelas = l.kelas)
+                    , 0), 0)
+                  END
                 WHEN g.mekanisme = 'tier' THEN
                   CASE
                     WHEN l.total_skor IS NULL OR l.total_skor < g.skor_minimal THEN 0
@@ -846,6 +861,14 @@ async function hitungInsentif(periode: string): Promise<number> {
               WHEN p.mekanisme = 'pagu' THEN
                 ROUND(p.total_skor, 2) || ' / ' || p.pembagi ||
                 ' x pagu ' || p.pagu_nominal
+              WHEN p.mekanisme = 'pagu_kelas' AND
+                   (p.total_skor IS NULL OR p.total_skor < p.skor_minimal)
+                THEN 'Skor ' || COALESCE(ROUND(p.total_skor, 2)::text, '-') ||
+                     ' di bawah minimal ' || p.skor_minimal
+              WHEN p.mekanisme = 'pagu_kelas' THEN
+                ROUND(p.total_skor, 2) || ' / ' || p.pembagi ||
+                ' x pagu kelas ' || COALESCE(p.kelas, '-') || ' ' ||
+                COALESCE(p.pagu_kelas_nominal::text, '(belum ada di Tabel Tier)')
               ELSE 'Mekanisme insentif tidak dikenal'
             END,
             now()

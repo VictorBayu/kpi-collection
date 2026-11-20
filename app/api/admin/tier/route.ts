@@ -24,7 +24,7 @@ export const GET = handler(async () => {
     // Pagu Insentif — di luar itu tabel ini tidak pernah dibaca.
     q<any>(
       `SELECT alias, produk FROM insentif_pagu
-        WHERE mekanisme = 'tier' AND aktif ORDER BY alias, produk`),
+        WHERE mekanisme IN ('tier','pagu_kelas') AND aktif ORDER BY alias, produk`),
   ]);
 
   return Response.json({ tier, produk, jabatan });

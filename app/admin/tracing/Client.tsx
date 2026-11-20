@@ -773,7 +773,18 @@ function KartuInsentif({ ins, tier }: { ins: any; tier: any[] }) {
       </div>
 
       <div className="trc-rumus-terang num">
-        {mek === "tier" ? (
+        {mek === "pagu_kelas" ? (
+          <>
+            <span>Skor insentif <b>{angka(n(ins.skor_insentif))}</b></span>
+            <i>÷</i>
+            <span>Pembagi <b>{angka(n(ins.pembagi))}</b></span>
+            <i>×</i>
+            <span>Pagu kelas <b>{ins.kelas_cabang ?? "—"}</b>{" "}
+              <b>{rp(n(tier.find((t: any) => t.produk === ins.produk && String(t.tier) === "1" && t.kelas === ins.kelas_cabang)?.nominal))}</b></span>
+            <i>=</i>
+            <span>Nominal dasar <b>{rp(n(ins.nominal_dasar))}</b></span>
+          </>
+        ) : mek === "tier" ? (
           <>
             <span>Tier <b>{ins.tier ?? "—"}</b></span>
             <i>×</i>
@@ -823,7 +834,7 @@ function KartuInsentif({ ins, tier }: { ins: any; tier: any[] }) {
         </p>
       )}
 
-      {mek === "tier" && tier.length > 0 && (
+      {(mek === "tier" || mek === "pagu_kelas") && tier.length > 0 && (
         <details className="trc-tabel-tier">
           <summary><Ikon nama="chevronRight" ukuran={14} /> Tabel tier yang berlaku untuk jabatan ini ({tier.length} sel)</summary>
           <div className="trc-tabel-bingkai">

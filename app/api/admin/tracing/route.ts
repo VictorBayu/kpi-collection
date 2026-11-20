@@ -556,9 +556,9 @@ function temuan(
     if (i.pagu_aktif === false) {
       out.push({ nada: "warn", pesan: `${nm}: baris pagunya ada tapi nonaktif.` });
     }
-    if (i.mekanisme === "tier") {
+    if (i.mekanisme === "tier" || i.mekanisme === "pagu_kelas") {
       // Tanpa indikator penentu tier, orangnya otomatis tier 1.
-      const tierPakai = n(i.tier) ?? 1;
+      const tierPakai = i.mekanisme === "pagu_kelas" ? 1 : (n(i.tier) ?? 1);
       if (!i.kelas_cabang) {
         out.push({
           nada: "bad",
