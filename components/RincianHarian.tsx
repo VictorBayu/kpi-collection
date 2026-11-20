@@ -67,6 +67,18 @@ function targetBerikut(
     if (kini.min === null) return null; // sudah di band terbaik (terbuka bawah)
     return { ambang: kini.min, poin: kini.poinMin };
   }
+  // Band datar (bertangga, mis. Target Tier): cari band terdekat yang
+  // poinnya lebih tinggi, lalu ambang yang harus dilewati menuju ke sana.
+  const lebih = pita
+    .filter((b) => b.poinMin !== null && b.poinMin > (kini.poinMin as number))
+    .sort((a, b) => (a.poinMin as number) - (b.poinMin as number))[0];
+  if (!lebih) return null;
+  if (lebih.max !== null && kini.min !== null && lebih.max <= kini.min) {
+    return { ambang: kini.min, poin: lebih.poinMin };
+  }
+  if (lebih.min !== null && kini.max !== null && lebih.min >= kini.max) {
+    return { ambang: kini.max, poin: lebih.poinMin };
+  }
   return null;
 }
 
@@ -322,6 +334,22 @@ function PitaTabel({
   const p = b.pencapaian;
   return (
     <div className="rh-pita">
+      {b.infoTarget && (
+        <div className="rh-pita-info">
+          <span>
+            Target {b.infoTarget.lokasi === "area" ? "area" : "cabang"}{" "}
+            <b>{b.infoTarget.tempat}</b>
+            {b.infoTarget.mekanisme === "rasio"
+              ? " · rasio bertangga"
+              : b.infoTarget.tierAktif ? ` · tier aktif ${b.infoTarget.tierAktif}` : ""}
+          </span>
+          {b.infoTarget.kelas && (
+            <span className={"rh-kelas rh-kelas-" + b.infoTarget.kelas}>
+              Grading {b.infoTarget.kelas}
+            </span>
+          )}
+        </div>
+      )}
       <div className="rh-pita-head">
         <span>Band pencapaian</span>
         <span className="r">Batas atas</span>

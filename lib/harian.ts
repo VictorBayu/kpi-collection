@@ -179,9 +179,35 @@ export async function progresNik(nik: string) {
                 AND t.produk = k.produk
                 AND t.alias = norm_jabatan(k.jabatan)
                 AND t.periode = k.periode
-                AND t.aktif) AS pita
+                AND t.aktif) AS pita,
+            -- Indikator bersumber Target Tier: ambang t1..t5 diambil dengan
+            -- aturan pencarian yang sama seperti mesin hitung (periode,
+            -- bucket, kelompok produk, cabang, lalu area), plus grading
+            -- cabang orangnya supaya terbaca target itu milik cabang kelas apa.
+            it.sumber_target, it.target_tier_bucket, it.mekanisme_target_tier,
+            tt.tier_aktif AS tt_tier, tt.satuan AS tt_satuan,
+            tt.t1, tt.t2, tt.t3, tt.t4, tt.t5,
+            tt.tipe_lokasi AS tt_lokasi, tt.cabang_atau_area AS tt_tempat,
+            kelas_cabang(k.cabang, k.produk, k.periode) AS kelas_cabang
        FROM kpi_row k
        LEFT JOIN indikator_def d ON d.id = k.indikator_id
+       LEFT JOIN indikator_target it
+              ON it.indikator_id = k.indikator_id AND it.produk = k.produk
+             AND it.alias = norm_jabatan(k.jabatan) AND it.periode = k.periode AND it.aktif
+       LEFT JOIN app_user au ON au.nik = k.nik
+       LEFT JOIN LATERAL (
+         SELECT x.* FROM target_tier x
+          WHERE it.sumber_target = 'target_tier'
+            AND x.periode = k.periode
+            AND x.bucket = it.target_tier_bucket
+            AND x.kelompok_produk = COALESCE(
+                  substring(norm_jabatan(k.jabatan) from '(MIX|R2|R4)$'),
+                  upper(k.produk))
+            AND ((x.tipe_lokasi = 'cabang' AND upper(btrim(x.cabang_atau_area)) = upper(btrim(k.cabang)))
+              OR (x.tipe_lokasi = 'area'   AND upper(btrim(x.cabang_atau_area)) = upper(btrim(au.area))))
+          ORDER BY (x.tipe_lokasi = 'cabang') DESC
+          LIMIT 1
+       ) tt ON TRUE
       WHERE k.sumber = 'api' AND k.periode = $1 AND k.nik = $2
       ORDER BY
         CASE k.peran WHEN 'nominal' THEN 0 WHEN 'kpi' THEN 1 WHEN 'reguler' THEN 1
@@ -191,6 +217,36 @@ export async function progresNik(nik: string) {
     [periode, nik]);
 
   const num = (v: any) => (v === null || v === undefined ? null : Number(v));
+
+  /**
+   * Band dari ambang Target Tier, dibentuk dengan aturan skor yang sama
+   * seperti mesin hitung (skorTargetTier): Delq makin kecil makin baik,
+   * bucket lain makin besar makin baik. Rasio bertangga t1–t5; standard
+   * hanya lolos/tidak terhadap t{tier_aktif}. Ambang rasio disimpan sebagai
+   * pecahan, ditampilkan sebagai persen supaya sebanding dengan pencapaian.
+   */
+  const bandTier = (r: any) => {
+    if (r.sumber_target !== "target_tier" || r.tt_tempat === null || r.tt_tempat === undefined) return [];
+    const m = r.tt_satuan === "persen" ? 100 : 1;
+    const t = [r.t1, r.t2, r.t3, r.t4, r.t5].map((x) => (x === null || x === undefined ? null : Number(x) * m));
+    const delq = String(r.target_tier_bucket ?? "").startsWith("delq");
+    const band = (min: number | null, max: number | null, poin: number) =>
+      ({ min, max, poinMin: poin, poinMax: poin });
+    if (r.mekanisme_target_tier === "rasio") {
+      if (t.slice(1).some((x) => x === null)) return [];
+      const [, t2, t3, t4, t5] = t as number[];
+      return delq
+        ? [band(null, t5, 5), band(t5, t4, 4), band(t4, t3, 3), band(t3, t2, 2), band(t2, null, 1)]
+        : [band(null, t2, 1), band(t2, t3, 2), band(t3, t4, 3), band(t4, t5, 4), band(t5, null, 5)];
+    }
+    const k = Number(r.tt_tier);
+    const thr = Number.isFinite(k) && k >= 1 && k <= 5 ? t[k - 1] : null;
+    if (thr === null) return [];
+    return delq
+      ? [band(null, thr, k), band(thr, null, 1)]
+      : [band(null, thr, 1), band(thr, null, k)];
+  };
+
   return rows.map((r) => ({
     indikator: r.indikator as string,
     produk: r.produk as string | null,
@@ -211,11 +267,24 @@ export async function progresNik(nik: string) {
     // Bila indikatornya sudah "dikalikan 100", pencapaian yang tersimpan
     // sudah berupa angka persen (mis. 35,04) — bukan rasio 0–1. Penanda ini
     // dibawa supaya tampilan tidak mengalikan 100 untuk kedua kalinya.
-    persenSudah: r.kali_seratus === true,
-    pita: ((r.pita ?? []) as any[]).map((b) => ({
-      min: num(b.min), max: num(b.max),
-      poinMin: num(b.poinMin), poinMax: num(b.poinMax),
-    })),
+    persenSudah: r.kali_seratus === true || (r.sumber_target === "target_tier" && r.tt_satuan === "persen"),
+    pita: (((r.pita ?? []) as any[]).length
+      ? (r.pita as any[]).map((b) => ({
+          min: num(b.min), max: num(b.max),
+          poinMin: num(b.poinMin), poinMax: num(b.poinMax),
+        }))
+      : bandTier(r)),
+    // Asal ambang Target Tier + grading cabang orangnya, untuk ditampilkan
+    // di atas tabel band.
+    infoTarget: r.sumber_target === "target_tier" && r.tt_tempat
+      ? {
+          tempat: String(r.tt_tempat),
+          lokasi: String(r.tt_lokasi ?? "cabang"),
+          kelas: (r.kelas_cabang ?? null) as string | null,
+          mekanisme: String(r.mekanisme_target_tier ?? "standard"),
+          tierAktif: num(r.tt_tier),
+        }
+      : null,
   }));
 }
 
