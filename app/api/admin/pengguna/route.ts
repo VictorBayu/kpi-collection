@@ -254,7 +254,54 @@ export const DELETE = handler(async (req) => {
 /** Suspend / aktifkan / reset password satu user. */
 export const PATCH = handler(async (req) => {
   const admin = await requireAdmin();
-  const { userId, aksi, alasan, password } = await req.json();
+  const body = await req.json();
+  const { userId, aksi, alasan, password } = body;
+
+  // Tindakan massal: sekumpulan akun sekaligus. Tiap akun diproses sendiri
+  // dan hasilnya dilaporkan per akun, supaya satu yang gagal tidak
+  // membatalkan yang lain.
+  if (Array.isArray(body.userIds)) {
+    const ids: string[] = Array.from(new Set<string>(body.userIds.map(String))).slice(0, 500);
+    if (!ids.length) throw new HttpError(400, "Belum ada akun yang dipilih.");
+    if (!["aktifkan_login", "suspend", "aktifkan"].includes(aksi)) {
+      throw new HttpError(400, "Aksi massal tidak dikenal.");
+    }
+    const pwSeragam = String(password ?? "");
+    if (aksi === "aktifkan_login" && pwSeragam && pwSeragam.length < 8) {
+      throw new HttpError(400, "Password awal minimal 8 karakter.");
+    }
+
+    const akun = await q<any>(
+      `SELECT id, nik, nama, aktif, bisa_login FROM app_user WHERE id = ANY($1::uuid[])`, [ids]);
+    let berhasil = 0, dilewati = 0;
+    const kredensial: { nik: string; nama: string; password: string }[] = [];
+
+    for (const u of akun) {
+      if (u.id === admin.sub && aksi !== "aktifkan") { dilewati++; continue; }
+      if (aksi === "aktifkan_login") {
+        // Hanya akun yang memang belum punya login; yang sudah punya
+        // dilewati agar passwordnya tidak tertimpa tanpa sengaja.
+        if (u.bisa_login !== false) { dilewati++; continue; }
+        const pw = pwSeragam || `Smart@${Math.floor(Math.random() * 900000 + 100000)}`;
+        await q(`UPDATE app_user SET password_hash = $2, bisa_login = TRUE,
+                        must_change_password = TRUE, perlu_ditinjau = FALSE WHERE id = $1`,
+          [u.id, await hashPassword(pw)]);
+        if (!pwSeragam) kredensial.push({ nik: u.nik, nama: u.nama, password: pw });
+        berhasil++;
+      } else if (aksi === "suspend") {
+        await q(`UPDATE app_user SET aktif = FALSE, suspended_at = now(), suspended_reason = $2 WHERE id = $1`,
+          [u.id, String(alasan || "Dinonaktifkan admin").slice(0, 300)]);
+        berhasil++;
+      } else {
+        await q(`UPDATE app_user SET aktif = TRUE, suspended_at = NULL, suspended_reason = NULL WHERE id = $1`,
+          [u.id]);
+        berhasil++;
+      }
+    }
+    await auditLog(admin.sub, `massal_${aksi}`, `${berhasil} akun`, { dipilih: ids.length, berhasil, dilewati });
+    return Response.json({ ok: true, berhasil, dilewati, kredensial });
+  }
+
   if (!userId) throw new HttpError(400, "User tidak dikenal.");
 
   const [u] = await q<any>(`SELECT id, nik, nama, aktif FROM app_user WHERE id = $1`, [userId]);

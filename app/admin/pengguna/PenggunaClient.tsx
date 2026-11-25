@@ -49,6 +49,12 @@ export default function PenggunaClient() {
   const [sibuk, setSibuk] = useState(false);
   const [lihatPw, setLihatPw] = useState(false);
 
+  // Pilihan untuk tindakan massal. Disimpan sebagai himpunan id supaya
+  // tetap utuh walau admin berpindah halaman daftar.
+  const [dipilih, setDipilih] = useState<Set<string>>(new Set());
+  const [panelLogin, setPanelLogin] = useState(false);
+  const [pwAwal, setPwAwal] = useState("");
+
   // null = form tertutup. { id: null } = tambah baru, { id: "..." } = edit.
   const [form, setForm] = useState<(FormUser & { id: string | null }) | null>(null);
 
@@ -155,6 +161,51 @@ export default function PenggunaClient() {
     const d = await res.json();
     setSibuk(false);
     if (!res.ok) { setGalat(d.error); return; }
+    muat();
+  }
+
+  function ubahPilihan(ids: string[], nyala: boolean) {
+    setDipilih((s) => {
+      const n = new Set(s);
+      for (const id of ids) { if (nyala) n.add(id); else n.delete(id); }
+      return n;
+    });
+  }
+
+  function unduhKredensial(rows: { nik: string; nama: string; password: string }[]) {
+    const csv = ["NIK,NAMA,PASSWORD AWAL",
+      ...rows.map((r) => [r.nik, `"${r.nama.replace(/"/g, '""')}"`, r.password].join(","))].join("\r\n");
+    const url = URL.createObjectURL(new Blob(["\ufeff" + csv], { type: "text/csv;charset=utf-8" }));
+    const a = document.createElement("a");
+    a.href = url; a.download = "password-awal-pengguna.csv"; a.click();
+    URL.revokeObjectURL(url);
+  }
+
+  async function aksiMassal(aksi: "aktifkan_login" | "suspend" | "aktifkan") {
+    const ids = Array.from(dipilih);
+    if (!ids.length) return;
+    let alasan = "";
+    if (aksi === "suspend") {
+      const a = prompt(`Nonaktifkan ${ids.length} akun?\nTulis alasan (opsional):`, "Jarang mengakses aplikasi");
+      if (a === null) return;
+      alasan = a;
+    } else if (aksi === "aktifkan") {
+      if (!confirm(`Aktifkan kembali ${ids.length} akun?`)) return;
+    }
+    setSibuk(true); setGalat(null); setKabar(null);
+    const res = await fetch("/api/admin/pengguna", {
+      method: "PATCH", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ userIds: ids, aksi, alasan, password: aksi === "aktifkan_login" ? pwAwal : undefined }),
+    });
+    const d = await res.json();
+    setSibuk(false);
+    if (!res.ok) { setGalat(d.error); return; }
+    if (d.kredensial?.length) unduhKredensial(d.kredensial);
+    setKabar(
+      `${d.berhasil} akun berhasil diproses` +
+      (d.dilewati ? `, ${d.dilewati} dilewati (sudah sesuai atau akun Anda sendiri)` : "") +
+      (d.kredensial?.length ? `. Berkas password awal sudah diunduh — simpan dan bagikan dengan aman.` : "."));
+    setDipilih(new Set()); setPanelLogin(false); setPwAwal("");
     muat();
   }
 
@@ -451,10 +502,53 @@ export default function PenggunaClient() {
           />
         </div>
 
+        {dipilih.size > 0 && (
+          <div className="pa-massal" role="region" aria-label="Tindakan untuk akun terpilih">
+            <div className="pa-massal-baris">
+              <b>{dipilih.size.toLocaleString("id-ID")} akun dipilih</b>
+              {list.length > dipilih.size && (
+                <button className="lnk" onClick={() => ubahPilihan(list.map((u) => u.id), true)}>
+                  Pilih semua {list.length.toLocaleString("id-ID")} hasil
+                </button>
+              )}
+              <span className="pa-massal-aksi">
+                <button className="btn sm" disabled={sibuk} onClick={() => setPanelLogin((v) => !v)}>
+                  Aktifkan login
+                </button>
+                <button className="btn ghost sm" disabled={sibuk} onClick={() => aksiMassal("aktifkan")}>Aktifkan kembali</button>
+                <button className="btn ghost sm" disabled={sibuk} onClick={() => aksiMassal("suspend")}>Nonaktifkan</button>
+                <button className="btn ghost sm" disabled={sibuk} onClick={() => { setDipilih(new Set()); setPanelLogin(false); }}>Batal pilih</button>
+              </span>
+            </div>
+            {panelLogin && (
+              <div className="pa-massal-panel">
+                <label className="field">
+                  <span>Password awal (opsional)</span>
+                  <input type="text" value={pwAwal} onChange={(e) => setPwAwal(e.target.value)}
+                         placeholder="Kosongkan agar dibuat acak per akun" autoComplete="off" />
+                </label>
+                <p className="faint small">
+                  Hanya akun yang <b>belum punya login</b> yang diproses; akun lain dilewati. Pengguna wajib
+                  mengganti password saat login pertama. Bila dikosongkan, tiap akun mendapat password acak dan
+                  berkas CSV berisi daftar passwordnya diunduh otomatis.
+                </p>
+                <button className="btn sm" disabled={sibuk} onClick={() => aksiMassal("aktifkan_login")}>
+                  {sibuk ? "Memproses…" : `Aktifkan login ${dipilih.size} akun`}
+                </button>
+              </div>
+            )}
+          </div>
+        )}
+
         <div className="tabel-scroll">
           <table className="pa-tabel">
             <thead>
               <tr>
+                <th style={{ width: 40 }}>
+                  <input type="checkbox" aria-label="Pilih semua di halaman ini"
+                         checked={tampil.length > 0 && tampil.every((u) => dipilih.has(u.id))}
+                         onChange={(e) => ubahPilihan(tampil.map((u) => u.id), e.target.checked)} />
+                </th>
                 <th>Pengguna</th>
                 <th>Jabatan &amp; penempatan</th>
                 <th style={{ width: 120 }}>Peran</th>
@@ -468,7 +562,12 @@ export default function PenggunaClient() {
                 const suspended = !u.aktif || !!u.suspended_at;
                 const jarang = u.akses_30h < 3 && !suspended;
                 return (
-                  <tr key={u.id} className={suspended ? "mati" : ""}>
+                  <tr key={u.id} className={(suspended ? "mati" : "") + (dipilih.has(u.id) ? " dipilih" : "")}>
+                    <td>
+                      <input type="checkbox" aria-label={`Pilih ${u.nama}`}
+                             checked={dipilih.has(u.id)}
+                             onChange={(e) => ubahPilihan([u.id], e.target.checked)} />
+                    </td>
                     <td>
                       <div className="pa-orang">
                         <span className="pa-avatar" aria-hidden>{inisial(u.nama)}</span>
@@ -534,7 +633,7 @@ export default function PenggunaClient() {
                 );
               })}
               {!tampil.length && (
-                <tr><td colSpan={6} className="empty">Tidak ada pengguna yang cocok dengan penyaringan.</td></tr>
+                <tr><td colSpan={7} className="empty">Tidak ada pengguna yang cocok dengan penyaringan.</td></tr>
               )}
             </tbody>
           </table>
