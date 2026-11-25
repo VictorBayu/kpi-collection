@@ -14,8 +14,8 @@ const TIPE_SQL: Record<string, string> = {
 export const GET = handler(async () => {
   await requireMenu("admin_turunan");
 
-  const [turunan, kolom] = await Promise.all([
-    q<any>(`SELECT t.kolom, t.mode, t.aturan, t.nilai_lain, t.ekspresi_sql,
+  const [turunan, kolom, tabelParam] = await Promise.all([
+    q<any>(`SELECT t.kolom, t.mode, t.aturan, t.nilai_lain, t.ekspresi_sql, t.param_kode,
                    t.dihitung_pada, t.baris_terisi, t.galat,
                    m.label, m.jenis, m.kelompok
               FROM kolom_turunan t
@@ -25,9 +25,13 @@ export const GET = handler(async () => {
               FROM mentah_kolom
              WHERE COALESCE(aktif,true) AND NOT COALESCE(turunan,false)
              ORDER BY sumber, urutan, label`),
+    // Tabel parameter yang bisa dipilih mode "tabel": satu baris per kode
+    // (versi terbaru), karena kolom turunan merujuk kode, bukan versi.
+    q<any>(`SELECT DISTINCT ON (kode) kode, nama, produk
+              FROM param_tabel ORDER BY kode, berlaku_mulai DESC`),
   ]);
 
-  return Response.json({ turunan, kolom });
+  return Response.json({ turunan, kolom, tabelParam });
 });
 
 /**
@@ -43,7 +47,8 @@ export const POST = handler(async (req) => {
   const kolom = String(b.kolom ?? "").trim().toLowerCase();
   const label = String(b.label ?? "").trim();
   const jenis = String(b.jenis ?? "teks");
-  const mode = b.mode === "sql" ? "sql" : "visual";
+  const mode = b.mode === "sql" ? "sql" : b.mode === "tabel" ? "tabel" : "visual";
+  const paramKode = mode === "tabel" ? String(b.param_kode ?? "").trim() : null;
 
   if (!POLA_KOLOM.test(kolom)) {
     throw new HttpError(400,
@@ -55,7 +60,11 @@ export const POST = handler(async (req) => {
   const sah = new Set(
     (await q<{ kolom: string }>(`SELECT kolom FROM mentah_kolom`)).map((r) => r.kolom));
 
-  if (mode === "sql") {
+  if (mode === "tabel") {
+    if (jenis !== "angka") throw new HttpError(400, "Kolom dari tabel parameter harus berjenis Angka.");
+    const [ada] = await q<any>(`SELECT 1 FROM param_tabel WHERE kode = $1 LIMIT 1`, [paramKode]);
+    if (!ada) throw new HttpError(400, "Tabel parameter belum dipilih atau tidak ditemukan.");
+  } else if (mode === "sql") {
     const salah = periksaEkspresi(String(b.ekspresi_sql ?? ""), sah);
     if (salah.length) throw new HttpError(400, salah.join(" "));
   } else {
@@ -103,15 +112,17 @@ export const POST = handler(async (req) => {
      b.kelompok ? String(b.kelompok).trim() : "Olahan", 950]);
 
   await q(
-    `INSERT INTO kolom_turunan (kolom, mode, aturan, nilai_lain, ekspresi_sql, diperbarui)
-     VALUES ($1,$2,$3::jsonb,$4,$5,now())
+    `INSERT INTO kolom_turunan (kolom, mode, aturan, nilai_lain, ekspresi_sql, param_kode, diperbarui)
+     VALUES ($1,$2,$3::jsonb,$4,$5,$6,now())
      ON CONFLICT (kolom) DO UPDATE
        SET mode = EXCLUDED.mode, aturan = EXCLUDED.aturan,
            nilai_lain = EXCLUDED.nilai_lain, ekspresi_sql = EXCLUDED.ekspresi_sql,
+           param_kode = EXCLUDED.param_kode,
            diperbarui = now()`,
-    [kolom, mode, JSON.stringify(b.aturan ?? []),
+    [kolom, mode, JSON.stringify(mode === "visual" ? (b.aturan ?? []) : []),
      b.nilai_lain === "" || b.nilai_lain === undefined ? null : String(b.nilai_lain),
-     mode === "sql" ? String(b.ekspresi_sql ?? "") : null]);
+     mode === "sql" ? String(b.ekspresi_sql ?? "") : null,
+     paramKode]);
 
   await auditLog(admin.sub, "turunan.simpan", kolom, { mode });
   return Response.json({ ok: true, kolom });

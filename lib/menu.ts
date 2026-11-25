@@ -54,6 +54,7 @@ export const MENU: Menu[] = [
   { kode: "admin_sumber",    label: "Sumber Data",          href: "/admin/sumber",      grup: "Data & indikator", ikon: "database" },
   { kode: "admin_kolom_api", label: "CRUD Kolom API",       href: "/admin/kolom-api",   grup: "Data & indikator", ikon: "columns" },
   { kode: "admin_turunan",   label: "Kolom Turunan",        href: "/admin/turunan",     grup: "Data & indikator", ikon: "branch" },
+  { kode: "admin_param_tabel", label: "Tabel Parameter",    href: "/admin/param-tabel", grup: "Data & indikator", ikon: "table" },
   { kode: "admin_pendukung", label: "Data Pendukung",       href: "/admin/pendukung",   grup: "Data & indikator", ikon: "file" },
   { kode: "admin_sampel",    label: "Sample Data API",      href: "/admin/sampel-data", grup: "Data & indikator", ikon: "code" },
   { kode: "admin_riwayat",   label: "Riwayat impor Excel",  href: "/admin/riwayat",     grup: "Data & indikator", ikon: "history" },

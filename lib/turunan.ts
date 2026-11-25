@@ -4,6 +4,14 @@ import {
 } from "./sumber";
 import { RumusSalah, type Syarat } from "./rumus";
 
+/** Periode berjalan (tanggal 1 bulan ini, waktu Jakarta). Ditulis ulang di
+ *  sini, bukan diimpor dari hitung-indikator, supaya tidak ada impor
+ *  melingkar (hitung-indikator sudah mengimpor berkas ini). */
+function periodeBerjalan(): string {
+  const jkt = new Date(Date.now() + 7 * 3600 * 1000);
+  return `${jkt.getUTCFullYear()}-${String(jkt.getUTCMonth() + 1).padStart(2, "0")}-01`;
+}
+
 /**
  * Kolom turunan: kolom yang nilainya dihitung dari kolom lain.
  *
@@ -29,10 +37,12 @@ export type Turunan = {
   kolom: string;
   jenis: string;
   sumber: string;
-  mode: "visual" | "sql";
+  mode: "visual" | "sql" | "tabel";
   aturan: CabangTurunan[];
   nilai_lain: string | null;
   ekspresi_sql: string | null;
+  /** Mode "tabel": kode tabel parameter yang dicari (versi dipilih per periode). */
+  param_kode?: string | null;
 };
 
 const POLA_KOLOM = /^[a-z][a-z0-9_]{0,50}$/;
@@ -164,6 +174,66 @@ function ekspresiVisual(
 }
 
 /**
+ * Ekspresi mode "tabel": nilai sel tabel parameter untuk tiap baris.
+ *
+ * Versi tabel dipilih untuk periode berjalan (param_versi). Untuk setiap
+ * sumbu dicari band yang memuat nilai kolom sumbernya; id band-band itu
+ * dirakit menjadi kunci sel, lalu nominalnya diambil. Baris yang tidak
+ * cocok di salah satu sumbu (atau kombinasinya belum punya sel) bernilai 0
+ * -- bukan kosong -- supaya SUM di indikator tidak ikut terganggu.
+ *
+ * Kolom sumber tetap lewat katalog (penunjuk) seperti mode lain; nilai
+ * angka yang bukan angka sah dianggap kosong, bukan menggagalkan seluruh
+ * kolom.
+ */
+async function ekspresiTabel(
+  t: Turunan, kat: Katalog, params: any[], dipakai: Set<string>,
+): Promise<string> {
+  const kode = String(t.param_kode ?? "");
+  if (!kode) throw new RumusSalah("Tabel parameter belum dipilih.");
+  const periode = periodeBerjalan();
+  const [v] = await q<{ id: string | null }>(
+    `SELECT param_versi($1, $2::date) AS id`, [kode, periode]);
+  if (!v?.id) {
+    throw new RumusSalah(`Tabel parameter "${kode}" belum punya versi aktif yang berlaku untuk periode ${periode}.`);
+  }
+  const dims = await q<any>(
+    `SELECT id, label, kolom_sumber, jenis FROM param_dimensi
+      WHERE tabel_id = $1 ORDER BY urutan`, [v.id]);
+  if (!dims.length) throw new RumusSalah(`Tabel parameter "${kode}" belum punya sumbu.`);
+
+  const pasangan = dims.map((d) => {
+    if (!d.kolom_sumber) {
+      throw new RumusSalah(`Sumbu "${d.label}" di tabel "${kode}" belum diberi kolom sumber.`);
+    }
+    const col = penunjuk(kat, d.kolom_sumber, dipakai);
+    params.push(d.id);
+    const pDim = `$${params.length}`;
+    let cocok: string;
+    if (d.jenis === "kategori") {
+      cocok = `upper(btrim((${col})::text)) = ANY (SELECT upper(btrim(x)) FROM unnest(b.nilai_teks) x)`;
+    } else {
+      const v = `(CASE WHEN btrim((${col})::text) ~ '^-?[0-9]+(\\.[0-9]+)?$'
+                       THEN btrim((${col})::text)::numeric END)`;
+      cocok = `${v} IS NOT NULL
+        AND (b.nilai_min IS NULL OR (b.min_inklusif AND ${v} >= b.nilai_min)
+                                 OR (NOT b.min_inklusif AND ${v} > b.nilai_min))
+        AND (b.nilai_max IS NULL OR (b.max_inklusif AND ${v} <= b.nilai_max)
+                                 OR (NOT b.max_inklusif AND ${v} < b.nilai_max))`;
+    }
+    const band = `(SELECT b.id::text FROM param_band b
+                    WHERE b.dimensi_id = ${pDim}::uuid AND ${cocok}
+                    ORDER BY b.urutan LIMIT 1)`;
+    return `${pDim}::text, ${band}`;
+  });
+
+  params.push(v.id);
+  return `COALESCE((SELECT s.nominal FROM param_sel s
+                     WHERE s.tabel_id = $${params.length}::uuid
+                       AND s.kunci = jsonb_build_object(${pasangan.join(", ")})), 0)`;
+}
+
+/**
  * Menghitung ulang satu kolom turunan untuk seluruh baris data mentah.
  *
  * Dijalankan seusai menarik data, atau saat admin menekan Hitung ulang.
@@ -190,6 +260,8 @@ export async function hitungTurunan(t: Turunan): Promise<number> {
         if (!kat.sumber.has(kecil) || KATA_SAH.has(kecil)) return m;
         return penunjuk(kat, kecil, dipakai);
       });
+  } else if (t.mode === "tabel") {
+    ekspresi = await ekspresiTabel(t, kat, params, dipakai);
   } else {
     ekspresi = ekspresiVisual(t, kat, params, dipakai);
   }
@@ -231,7 +303,7 @@ export async function hitungTurunan(t: Turunan): Promise<number> {
 /** Seluruh kolom turunan yang terdaftar. */
 export async function daftarTurunan(): Promise<Turunan[]> {
   const rows = await q<any>(
-    `SELECT t.kolom, t.mode, t.aturan, t.nilai_lain, t.ekspresi_sql,
+    `SELECT t.kolom, t.mode, t.aturan, t.nilai_lain, t.ekspresi_sql, t.param_kode,
             m.jenis, COALESCE(m.sumber,'api') AS sumber
        FROM kolom_turunan t
        JOIN mentah_kolom m ON m.kolom = t.kolom
@@ -240,6 +312,7 @@ export async function daftarTurunan(): Promise<Turunan[]> {
     kolom: r.kolom, jenis: r.jenis, sumber: r.sumber,
     mode: r.mode, aturan: r.aturan ?? [],
     nilai_lain: r.nilai_lain, ekspresi_sql: r.ekspresi_sql,
+    param_kode: r.param_kode ?? null,
   }));
 }
 

@@ -5199,3 +5199,59 @@ section.rh-grup.rh-kpi:hover{background:var(--surface);border-color:var(--line);
 .pa-massal-baris{display:flex;align-items:center;gap:12px;flex-wrap:wrap}
 .pa-massal-aksi{display:inline-flex;gap:8px;flex-wrap:wrap;margin-left:auto}
 .pa-massal-panel{margin-top:10px;padding-top:10px;border-top:1px solid #C7D2FE;display:grid;gap:8px;max-width:520px}
+
+/* ===== Tabel Parameter ===== */
+.pt-tata{display:grid;grid-template-columns:260px minmax(0,1fr);gap:16px;align-items:start}
+.pt-daftar{padding:12px;display:grid;gap:12px;position:sticky;top:76px}
+.pt-grup{padding:10px;border:1px solid var(--line-soft);border-radius:12px;display:grid;gap:6px}
+.pt-grup-nama{font-weight:600;font-size:13.5px;line-height:1.3}
+.pt-versi{display:flex;flex-wrap:wrap;gap:6px}
+.pt-versi-chip{display:inline-flex;align-items:center;gap:6px;border:1px solid var(--line);background:#fff;border-radius:999px;padding:4px 10px;font-size:12px;cursor:pointer;color:var(--ink)}
+.pt-versi-chip:hover{border-color:var(--accent)}
+.pt-versi-chip.on{background:var(--accent);border-color:var(--accent);color:#fff}
+.pt-versi-chip.mati{opacity:.6;text-decoration:line-through}
+.pt-titik-warn{width:7px;height:7px;border-radius:50%;background:#E8A317;display:inline-block}
+.pt-kosong{padding:6px}
+.pt-kosong-besar{display:grid;justify-items:center;gap:8px;padding:48px 20px;text-align:center}
+.pt-isi{display:grid;gap:16px;min-width:0}
+.pt-kartu{padding:16px}
+.pt-kepala{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:12px}
+.pt-kepala h3{margin:0;font-size:15px}
+.pt-aksi{margin-left:auto;display:inline-flex;gap:8px;flex-wrap:wrap}
+.pt-belum{font-size:11px;font-weight:600;padding:2px 8px;border-radius:999px;background:#FFF6E0;color:#9A6A00}
+.pt-identitas{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px;align-items:end}
+.pt-identitas .pt-lebar{grid-column:span 2}
+.pt-cek{display:inline-flex;align-items:center;gap:8px;font-size:13px;padding-bottom:8px}
+.pt-dim{border:1px solid var(--line-soft);border-radius:12px;padding:12px;margin-bottom:10px}
+.pt-dim-kepala{display:grid;grid-template-columns:auto minmax(140px,1.2fr) 120px 170px minmax(180px,1.4fr) auto;gap:8px;align-items:center}
+.pt-nomor{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;color:var(--ink-faint);min-width:52px}
+.pt-dim-label{font-weight:600}
+.pt-dim-tombol{display:inline-flex;gap:2px}
+.pt-peringatan{margin:8px 0 0;font-size:12px;color:#9A6A00}
+.pt-band-daftar{display:grid;gap:6px;margin-top:10px;padding-left:60px}
+.pt-band{display:grid;grid-template-columns:minmax(140px,220px) minmax(0,1fr) auto;gap:8px;align-items:center}
+.pt-rentang{display:flex;align-items:center;gap:6px;flex-wrap:wrap}
+.pt-rentang input{width:140px}
+.pt-op{min-width:34px;height:32px;border:1px solid var(--line);border-radius:8px;background:#F5F7FF;font-weight:700;cursor:pointer;color:var(--accent)}
+.pt-op:hover{border-color:var(--accent)}
+.pt-band-tambah{justify-self:start}
+.pt-hitung{font-size:12px;font-weight:600;padding:2px 8px;border-radius:999px;background:#EAF7EF;color:#1B7A43}
+.pt-hitung.warn{background:#FFF6E0;color:#9A6A00}
+.pt-matriks{border-collapse:collapse;width:100%;font-size:13px}
+.pt-matriks th{background:#EFF4FF;color:#565E74;padding:8px 10px;text-align:left;font-weight:600;border:1px solid var(--line-soft);white-space:nowrap}
+.pt-matriks th.r{text-align:right}
+.pt-matriks .pt-kolom-judul{text-align:center}
+.pt-matriks td{border:1px solid var(--line-soft);padding:4px 6px}
+.pt-baris-label{font-weight:600;white-space:nowrap;background:#FAFBFF}
+.pt-baris-label.ulang{background:#FAFBFF;border-top-color:transparent}
+.pt-sel input{width:100%;min-width:110px;border:1px solid transparent;background:transparent;padding:6px 8px;border-radius:6px}
+.pt-sel input:hover{border-color:var(--line)}
+.pt-sel input:focus{border-color:var(--accent);background:#fff;outline:none}
+@media (max-width:1100px){
+  .pt-tata{grid-template-columns:1fr}
+  .pt-daftar{position:static}
+  .pt-identitas{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .pt-dim-kepala{grid-template-columns:1fr 1fr}
+  .pt-band-daftar{padding-left:0}
+  .pt-band{grid-template-columns:1fr}
+}

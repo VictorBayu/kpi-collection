@@ -10,8 +10,8 @@ type Syarat = { kolom: string; operator: string; nilai: string[] };
 type Cabang = { syarat: Syarat[]; gabung: "dan" | "atau"; nilai: string };
 type Turunan = {
   kolom: string; label: string; jenis: string; kelompok: string | null;
-  mode: "visual" | "sql"; aturan: Cabang[]; nilai_lain: string | null;
-  ekspresi_sql: string | null;
+  mode: "visual" | "sql" | "tabel"; aturan: Cabang[]; nilai_lain: string | null;
+  ekspresi_sql: string | null; param_kode?: string | null;
   dihitung_pada: string | null; baris_terisi: number | null; galat: string | null;
 };
 
@@ -49,6 +49,7 @@ const KOSONG: Turunan = {
 export default function Client() {
   const [daftar, setDaftar] = useState<Turunan[]>([]);
   const [kolom, setKolom] = useState<Kolom[]>([]);
+  const [tabelParam, setTabelParam] = useState<{ kode: string; nama: string; produk: string | null }[]>([]);
   const [draf, setDraf] = useState<(Turunan & { baru: boolean }) | null>(null);
   const [sibuk, setSibuk] = useState(false);
   const [pesan, setPesan] = useState<string | null>(null);
@@ -57,7 +58,7 @@ export default function Client() {
     const r = await fetch("/api/admin/turunan", { cache: "no-store" });
     const j = await r.json().catch(() => ({}));
     if (!r.ok) { setPesan(j.error ?? "Gagal memuat."); return; }
-    setDaftar(j.turunan ?? []); setKolom(j.kolom ?? []);
+    setDaftar(j.turunan ?? []); setKolom(j.kolom ?? []); setTabelParam(j.tabelParam ?? []);
   }
   useEffect(() => { segarkan(); }, []);
 
@@ -149,7 +150,9 @@ export default function Client() {
           <div className="kt-form-kepala">
             <span className="kt-titik" aria-hidden />
             <h3>{draf.baru ? "Kolom turunan baru" : `Ubah: ${draf.label}`}</h3>
-            <span className="kt-mode">{draf.mode === "sql" ? "Mode ekspresi SQL" : "Mode perakit visual"}</span>
+            <span className="kt-mode">
+              {draf.mode === "sql" ? "Mode ekspresi SQL" : draf.mode === "tabel" ? "Mode tabel parameter" : "Mode perakit visual"}
+            </span>
           </div>
 
           <div className="kt-form-isi">
@@ -177,15 +180,41 @@ export default function Client() {
               <label className="field kt-cara">
                 <span>Cara menyusun</span>
                 <Pilih nilai={draf.mode} cari={false}
-                       onPilih={(v) => setDraf({ ...draf, mode: v as "visual" | "sql" })}
+                       onPilih={(v) => setDraf({
+                         ...draf, mode: v as Turunan["mode"],
+                         // Nilai dari tabel parameter selalu rupiah -> angka.
+                         jenis: v === "tabel" ? "angka" : draf.jenis,
+                       })}
                        opsi={[
                          { nilai: "visual", label: "Perakit visual", ket: "kalau begini maka begitu" },
                          { nilai: "sql", label: "Ekspresi SQL", ket: "untuk kasus rumit" },
+                         { nilai: "tabel", label: "Tabel parameter", ket: "nilai dari kombinasi beberapa sumbu" },
                        ]} />
               </label>
             </div>
 
-            {draf.mode === "visual" ? (
+            {draf.mode === "tabel" ? (
+              <div className="kt-perakit">
+                <label className="field">
+                  <span>Tabel parameter</span>
+                  <Pilih nilai={draf.param_kode ?? ""} placeholder="pilih tabel"
+                         onPilih={(v) => setDraf({ ...draf, param_kode: v })}
+                         opsi={tabelParam.map((t) => ({
+                           nilai: t.kode, label: t.nama,
+                           ket: t.produk ? `${t.kode} · ${t.produk}` : t.kode,
+                         }))} />
+                </label>
+                <div className="alert-box info">
+                  <span className="alert-ikon">i</span>
+                  <span>
+                    Tiap baris data dicocokkan ke band setiap sumbu tabel, lalu nilai sel kombinasinya ditulis
+                    ke kolom ini. Baris yang tidak cocok di salah satu sumbu bernilai 0. Versi tabel dipilih
+                    otomatis menurut periode berjalan. Sumbu, band, dan nilai sel diatur di menu{" "}
+                    <a className="lnk" href="/admin/param-tabel">Tabel Parameter</a>.
+                  </span>
+                </div>
+              </div>
+            ) : draf.mode === "visual" ? (
               <div className="kt-perakit">
                 {draf.aturan.map((c, ci) => (
                   <div className="kt-aturan" key={ci}>
@@ -295,8 +324,10 @@ export default function Client() {
                   </td>
                   <td>
                     <span className={"kt-cara-chip " + t.mode}>
-                      <Ikon nama={t.mode === "sql" ? "code" : "branch"} ukuran={13} />
-                      {t.mode === "sql" ? "Ekspresi SQL" : `${t.aturan.length} aturan`}
+                      <Ikon nama={t.mode === "sql" ? "code" : t.mode === "tabel" ? "table" : "branch"} ukuran={13} />
+                      {t.mode === "sql" ? "Ekspresi SQL"
+                        : t.mode === "tabel" ? `Tabel ${t.param_kode ?? "-"}`
+                        : `${t.aturan.length} aturan`}
                     </span>
                   </td>
                   <td>
