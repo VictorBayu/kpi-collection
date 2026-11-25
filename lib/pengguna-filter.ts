@@ -31,7 +31,7 @@ export const KOLOM: Record<string, { label: string; jenis: "teks" | "angka" | "p
   akses_7h:  { label: "Akses 7 hari",  jenis: "angka", sql: "akses_7h" },
   login_count: { label: "Jumlah login", jenis: "angka", sql: "login_count" },
   status:    { label: "Status akun", jenis: "pilihan", sql: "status_akun",
-               opsi: ["aktif", "nonaktif", "jarang"] },
+               opsi: ["aktif", "nonaktif", "jarang", "belum_login"] },
   last_access_at: { label: "Terakhir akses", jenis: "tanggal", sql: "last_access_at" },
 };
 

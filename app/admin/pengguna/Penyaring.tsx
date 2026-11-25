@@ -142,7 +142,7 @@ export default function Penyaring({
                   ) : opsiNilai ? (
                     <Pilih nilai={a.nilai} onPilih={(v) => ubah(i, { nilai: v })} bebas
                            placeholder="pilih atau ketik"
-                           opsi={opsiNilai.map((o) => ({ nilai: o, label: o }))} />
+                           opsi={opsiNilai.map((o) => ({ nilai: o, label: o === "belum_login" ? "belum ada login" : o }))} />
                   ) : jenis === "tanggal" ? (
                     <input type="date" value={a.nilai}
                            onChange={(e) => ubah(i, { nilai: e.target.value })} />

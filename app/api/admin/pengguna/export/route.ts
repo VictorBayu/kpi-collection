@@ -63,10 +63,11 @@ export const GET = handler(async (req) => {
   // supaya kolom "Status akun" di berkas selalu cocok dengan yang di layar.
   const sumber = `(
     SELECT v.*,
-           CASE WHEN NOT v.aktif OR v.suspended_at IS NOT NULL THEN 'nonaktif'
+           CASE WHEN au.bisa_login = false THEN 'belum_login'
+                WHEN NOT v.aktif OR v.suspended_at IS NOT NULL THEN 'nonaktif'
                 WHEN v.akses_30h < 3 THEN 'jarang'
                 ELSE 'aktif' END AS status_akun
-      FROM v_akses_ringkas v
+      FROM v_akses_ringkas v JOIN app_user au ON au.id = v.id
   ) t`;
 
   const rows = await q<any>(
@@ -77,7 +78,7 @@ export const GET = handler(async (req) => {
       ORDER BY ${orderBy}`, params);
 
   const LABEL_STATUS: Record<string, string> = {
-    aktif: "Aktif", nonaktif: "Nonaktif", jarang: "Jarang akses",
+    aktif: "Aktif", nonaktif: "Nonaktif", jarang: "Jarang akses", belum_login: "Belum ada login",
   };
 
   const data = rows.map((r) => ({

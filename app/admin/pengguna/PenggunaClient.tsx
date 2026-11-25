@@ -34,7 +34,7 @@ const PER = 10;
 
 export default function PenggunaClient() {
   const [list, setList] = useState<User[]>([]);
-  const [stat, setStat] = useState({ total: 0, aktif: 0, suspend: 0, jarang: 0 });
+  const [stat, setStat] = useState({ total: 0, aktif: 0, suspend: 0, jarang: 0, belum_login: 0 });
   const [cari, setCari] = useState("");
   const [status, setStatus] = useState("");
   const [urut, setUrut] = useState("akses");
@@ -252,7 +252,8 @@ export default function PenggunaClient() {
     { kunci: "", label: "Total pengguna", nilai: stat.total, satuan: "akun", catatan: "Seluruh akun terdaftar", ikon: "users", nada: "accent" },
     { kunci: "aktif", label: "Aktif", nilai: stat.aktif, satuan: "akun", catatan: `${persen(stat.aktif)} dari total`, ikon: "checkCircle", nada: "good" },
     { kunci: "jarang", label: "Jarang akses (30h < 3)", nilai: stat.jarang, satuan: "akun", catatan: "Perlu verifikasi supervisi", ikon: "alert", nada: "warn", lencana: stat.jarang ? "Perhatian" : undefined },
-    { kunci: "suspend", label: "Dinonaktifkan", nilai: stat.suspend, satuan: "akun", catatan: "Login dibekukan", ikon: "lock", nada: "bad" },
+    { kunci: "belum_login", label: "Belum ada login", nilai: stat.belum_login, satuan: "akun", catatan: "Dibuat dari data API, belum punya akses", ikon: "users", nada: "warn" },
+    { kunci: "nonaktif", label: "Dinonaktifkan", nilai: stat.suspend, satuan: "akun", catatan: "Login dibekukan", ikon: "lock", nada: "bad" },
   ] as const;
 
   return (

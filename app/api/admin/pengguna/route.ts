@@ -87,7 +87,8 @@ export const GET = handler(async (req) => {
   // status_akun diturunkan di sini supaya bisa disaring seperti kolom biasa.
   const sumber = `(
     SELECT v.*, au.bisa_login, au.sumber_akun, au.perlu_ditinjau, au.hilang_dari_api,
-           CASE WHEN NOT v.aktif OR v.suspended_at IS NOT NULL THEN 'nonaktif'
+           CASE WHEN au.bisa_login = false THEN 'belum_login'
+                WHEN NOT v.aktif OR v.suspended_at IS NOT NULL THEN 'nonaktif'
                 WHEN v.akses_30h < 3 THEN 'jarang'
                 ELSE 'aktif' END AS status_akun
       FROM v_akses_ringkas v JOIN app_user au ON au.id = v.id
@@ -106,7 +107,8 @@ export const GET = handler(async (req) => {
     `SELECT COUNT(*)::int AS total,
             COUNT(*) FILTER (WHERE status_akun = 'aktif')::int    AS aktif,
             COUNT(*) FILTER (WHERE status_akun = 'nonaktif')::int AS suspend,
-            COUNT(*) FILTER (WHERE status_akun = 'jarang')::int   AS jarang
+            COUNT(*) FILTER (WHERE status_akun = 'jarang')::int   AS jarang,
+            COUNT(*) FILTER (WHERE status_akun = 'belum_login')::int AS belum_login
        FROM ${sumber}`);
 
   const [cocok] = await q<{ n: number }>(
