@@ -108,7 +108,10 @@ export const POST = handler(async (req) => {
      ON CONFLICT (kolom) DO UPDATE
        SET label = EXCLUDED.label, agregat = EXCLUDED.agregat,
            kelompok = EXCLUDED.kelompok`,
-    [kolom, label, jenis, jenis === "angka" && b.agregat === true,
+    // Kolom angka turunan boleh dijumlah/dirata-rata di Create Indicator
+    // kecuali dimatikan eksplisit. Tanpa ini kolom tidak muncul di pilihan
+    // SUM karena daftar itu hanya memuat kolom yang agregat = true.
+    [kolom, label, jenis, jenis === "angka" && b.agregat !== false,
      b.kelompok ? String(b.kelompok).trim() : "Olahan", 950]);
 
   await q(
