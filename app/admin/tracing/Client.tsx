@@ -976,8 +976,13 @@ function AuditBahan({
   const sampai = data ? (hal - 1) * data.per_hal + data.baris.length : 0;
   const tersaring = data ? data.jumlah - data.jumlah_lolos : 0;
 
+  const sumbu: any[] = data?.param?.sumbu ?? [];
   const opsiStatus = data ? [
     { nilai: "semua", label: `Semua status syarat (${NF0.format(data.jumlah)})` },
+    ...(data.param ? [
+      { nilai: "bernilai", label: "Dapat nominal (> 0)" },
+      { nilai: "nol", label: "Tidak dapat (0)" },
+    ] : []),
     { nilai: "lolos", label: `Lolos syarat (${NF0.format(data.jumlah_lolos)})` },
     { nilai: "tersaring", label: `Tersaring (${NF0.format(tersaring)})` },
   ] : [{ nilai: "semua", label: "Semua status syarat" }];
@@ -1051,12 +1056,31 @@ function AuditBahan({
                 )}
               </div>
 
+              {data.param && (
+                <div className="alert-box info">
+                  <span className="alert-ikon">i</span>
+                  <span>
+                    Nilai <b>{data.kolom_label ?? data.kolom}</b> per kontrak diambil dari Tabel Parameter{" "}
+                    <b>{data.param.nama}</b> (versi {data.param.berlaku_mulai}). Kolom sumbu di bawah menunjukkan
+                    nilai kontrak dan band yang ditemukannya. Kontrak dapat nominal bila <b>semua</b> sumbu masuk band
+                    dan sel kombinasinya terisi; satu sumbu "di luar band" membuat nilainya 0.
+                    {data.param.sumbu.filter((x: any) => x.catatan).map((x: any) => (
+                      <span key={x.label}> Sumbu {x.label}: {x.catatan}.</span>
+                    ))}
+                    {" "}Band dicocokkan dengan versi tabel periode berjalan.
+                  </span>
+                </div>
+              )}
+
               <div className={"trc-audit-tabel" + (sibuk ? " sibuk" : "")}>
                 <table>
                   <thead>
                     <tr>
                       <th>Kontrak</th>
                       {data.kolom && <th className="r">{data.kolom_label ?? data.kolom}</th>}
+                      {sumbu.map((x) => (
+                        <th key={x.alias_nilai} title={x.catatan ?? x.kolom ?? ""}>{x.label}</th>
+                      ))}
                       {kolomSyarat.map((k) => <th key={k}>{k}</th>)}
                       <th className="c">Syarat</th>
                     </tr>
@@ -1066,6 +1090,18 @@ function AuditBahan({
                       <tr key={i} className={r.lulus_syarat ? "lolos" : "gagal"}>
                         <td className="num">{r.agreement_no ?? "—"}</td>
                         {data.kolom && <td className="r num">{format(r[data.kolom])}</td>}
+                        {sumbu.map((x) => (
+                          <td key={x.alias_nilai}>
+                            {x.catatan ? <span className="muted">—</span> : (
+                              <span className="trc-param">
+                                <span className="trc-sel">{r[x.alias_nilai] ?? "kosong"}</span>
+                                {r[x.alias_band]
+                                  ? <span className="trc-pil good">{r[x.alias_band]}</span>
+                                  : <span className="trc-pil bad">di luar band</span>}
+                              </span>
+                            )}
+                          </td>
+                        ))}
                         {kolomSyarat.map((k) => (
                           <td key={k}>
                             {r[k] === null || r[k] === undefined || r[k] === ""
@@ -1081,7 +1117,7 @@ function AuditBahan({
                       </tr>
                     ))}
                     {!data.baris.length && (
-                      <tr><td colSpan={kolomSyarat.length + (data.kolom ? 3 : 2)} className="trc-tabel-kosong">
+                      <tr><td colSpan={kolomSyarat.length + sumbu.length + (data.kolom ? 3 : 2)} className="trc-tabel-kosong">
                         {cari || status !== "semua"
                           ? "Tidak ada baris yang cocok dengan penyaring ini."
                           : `Tidak ada baris data mentah produk ${produk} atas nama NIK ini.`}

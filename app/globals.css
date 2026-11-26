@@ -5255,3 +5255,7 @@ section.rh-grup.rh-kpi:hover{background:var(--surface);border-color:var(--line);
   .pt-band-daftar{padding-left:0}
   .pt-band{grid-template-columns:1fr}
 }
+
+/* Tracing: nilai sumbu tabel parameter + band yang ditemukan */
+.trc-param { display: inline-flex; align-items: center; gap: 6px; white-space: nowrap; }
+.trc-pil.bad { background: var(--bad-soft); color: var(--bad-ink); border-color: var(--bad-line); }

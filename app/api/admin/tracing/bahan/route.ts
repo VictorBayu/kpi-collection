@@ -1,5 +1,6 @@
 import { requireMenu, handler, HttpError } from "@/lib/auth";
 import { q } from "@/lib/db";
+import { periodeBerjalan } from "@/lib/hitung-indikator";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -130,7 +131,71 @@ export const GET = handler(async (req) => {
     ...(kolomUtama ? [kolomUtama] : []),
     ...syaratList.map((s) => s.kolom),
   ])];
-  const select = kolomTampil.map((k) => `"${k}"`).join(", ");
+  let select = kolomTampil.map((k) => `"${k}"`).join(", ");
+
+  /**
+   * Kolom utama yang berasal dari Tabel Parameter (mis. reward per kontrak):
+   * tiap kontrak ditampilkan beserta nilai sumber di setiap sumbu dan band
+   * yang ditemukannya — inilah alasan kontrak itu dapat (atau tidak dapat)
+   * nominal. Pencocokan band ditulis sama persis dengan ekspresiTabel di
+   * lib/turunan.ts, versi tabel dipilih dengan periode yang sama.
+   */
+  let param: null | {
+    kode: string; nama: string; berlaku_mulai: string;
+    sumbu: { label: string; kolom: string | null; jenis: string; alias_nilai: string; alias_band: string; catatan: string | null }[];
+  } = null;
+  if (kolomUtama) {
+    const [tur] = await q<any>(
+      `SELECT param_kode FROM kolom_turunan WHERE kolom = $1 AND mode = 'tabel'`, [kolomUtama]);
+    if (tur?.param_kode) {
+      const [v] = await q<any>(
+        `SELECT t.id, t.kode, t.nama, to_char(t.berlaku_mulai,'YYYY-MM') AS berlaku_mulai
+           FROM param_tabel t WHERE t.id = param_versi($1, $2::date)`,
+        [tur.param_kode, periodeBerjalan()]);
+      if (v) {
+        const [dims, katalog] = await Promise.all([
+          q<any>(`SELECT id, label, kolom_sumber, jenis FROM param_dimensi
+                   WHERE tabel_id = $1 ORDER BY urutan`, [v.id]),
+          q<any>(`SELECT kolom FROM mentah_kolom WHERE COALESCE(sumber,'api') = 'api'`),
+        ]);
+        const diUtama = new Set(katalog.map((r: any) => r.kolom));
+        const POLA_UUID = /^[0-9a-f-]{36}$/i;
+        const tambahan: string[] = [];
+        param = { kode: v.kode, nama: v.nama, berlaku_mulai: v.berlaku_mulai, sumbu: [] };
+        dims.forEach((d: any, i: number) => {
+          const aliasNilai = `_pn_${i}`, aliasBand = `_pb_${i}`;
+          const col = d.kolom_sumber;
+          let catatan: string | null = null;
+          if (!col) catatan = "belum diberi kolom sumber";
+          else if (!POLA_KOLOM.test(col)) catatan = "nama kolom sumber tidak sah";
+          else if (!diUtama.has(col)) catatan = "kolom sumber dari data pendukung — tidak ditampilkan di sini";
+          if (!catatan && POLA_UUID.test(String(d.id))) {
+            const c = `"${col}"`;
+            const cocok = d.jenis === "kategori"
+              ? `upper(btrim((${c})::text)) = ANY (SELECT upper(btrim(x)) FROM unnest(b.nilai_teks) x)`
+              : (() => {
+                  const n = `(CASE WHEN btrim((${c})::text) ~ '^-?[0-9]+(\\.[0-9]+)?$'
+                                   THEN btrim((${c})::text)::numeric END)`;
+                  return `${n} IS NOT NULL
+                    AND (b.nilai_min IS NULL OR (b.min_inklusif AND ${n} >= b.nilai_min)
+                                             OR (NOT b.min_inklusif AND ${n} > b.nilai_min))
+                    AND (b.nilai_max IS NULL OR (b.max_inklusif AND ${n} <= b.nilai_max)
+                                             OR (NOT b.max_inklusif AND ${n} < b.nilai_max))`;
+                })();
+            tambahan.push(`(${c})::text AS "${aliasNilai}"`);
+            tambahan.push(`(SELECT b.label FROM param_band b
+                             WHERE b.dimensi_id = '${d.id}'::uuid AND ${cocok}
+                             ORDER BY b.urutan LIMIT 1) AS "${aliasBand}"`);
+          }
+          param!.sumbu.push({
+            label: d.label, kolom: col ?? null, jenis: d.jenis,
+            alias_nilai: aliasNilai, alias_band: aliasBand, catatan,
+          });
+        });
+        if (tambahan.length) select += ", " + tambahan.join(", ");
+      }
+    }
+  }
 
   const params: any[] = [nik, produk];
   const lulusExpr = syaratList.length
@@ -157,6 +222,8 @@ export const GET = handler(async (req) => {
     paramsDaftar.push(`%${cari}%`);
     saring += ` AND COALESCE(agreement_no::text,'') ILIKE $${paramsDaftar.length}`;
   }
+  if (status === "bernilai" && kolomUtama) saring += ` AND COALESCE("${kolomUtama}"::numeric, 0) > 0`;
+  else if (status === "nol" && kolomUtama) saring += ` AND COALESCE("${kolomUtama}"::numeric, 0) = 0`;
   if (status === "lolos") saring += ` AND (${lulusExpr}) IS TRUE`;
   else if (status === "tersaring") saring += ` AND (${lulusExpr}) IS NOT TRUE`;
 
@@ -211,5 +278,6 @@ export const GET = handler(async (req) => {
     total: rekap?.total === null || rekap?.total === undefined ? null : Number(rekap.total),
     total_lolos: rekap?.total_lolos === null || rekap?.total_lolos === undefined ? null : Number(rekap.total_lolos),
     baris,
+    param,
   });
 });

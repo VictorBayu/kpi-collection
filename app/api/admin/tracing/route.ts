@@ -34,7 +34,11 @@ type Baris = any;
 
 /** Membaca target aktif satu alias+produk, termasuk yang belum terhitung. */
 const SQL_BARIS = `
-  SELECT k.id, k.nik, k.indikator_id, k.indikator, k.produk, k.satuan, k.catatan,
+  SELECT k.id, k.nik, k.indikator_id,
+         -- Nama dibaca dari definisi terkini: kpi_row menyimpan salinan nama
+         -- saat dihitung, jadi tanpa ini ganti nama baru tampil setelah
+         -- hitung ulang.
+         COALESCE(d.nama, k.indikator) AS indikator, k.produk, k.satuan, k.catatan,
          k.pencapaian, k.skor_kpi, k.bobot, k.skor_terbobot,
          k.bobot_insentif, k.skor_terbobot_ins,
          k.target_kpi3, k.target_kpi4, k.target_kpi5,
