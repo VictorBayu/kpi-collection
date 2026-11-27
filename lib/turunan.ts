@@ -300,6 +300,82 @@ export async function hitungTurunan(t: Turunan): Promise<number> {
   return hasil.length;
 }
 
+/**
+ * Memeriksa apakah tiap sumbu tabel parameter masih bisa membaca data.
+ *
+ * Kolom turunan yang selesai tanpa galat tetap bisa bernilai 0 di SEMUA
+ * baris bila kolom sumber sebuah sumbu kosong (belum ditarik dari API) atau
+ * tak satu pun nilainya masuk band. Hasilnya tampak wajar dan tidak ada
+ * yang melempar apa pun, jadi sebabnya dikembalikan sebagai peringatan.
+ * Hanya kondisi "seluruh baris" yang dilaporkan — sebagian kontrak di luar
+ * band adalah hal biasa dan bukan tanda ada yang rusak.
+ */
+export async function periksaSumbuTabel(t: Turunan): Promise<string | null> {
+  if (t.mode !== "tabel" || !t.param_kode) return null;
+  try {
+    const kat = await katalog();
+    const [v] = await q<any>(
+      `SELECT t.id, t.produk FROM param_tabel t WHERE t.id = param_versi($1, $2::date)`,
+      [t.param_kode, periodeBerjalan()]);
+    if (!v) return null;
+    const dims = await q<any>(
+      `SELECT id, label, kolom_sumber, jenis FROM param_dimensi
+        WHERE tabel_id = $1 ORDER BY urutan`, [v.id]);
+
+    const pesan: string[] = [];
+    for (const d of dims) {
+      const col = String(d.kolom_sumber ?? "");
+      if (!POLA_KOLOM.test(col)) continue;
+      // Kolom dari data pendukung digabung lewat kunci kontrak; pemeriksaan
+      // di sini hanya untuk kolom data utama.
+      if ((kat.sumber.get(col) ?? kat.utama.kode) !== kat.utama.kode) continue;
+
+      const c = `dm."${col}"`;
+      const cocok = d.jenis === "kategori"
+        ? `upper(x.t) = ANY (SELECT upper(btrim(z)) FROM unnest(b.nilai_teks) z)`
+        : `x.n IS NOT NULL
+           AND (b.nilai_min IS NULL OR (b.min_inklusif AND x.n >= b.nilai_min)
+                                    OR (NOT b.min_inklusif AND x.n > b.nilai_min))
+           AND (b.nilai_max IS NULL OR (b.max_inklusif AND x.n <= b.nilai_max)
+                                    OR (NOT b.max_inklusif AND x.n < b.nilai_max))`;
+      const [r] = await q<any>(
+        `SELECT COUNT(*)::int AS baris,
+                COUNT(*) FILTER (WHERE x.t IS NULL OR x.t = '')::int AS kosong,
+                COUNT(*) FILTER (WHERE EXISTS (
+                  SELECT 1 FROM param_band b
+                   WHERE b.dimensi_id = $1::uuid AND (${cocok})))::int AS cocok
+           FROM ${kat.utama.tabel} dm
+           CROSS JOIN LATERAL (
+             SELECT btrim((${c})::text) AS t,
+                    CASE WHEN btrim((${c})::text) ~ '^-?[0-9]+(\\.[0-9]+)?$'
+                         THEN btrim((${c})::text)::numeric END AS n) x
+          WHERE ($2::text IS NULL OR upper(btrim(dm.product)) = upper($2))`,
+        [d.id, v.produk ?? null]);
+
+      if (!r || r.baris === 0) continue;
+      const lingkup = v.produk ? `produk ${v.produk}` : "data";
+      if (r.kosong === r.baris) {
+        pesan.push(`Sumbu "${d.label}": kolom ${col} kosong di seluruh ${r.baris} baris ${lingkup} — ` +
+          `semua kontrak otomatis bernilai 0. Periksa Field API kolom itu di CRUD Kolom API dan hasil tarikan terakhir.`);
+      } else if (r.cocok === 0) {
+        pesan.push(`Sumbu "${d.label}": tak satu pun dari ${r.baris} baris ${lingkup} masuk band ` +
+          `(kolom ${col}) — semua kontrak otomatis bernilai 0. Periksa teks kategori atau skala angkanya.`);
+      }
+    }
+    return pesan.length ? pesan.join(" ") : null;
+  } catch {
+    // Pemeriksaan hanyalah tambahan; gagalnya tidak boleh menggagalkan hitungan.
+    return null;
+  }
+}
+
+/** Menyimpan hasil pemeriksaan; diam bila migrasi v36 belum dijalankan. */
+export async function simpanPeringatan(kolom: string, peringatan: string | null) {
+  try {
+    await q(`UPDATE kolom_turunan SET peringatan = $2 WHERE kolom = $1`, [kolom, peringatan]);
+  } catch { /* kolom peringatan belum ada */ }
+}
+
 /** Seluruh kolom turunan yang terdaftar. */
 export async function daftarTurunan(): Promise<Turunan[]> {
   const rows = await q<any>(
@@ -335,6 +411,7 @@ export async function hitungSemuaTurunan() {
         `UPDATE kolom_turunan
             SET dihitung_pada = now(), baris_terisi = $2, galat = NULL
           WHERE kolom = $1`, [t.kolom, baris]);
+      await simpanPeringatan(t.kolom, await periksaSumbuTabel(t));
     } catch (e: any) {
       const pesan = e?.message ?? "Gagal menghitung.";
       gagal.push({ kolom: t.kolom, pesan });

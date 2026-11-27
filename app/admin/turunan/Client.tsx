@@ -13,6 +13,7 @@ type Turunan = {
   mode: "visual" | "sql" | "tabel"; aturan: Cabang[]; nilai_lain: string | null;
   ekspresi_sql: string | null; param_kode?: string | null;
   dihitung_pada: string | null; baris_terisi: number | null; galat: string | null;
+  peringatan?: string | null;
 };
 
 const OPERATOR = [
@@ -118,6 +119,7 @@ export default function Client() {
 
   const pesanOk = !!pesan && /Tersimpan|Selesai|dihapus/.test(pesan);
   const bergalat = daftar.filter((t) => t.galat).length;
+  const berperingatan = daftar.filter((t) => !t.galat && t.peringatan).length;
   const tambahAturan = () => draf && setDraf({
     ...draf,
     aturan: [...draf.aturan, { syarat: [{ kolom: "", operator: "sama", nilai: [""] }], gabung: "dan", nilai: "" }],
@@ -127,7 +129,7 @@ export default function Client() {
     <>
       <JudulHalaman
         eyebrow="Data & indikator"
-        meta={<><TitikStatus nada={bergalat ? "bad" : "good"} /> {bergalat ? `${bergalat} kolom bergalat` : "dihitung tiap tarikan API"}</>}
+        meta={<><TitikStatus nada={bergalat ? "bad" : berperingatan ? "warn" : "good"} /> {bergalat ? `${bergalat} kolom bergalat` : berperingatan ? `${berperingatan} kolom perlu dicek` : "dihitung tiap tarikan API"}</>}
         judul="Kolom Turunan"
         deskripsi="Kolom hasil olahan dari kolom lain — termasuk kolom data pendukung. Dihitung ulang otomatis tiap tarikan API."
         aksi={!draf && (
@@ -321,6 +323,9 @@ export default function Client() {
                     <div className="ka-label">{t.label} <span className="rk-tag ka-mati">{t.jenis}</span></div>
                     <div className="pa-sub num">{t.kolom}</div>
                     {t.galat && <div className="rk-gerbang gagal"><b>Gagal dihitung</b>{t.galat}</div>}
+                    {!t.galat && t.peringatan && (
+                      <div className="rk-gerbang peringatan"><b>Perlu dicek</b>{t.peringatan}</div>
+                    )}
                   </td>
                   <td>
                     <span className={"kt-cara-chip " + t.mode}>

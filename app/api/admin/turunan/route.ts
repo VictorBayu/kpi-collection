@@ -1,6 +1,6 @@
 import { requireMenu, handler, HttpError } from "@/lib/auth";
 import { q, auditLog } from "@/lib/db";
-import { periksaEkspresi, hitungTurunan, daftarTurunan } from "@/lib/turunan";
+import { periksaEkspresi, hitungTurunan, daftarTurunan, periksaSumbuTabel, simpanPeringatan } from "@/lib/turunan";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -14,13 +14,18 @@ const TIPE_SQL: Record<string, string> = {
 export const GET = handler(async () => {
   await requireMenu("admin_turunan");
 
-  const [turunan, kolom, tabelParam] = await Promise.all([
+  // Kolom peringatan baru ada setelah migrasi v36; sebelum itu layar tetap
+  // harus terbuka, jadi kueri tanpa kolom itu menjadi cadangannya.
+  const kueriTurunan = (peringatan: string) =>
     q<any>(`SELECT t.kolom, t.mode, t.aturan, t.nilai_lain, t.ekspresi_sql, t.param_kode,
-                   t.dihitung_pada, t.baris_terisi, t.galat,
+                   t.dihitung_pada, t.baris_terisi, t.galat, ${peringatan},
                    m.label, m.jenis, m.kelompok
               FROM kolom_turunan t
               JOIN mentah_kolom m ON m.kolom = t.kolom
-             ORDER BY m.label`),
+             ORDER BY m.label`);
+
+  const [turunan, kolom, tabelParam] = await Promise.all([
+    kueriTurunan("t.peringatan").catch(() => kueriTurunan("NULL::text AS peringatan")),
     q<any>(`SELECT kolom, label, jenis, kelompok, COALESCE(sumber,'api') AS sumber
               FROM mentah_kolom
              WHERE COALESCE(aktif,true) AND NOT COALESCE(turunan,false)
@@ -144,8 +149,10 @@ export const PATCH = handler(async (req) => {
     await q(
       `UPDATE kolom_turunan SET dihitung_pada = now(), baris_terisi = $2, galat = NULL
         WHERE kolom = $1`, [kolom, baris]);
-    await auditLog(admin.sub, "turunan.hitung", kolom, { baris });
-    return Response.json({ ok: true, baris });
+    const peringatan = await periksaSumbuTabel(t);
+    await simpanPeringatan(kolom, peringatan);
+    await auditLog(admin.sub, "turunan.hitung", kolom, { baris, peringatan });
+    return Response.json({ ok: true, baris, peringatan });
   } catch (e: any) {
     const pesan = e?.message ?? "Gagal menghitung.";
     await q(`UPDATE kolom_turunan SET dihitung_pada = now(), galat = $2 WHERE kolom = $1`,

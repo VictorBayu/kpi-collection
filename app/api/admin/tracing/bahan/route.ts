@@ -244,6 +244,9 @@ export const GET = handler(async (req) => {
     q<any>(
       `SELECT COUNT(*)::int AS jml,
               COUNT(*) FILTER (WHERE ${lulusExpr})::int AS jml_lolos,
+              ${param
+                ? `COUNT(*) FILTER (WHERE (${lulusExpr}) AND COALESCE(${kolomJumlah}::numeric, 0) > 0)::int`
+                : "0"} AS jml_dapat,
               COALESCE(SUM(${kolomJumlah}), 0) AS total,
               COALESCE(SUM(${kolomJumlah}) FILTER (WHERE ${lulusExpr}), 0) AS total_lolos
          ${dasar}`, params),
@@ -274,6 +277,7 @@ export const GET = handler(async (req) => {
     hal, per_hal: PER_HALAMAN,
     jumlah: Number(rekap?.jml ?? 0),
     jumlah_lolos: Number(rekap?.jml_lolos ?? 0),
+    jumlah_dapat: Number(rekap?.jml_dapat ?? 0),
     jumlah_tampil: Number(hitungTampil?.jml ?? 0),
     total: rekap?.total === null || rekap?.total === undefined ? null : Number(rekap.total),
     total_lolos: rekap?.total_lolos === null || rekap?.total_lolos === undefined ? null : Number(rekap.total_lolos),

@@ -1,0 +1,11 @@
+-- ---------------------------------------------------------------------
+-- PARAM PERINGATAN v36 — peringatan (bukan galat) pada kolom turunan
+--
+-- Kolom turunan mode "tabel" bisa selesai dihitung tanpa galat tetapi
+-- tetap bernilai 0 di semua baris — mis. kolom sumber sebuah sumbu kosong
+-- dari API. Hasilnya tampak wajar di layar mana pun, jadi sebabnya dicatat
+-- di sini dan ditampilkan di layar Kolom Turunan.
+--
+-- Aman dijalankan ulang.
+-- ---------------------------------------------------------------------
+ALTER TABLE kolom_turunan ADD COLUMN IF NOT EXISTS peringatan TEXT;

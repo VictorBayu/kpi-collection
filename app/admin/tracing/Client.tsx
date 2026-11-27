@@ -993,15 +993,33 @@ function AuditBahan({
   const tersaring = data ? data.jumlah - data.jumlah_lolos : 0;
 
   const sumbu: any[] = data?.param?.sumbu ?? [];
-  const opsiStatus = data ? [
-    { nilai: "semua", label: `Semua status syarat (${NF0.format(data.jumlah)})` },
-    ...(data.param ? [
-      { nilai: "bernilai", label: "Dapat nominal (> 0)" },
-      { nilai: "nol", label: "Tidak dapat (0)" },
+  const adaSyarat = (data?.syarat_kolom?.length ?? 0) > 0;
+  const opsiStatus = data ? (data.param ? [
+    // Indikator dari Tabel Parameter: yang penting dapat atau tidaknya
+    // nominal, bukan lolos tidaknya filter syarat rumus.
+    { nilai: "semua", label: `Semua kontrak (${NF0.format(data.jumlah)})` },
+    { nilai: "bernilai", label: `Dapat nominal (${NF0.format(data.jumlah_dapat ?? 0)})` },
+    { nilai: "nol", label: `Tidak dapat (${NF0.format(data.jumlah - (data.jumlah_dapat ?? 0))})` },
+    ...(adaSyarat ? [
+      { nilai: "tersaring", label: `Tersaring syarat rumus (${NF0.format(tersaring)})` },
     ] : []),
+  ] : [
+    { nilai: "semua", label: `Semua status syarat (${NF0.format(data.jumlah)})` },
     { nilai: "lolos", label: `Lolos syarat (${NF0.format(data.jumlah_lolos)})` },
     { nilai: "tersaring", label: `Tersaring (${NF0.format(tersaring)})` },
-  ] : [{ nilai: "semua", label: "Semua status syarat" }];
+  ]) : [{ nilai: "semua", label: "Semua status syarat" }];
+
+  // Status per kontrak untuk indikator Tabel Parameter. "Lolos syarat" hanya
+  // berarti filter rumus tidak menahan baris — sedangkan nominal ditentukan
+  // band tiap sumbu, jadi satu sumbu di luar band tidak boleh tampil lolos.
+  const statusParam = (r: any) => {
+    if (!r.lulus_syarat) return { ok: false, label: "Tersaring syarat", sebab: "" };
+    const luar = sumbu.filter((x) => !x.catatan && !r[x.alias_band]).map((x) => x.label);
+    if (luar.length) return { ok: false, label: "Tidak dapat", sebab: `${luar.join(", ")} di luar band` };
+    const v = Number(r[data.kolom] ?? 0);
+    if (v > 0) return { ok: true, label: "Dapat nominal", sebab: "" };
+    return { ok: false, label: "Tidak dapat", sebab: "sel tabel bernilai 0" };
+  };
 
   // Nilai kolom utama berupa angka ditampilkan berformat; teks apa adanya.
   const format = (v: any) => {
@@ -1049,10 +1067,17 @@ function AuditBahan({
                   <span>Baris dipegang NIK ini</span>
                   <b className="num">{NF0.format(data.jumlah)}</b>
                 </div>
-                <div>
-                  <span>Lolos syarat <i className="trc-pil good">{NF0.format(data.jumlah_lolos)} baris</i></span>
-                  <b className="num good">{NF0.format(data.jumlah_lolos)}</b>
-                </div>
+                {data.param ? (
+                  <div>
+                    <span>Dapat nominal <i className="trc-pil good">{NF0.format(data.jumlah_dapat ?? 0)} baris</i></span>
+                    <b className="num good">{NF0.format(data.jumlah_dapat ?? 0)}</b>
+                  </div>
+                ) : (
+                  <div>
+                    <span>Lolos syarat <i className="trc-pil good">{NF0.format(data.jumlah_lolos)} baris</i></span>
+                    <b className="num good">{NF0.format(data.jumlah_lolos)}</b>
+                  </div>
+                )}
                 {data.kolom ? (
                   <>
                     <div>
@@ -1079,7 +1104,8 @@ function AuditBahan({
                     Nilai <b>{data.kolom_label ?? data.kolom}</b> per kontrak diambil dari Tabel Parameter{" "}
                     <b>{data.param.nama}</b> (versi {data.param.berlaku_mulai}). Kolom sumbu di bawah menunjukkan
                     nilai kontrak dan band yang ditemukannya. Kontrak dapat nominal bila <b>semua</b> sumbu masuk band
-                    dan sel kombinasinya terisi; satu sumbu "di luar band" membuat nilainya 0.
+                    dan sel kombinasinya terisi; satu sumbu "di luar band" membuat nilainya 0, dan statusnya
+                    "Tidak dapat" — bukan "lolos".
                     {data.param.sumbu.filter((x: any) => x.catatan).map((x: any) => (
                       <span key={x.label}> Sumbu {x.label}: {x.catatan}.</span>
                     ))}
@@ -1098,12 +1124,15 @@ function AuditBahan({
                         <th key={x.alias_nilai} title={x.catatan ?? x.kolom ?? ""}>{x.label}</th>
                       ))}
                       {kolomSyarat.map((k) => <th key={k}>{k}</th>)}
-                      <th className="c">Syarat</th>
+                      <th className="c">{data.param ? "Status" : "Syarat"}</th>
                     </tr>
                   </thead>
                   <tbody>
-                    {data.baris.map((r: any, i: number) => (
-                      <tr key={i} className={r.lulus_syarat ? "lolos" : "gagal"}>
+                    {data.baris.map((r: any, i: number) => {
+                      const st = data.param ? statusParam(r) : null;
+                      const ok = st ? st.ok : !!r.lulus_syarat;
+                      return (
+                      <tr key={i} className={ok ? "lolos" : "gagal"}>
                         <td className="num">{r.agreement_no ?? "—"}</td>
                         {data.kolom && <td className="r num">{format(r[data.kolom])}</td>}
                         {sumbu.map((x) => (
@@ -1126,12 +1155,15 @@ function AuditBahan({
                           </td>
                         ))}
                         <td className="c">
-                          <span className={"trc-status-syarat " + (r.lulus_syarat ? "lolos" : "gagal")}>
-                            {r.lulus_syarat ? "Lolos syarat" : "Tersaring"}
+                          <span className={"trc-status-syarat " + (ok ? "lolos" : "gagal")}
+                                title={st?.sebab || undefined}>
+                            {st ? st.label : (r.lulus_syarat ? "Lolos syarat" : "Tersaring")}
                           </span>
+                          {st?.sebab && <div className="trc-sebab-baris">{st.sebab}</div>}
                         </td>
                       </tr>
-                    ))}
+                      );
+                    })}
                     {!data.baris.length && (
                       <tr><td colSpan={kolomSyarat.length + sumbu.length + (data.kolom ? 3 : 2)} className="trc-tabel-kosong">
                         {cari || status !== "semua"

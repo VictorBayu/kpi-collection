@@ -5259,3 +5259,5 @@ section.rh-grup.rh-kpi:hover{background:var(--surface);border-color:var(--line);
 /* Tracing: nilai sumbu tabel parameter + band yang ditemukan */
 .trc-param { display: inline-flex; align-items: center; gap: 6px; white-space: nowrap; }
 .trc-pil.bad { background: var(--bad-soft); color: var(--bad-ink); border-color: var(--bad-line); }
+.rk-gerbang.peringatan{background:var(--warn-soft);border-color:var(--warn-line);color:var(--warn-ink)}
+.trc-sebab-baris{margin-top:3px;font-size:10.5px;line-height:14px;color:var(--ink-faint);white-space:normal;max-width:150px}
