@@ -528,6 +528,11 @@ function BarisJejak({ j, berjalan, paksaBuka }: { j: any; berjalan: boolean; pak
     }
   };
 
+  // Reward/penalty berpita rupiah: angka di kepala baris adalah nominal yang
+  // diterima, bukan hasil hitung rumusnya (mis. jumlah kontrak) — hasil
+  // rumus di sini hanya penanda, nominalnya dipilih dari pita.
+  const pakaiPita = (j.peran === "reward" || j.peran === "penalty") && (j.nominal_pita?.length ?? 0) > 0;
+
   const bentukRasio = j.komponen.length === 2 && kaliSeratus &&
     j.komponen[1]?.operator_sebelum === "/";
 
@@ -542,8 +547,8 @@ function BarisJejak({ j, berjalan, paksaBuka }: { j: any; berjalan: boolean; pak
           {j.sumber !== "api" && <span className="trc-peran netral">dari Excel</span>}
         </button>
         <span className="trc-angka">
-          <small>Pencapaian</small>
-          <b className="num">{tampilkanNilai(pencapaianNum)}</b>
+          <small>{pakaiPita ? "Nominal" : "Pencapaian"}</small>
+          <b className="num">{pakaiPita ? rp(Number(j.nominal_baris ?? 0)) : tampilkanNilai(pencapaianNum)}</b>
         </span>
         <span className="trc-angka">
           <small>Skor</small>
