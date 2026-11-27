@@ -385,7 +385,13 @@ export const POST = handler(async (req) => {
         v === "" || v === null || v === undefined ? null : Number(v);
 
       const peranTarget = PERAN_TARGET.includes(t.peran) ? t.peran : "kpi";
-      const jenisNilai = JENIS_NILAI.includes(t.jenis_nilai) ? t.jenis_nilai : null;
+      // Reward/penalty yang memakai pita rupiah selalu berjenis nominal:
+      // angka di pita adalah rupiah, bukan persen dari nominal dasar.
+      const pakaiPita = (peranTarget === "reward" || peranTarget === "penalty")
+        && Array.isArray(t.nominal)
+        && t.nominal.some((n: any) => angkaAtauNull(n?.nominal) !== null);
+      const jenisNilai = pakaiPita ? "nominal"
+        : JENIS_NILAI.includes(t.jenis_nilai) ? t.jenis_nilai : null;
 
       // Faktor pengakuan: kosong/tidak masuk akal jatuh balik ke 100
       // (diakui penuh) — bukan 0, yang akan diam-diam menolkan seluruh
@@ -437,10 +443,10 @@ export const POST = handler(async (req) => {
          sumberTarget === "target_tier" && t.indikator_amount_id && t.indikator_amount_id !== id
            ? String(t.indikator_amount_id) : null]);
 
-      // Pita nominal hanya berlaku pada peran 'nominal'; gerbang berlaku
-      // pada nominal, reward, dan penalty. Menyimpannya untuk peran lain
-      // akan membuat baris yatim yang tidak pernah dibaca siapa pun.
-      if (peranTarget === "nominal") {
+      // Pita nominal dan gerbang berlaku pada nominal, reward, dan penalty.
+      // Menyimpannya untuk peran lain akan membuat baris yatim yang tidak
+      // pernah dibaca siapa pun.
+      if (["nominal", "reward", "penalty"].includes(peranTarget)) {
         for (let i = 0; i < (Array.isArray(t.nominal) ? t.nominal : []).length; i++) {
           const n = t.nominal[i];
           const rp = angkaAtauNull(n.nominal);

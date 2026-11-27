@@ -748,6 +748,7 @@ function BarisJejak({ j, berjalan, paksaBuka }: { j: any; berjalan: boolean; pak
                   </span>
                   <b className="num">
                     {j.gerbang_gagal ? rp(0)
+                      : j.nominal_pita.length > 0 ? rp(Number(j.nominal_baris ?? 0))
                       : j.jenis_nilai === "persen"
                         ? angka(Number(j.nilai_efek ?? 0) * Number(j.pencapaian ?? 0)) + "%"
                         : rp(Number(j.nilai_efek ?? 0) * Number(j.pencapaian ?? 0))}

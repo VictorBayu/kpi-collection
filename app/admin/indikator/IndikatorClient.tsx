@@ -489,6 +489,34 @@ function DetailTarget({ t, ubah, lain, namaSendiri, opsiSalin, salinKe }: {
           <EditorGerbang gerbang={t.gerbang} lain={lain} namaSendiri={namaSendiri}
                          ubah={(gerbang) => ubah({ gerbang })} />
         </div>
+
+        <div className="detail-sub">
+          <h5>Besar nominal dari pita rupiah (opsional)</h5>
+          <p className="faint small">
+            Untuk {t.peran} yang nominalnya bertingkat menurut suatu nilai —
+            mis. total bahan kerja. Bila pita diisi, <b>nilai efek per satuan di
+            atas diabaikan</b>: besarnya diambil dari pita (setelah semua syarat
+            lolos), lalu {label} insentif dasar. Kosongkan pita untuk memakai
+            nilai efek per satuan seperti biasa.
+          </p>
+          <label className="blok">
+            <span className="faint small">Dipilih berdasarkan nilai</span>
+            <Pilih nilai={t.pemilih_id} cari
+                   onPilih={(v) => ubah({ pemilih_id: v })}
+                   opsi={[
+                     { nilai: "", label: "Indikator ini sendiri", ket: namaSendiri || undefined },
+                     ...lain.map((l) => ({ nilai: l.id, label: l.nama, ket: l.satuan })),
+                   ]} />
+          </label>
+          <p className="faint small mt">
+            Batas bawah termasuk, batas atas tidak — pita “≥ 100.000.000”
+            berarti 100 JT pas ikut masuk.
+          </p>
+          <EditorNominal pita={t.nominal} ubah={(nominal) => ubah({ nominal })} />
+          {t.nominal.length > 0 && (
+            <SalinPita opsi={opsiSalin} ke={(tujuan) => salinKe(tujuan, "nominal")} />
+          )}
+        </div>
       </div>
     );
   }
@@ -1472,8 +1500,13 @@ export default function IndikatorClient() {
                 const adaPita = t.pita.length > 0;
                 const ringkasan =
                   t.peran === "reward" || t.peran === "penalty"
-                    ? (t.nilai_efek
-                        ? `${t.jenis_nilai === "persen" ? t.nilai_efek + "%" : "Rp" + Number(t.nilai_efek).toLocaleString("id-ID")} per satuan hasil hitung`
+                    ? (t.nominal.length > 0
+                        ? [
+                            t.gerbang.length ? `${t.gerbang.length} syarat` : "Tanpa syarat",
+                            `${t.nominal.length} pita nominal`,
+                          ].join(" · ")
+                        : t.nilai_efek
+                        ? `${t.jenis_nilai === "persen" ? t.nilai_efek + "%" : "Rp" + Number(t.nilai_efek).toLocaleString("id-ID")} per satuan hasil hitung${t.gerbang.length ? ` · ${t.gerbang.length} syarat` : ""}`
                         : "Belum diisi nilai efeknya")
                     : t.peran === "tier"
                     ? (adaPita ? `${t.pita.length} pita tier` : "Belum ada pita")
