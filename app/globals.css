@@ -5271,3 +5271,96 @@ section.rh-grup.rh-kpi:hover{background:var(--surface);border-color:var(--line);
 .ind-dup-menu button:hover{background:var(--line-soft)}
 .ind-dup-menu button b{display:block;font-size:13px;color:var(--ink)}
 .ind-dup-menu button span{display:block;margin-top:2px;font-size:11.5px;line-height:15px;color:var(--ink-faint)}
+
+/* ---------------------------------------------------------------------
+   Kartu reward / penalty / nominal bersama poin pendukungnya
+   (KPI Harian, Data KPI)
+   --------------------------------------------------------------------- */
+.ef-grup{padding:0;overflow:hidden}
+.ef-grup-kepala{display:flex;align-items:center;gap:12px;padding:16px 20px;border-bottom:1px solid var(--line)}
+.ef-grup-kepala h3{margin:0;font-size:15px}
+.ef-grup-kepala p{margin:2px 0 0}
+.ef-grup-total{margin-left:auto;text-align:right;display:flex;flex-direction:column;gap:2px}
+.ef-grup-total b{font-size:18px}
+.ef-grup-total b.good{color:var(--good-ink)}
+.ef-grup-total b.bad{color:var(--bad-ink)}
+.ef-daftar{list-style:none;margin:0;padding:8px 12px 12px;display:flex;flex-direction:column;gap:8px}
+.ef-item{border:1px solid var(--line);border-radius:10px;background:var(--surface);overflow:hidden}
+.ef-item.berlaku{border-left:3px solid var(--good)}
+.ef-item.ditahan{border-left:3px solid var(--bad-line)}
+.ef-item.nol{border-left:3px solid var(--line-strong)}
+.ef-kepala{display:flex;align-items:flex-start;gap:12px;padding:12px 14px}
+.ef-judul{flex:1;min-width:0}
+.ef-nama{font-weight:650;font-size:14px;margin-right:8px}
+.ef-peran,.ef-produk{display:inline-flex;align-items:center;height:20px;padding:0 8px;border-radius:999px;
+  font-size:10.5px;font-weight:700;letter-spacing:.02em;vertical-align:middle;margin-right:4px}
+.ef-peran.reward{background:var(--good-soft);color:var(--good-ink)}
+.ef-peran.penalty{background:var(--bad-soft);color:var(--bad-ink)}
+.ef-peran.nominal{background:var(--info-soft);color:var(--info-ink)}
+.ef-produk{background:var(--line-soft);color:var(--ink-faint)}
+.ef-cara{margin-top:4px;font-size:12px;color:var(--ink-faint)}
+.ef-hasil{text-align:right;display:flex;flex-direction:column;align-items:flex-end;gap:4px;white-space:nowrap}
+.ef-hasil b{font-size:16px}
+.ef-status{font-size:10.5px;font-weight:700;padding:2px 8px;border-radius:999px}
+.ef-status.good{background:var(--good-soft);color:var(--good-ink)}
+.ef-status.bad{background:var(--bad-soft);color:var(--bad-ink)}
+.ef-status.netral{background:var(--line-soft);color:var(--ink-faint)}
+.ef-item.ditahan .ef-hasil b{color:var(--ink-faint)}
+.ef-poin{list-style:none;margin:0;padding:8px 14px 10px;background:var(--page);border-top:1px dashed var(--line);
+  display:flex;flex-direction:column;gap:6px}
+.ef-poin li{display:grid;grid-template-columns:18px minmax(0,1fr) auto auto;align-items:center;gap:10px;font-size:12.5px}
+.ef-tanda{width:18px;height:18px;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;
+  font-size:10px;font-weight:800}
+.ef-poin li.lolos .ef-tanda{background:var(--good-soft);color:var(--good-ink)}
+.ef-poin li.gagal .ef-tanda{background:var(--bad-soft);color:var(--bad-ink)}
+.ef-poin li.info .ef-tanda{background:var(--info-soft);color:var(--info-ink)}
+.ef-poin-label{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.ef-poin-ket{color:var(--ink-faint);font-size:11.5px;white-space:nowrap}
+.ef-poin-nilai{min-width:80px;text-align:right}
+.ef-poin li.gagal .ef-poin-nilai{color:var(--bad-ink)}
+@media (max-width:640px){
+  .ef-grup-kepala{flex-wrap:wrap}
+  .ef-grup-total{margin-left:0;text-align:left;align-items:flex-start}
+  .ef-poin li{grid-template-columns:18px minmax(0,1fr) auto}
+  .ef-poin-nilai{grid-column:3;grid-row:1}
+  .ef-poin-ket{grid-column:2 / 4;grid-row:2;white-space:normal}
+}
+.rk-pendukung{padding:12px 18px}
+.rk-pendukung summary{cursor:pointer;display:flex;align-items:center;gap:6px;font-size:13px;font-weight:600;list-style:none}
+.rk-pendukung summary::-webkit-details-marker{display:none}
+.rk-pendukung[open] .rk-nol-panah{transform:rotate(90deg)}
+.rk-pendukung .rk-ins{margin-top:8px}
+
+/* ---------------------------------------------------------------------
+   Tracing: kelompok peran, poin penentu reward, pendukung bersarang
+   --------------------------------------------------------------------- */
+.trc-subjudul{display:flex;align-items:center;gap:8px;margin:18px 0 8px;font-size:12px;font-weight:700;
+  letter-spacing:.06em;text-transform:uppercase;color:var(--ink-faint)}
+.trc-produk-kepala .trc-pil + .trc-pil{margin-left:6px}
+.trc-poin{list-style:none;margin:0;padding:8px 16px 12px 46px;display:flex;flex-direction:column;gap:6px;
+  border-top:1px dashed var(--line)}
+.trc-poin li{display:grid;grid-template-columns:18px minmax(0,1fr) auto minmax(90px,auto);align-items:center;
+  gap:10px;font-size:12.5px}
+.trc-poin-tanda{width:18px;height:18px;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;
+  font-size:10px;font-weight:800}
+.trc-poin li.lolos .trc-poin-tanda{background:var(--good-soft);color:var(--good-ink)}
+.trc-poin li.gagal .trc-poin-tanda{background:var(--bad-soft);color:var(--bad-ink)}
+.trc-poin li.info .trc-poin-tanda{background:var(--info-soft);color:var(--info-ink)}
+.trc-poin-label{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:600}
+.trc-poin-ket{color:var(--ink-faint);font-size:11.5px;white-space:nowrap}
+.trc-poin b{text-align:right}
+.trc-poin li.gagal b{color:var(--bad-ink)}
+.trc-bersarang{padding-left:14px;border-left:2px solid var(--line)}
+.trc-bersarang .trc-baris{box-shadow:none}
+.trc-pendukung-lepas{margin-top:14px}
+.trc-pendukung-lepas > summary{cursor:pointer;display:flex;align-items:center;gap:6px;font-size:13px;font-weight:600;
+  list-style:none;padding:8px 2px;color:var(--ink-faint)}
+.trc-pendukung-lepas > summary::-webkit-details-marker{display:none}
+.trc-pendukung-panah{transition:transform .15s}
+.trc-pendukung-lepas[open] .trc-pendukung-panah{transform:rotate(90deg)}
+@media (max-width:640px){
+  .trc-poin{padding-left:16px}
+  .trc-poin li{grid-template-columns:18px minmax(0,1fr) auto}
+  .trc-poin li b{grid-column:3;grid-row:1}
+  .trc-poin-ket{grid-column:2 / 4;grid-row:2;white-space:normal}
+}

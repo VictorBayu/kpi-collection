@@ -4,7 +4,8 @@ import AppShell from "@/components/AppShell";
 import StatusHarianBar from "@/components/StatusHarian";
 import RincianHarian from "@/components/RincianHarian";
 import { readSession } from "@/lib/auth";
-import { statusHarian, progresNik, ringkasHarian, timHarian } from "@/lib/harian";
+import { statusHarian, progresNik, ringkasHarian, timHarian, periodeHarian } from "@/lib/harian";
+import { efekNik } from "@/lib/efek";
 import { rp, angka } from "@/lib/format";
 import JudulHalaman from "@/components/JudulHalaman";
 
@@ -23,11 +24,12 @@ export default async function HarianSaya() {
   if (!s) redirect("/login");
   if (s.peran === "admin") redirect("/admin/harian");
 
-  const [status, baris, ringkas, tim] = await Promise.all([
+  const [status, baris, ringkas, tim, efek] = await Promise.all([
     statusHarian(),
     progresNik(s.nik),
     ringkasHarian(s.nik),
     s.peran === "atasan" ? timHarian(s.nik) : Promise.resolve([]),
+    efekNik(s.nik, periodeHarian()),
   ]);
 
   const punyaSendiri = baris.length > 0;
@@ -44,7 +46,7 @@ export default async function HarianSaya() {
         <StatusHarianBar s={status} />
         <div className="mt" />
 
-        {punyaSendiri && <RincianHarian ringkas={ringkas} baris={baris} />}
+        {punyaSendiri && <RincianHarian ringkas={ringkas} baris={baris} efek={efek} />}
 
         {tim.length > 0 && (
           <section className="card mb">

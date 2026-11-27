@@ -24,6 +24,21 @@ import { rp, angka, nilai, namaPeriode, toISODate, tebakSatuan } from "@/lib/for
  * penyaring kontrak/status syarat.
  */
 
+const PERAN_EFEK = new Set(["reward", "penalty", "nominal"]);
+
+/** Indikator lain yang dirujuk sebuah baris: sumber syarat dan penentu pita. */
+const rujukanDari = (j: any): string[] => [
+  ...((j.gerbang ?? []) as any[]).map((g) => g.sumber_id).filter(Boolean),
+  ...(j.pemilih_id ? [j.pemilih_id] : []),
+];
+
+/** Pencapaian satu baris dalam satuannya — aturan yang sama dengan kepala kartu. */
+function nilaiBaris(x: any): string {
+  const v = x.pencapaian === null || x.pencapaian === undefined ? null : Number(x.pencapaian);
+  if (v === null) return "—";
+  return x.kali_seratus ? angka(v) + "%" : nilai(v, tebakSatuan(x.indikator, v));
+}
+
 const NADA_PERAN: Record<string, string> = {
   kpi: "netral", reguler: "netral", tier: "warn",
   reward: "good", penalty: "bad", nominal: "info", pendukung: "netral",
@@ -347,6 +362,14 @@ export default function Client() {
 
       {produkList.map((produk) => {
         const rows = jejak.filter((j) => j.produk === produk);
+        // Indikator dibagi menurut perannya. Pendukung yang dirujuk sebuah
+        // reward/penalty/nominal (lewat syarat kelayakan atau penentu pita)
+        // tidak berdiri sendiri: ia tampil di DALAM kartu yang memakainya.
+        const efekRows = rows.filter((j) => PERAN_EFEK.has(j.peran));
+        const byId = new Map(rows.map((j) => [j.indikator_id, j]));
+        const dirujuk = new Set(efekRows.flatMap(rujukanDari));
+        const dinilai = rows.filter((j) => !PERAN_EFEK.has(j.peran) && j.peran !== "pendukung");
+        const pendukungLepas = rows.filter((j) => j.peran === "pendukung" && !dirujuk.has(j.indikator_id));
         const ins = (data.insentif ?? []).find((i: any) => i.produk === produk);
         const tierProduk = (data.tier_tabel ?? []).filter((t: any) => t.produk === produk);
         return (
@@ -354,15 +377,53 @@ export default function Client() {
             <div className="trc-produk-kepala">
               <div>
                 <h2>Produk {produk}</h2>
-                <span className="trc-pil">{rows.length} indikator dinilai</span>
+                <span className="trc-pil">{dinilai.length} indikator dinilai</span>
+                {efekRows.length > 0 && <span className="trc-pil">{efekRows.length} reward / nominal</span>}
               </div>
             </div>
 
-            <div className="trc-rantai">
-              {rows.map((j) => (
-                <BarisJejak key={j.id} j={j} berjalan={!!data.periode_berjalan} paksaBuka={cetak} />
-              ))}
-            </div>
+            {dinilai.length > 0 && (
+              <>
+                <h3 className="trc-subjudul"><Ikon nama="chart" ukuran={15} /> Indikator yang dinilai</h3>
+                <div className="trc-rantai">
+                  {dinilai.map((j) => (
+                    <BarisJejak key={j.id} j={j} berjalan={!!data.periode_berjalan} paksaBuka={cetak} />
+                  ))}
+                </div>
+              </>
+            )}
+
+            {efekRows.length > 0 && (
+              <>
+                <h3 className="trc-subjudul"><Ikon nama="wallet" ukuran={15} /> Reward, penalty &amp; nominal bersyarat</h3>
+                <div className="trc-rantai">
+                  {efekRows.map((j) => {
+                    const pendukung = [...new Set(rujukanDari(j))]
+                      .map((id) => byId.get(id))
+                      .filter((x): x is any => !!x && x.peran === "pendukung");
+                    return (
+                      <BarisJejak key={j.id} j={j} berjalan={!!data.periode_berjalan} paksaBuka={cetak}
+                                  pendukung={pendukung} semua={byId} />
+                    );
+                  })}
+                </div>
+              </>
+            )}
+
+            {pendukungLepas.length > 0 && (
+              <details className="trc-pendukung-lepas" open={cetak}>
+                <summary>
+                  <Ikon nama="chevronRight" ukuran={14} className="trc-pendukung-panah" />
+                  {pendukungLepas.length} indikator pendukung lain
+                  <span className="muted small"> — tidak dirujuk reward mana pun</span>
+                </summary>
+                <div className="trc-rantai">
+                  {pendukungLepas.map((j) => (
+                    <BarisJejak key={j.id} j={j} berjalan={!!data.periode_berjalan} paksaBuka={cetak} />
+                  ))}
+                </div>
+              </details>
+            )}
 
             <TotalSkor rows={rows} />
 
@@ -492,7 +553,13 @@ function RumusBerwarna({ teks }: { teks: string }) {
 }
 
 /** Satu indikator, dibentangkan sebagai rantai bahan → skor. */
-function BarisJejak({ j, berjalan, paksaBuka }: { j: any; berjalan: boolean; paksaBuka: boolean }) {
+function BarisJejak({ j, berjalan, paksaBuka, pendukung = [], semua }: {
+  j: any; berjalan: boolean; paksaBuka: boolean;
+  /** Indikator berperan pendukung yang dirujuk baris ini — tampil di dalam kartunya. */
+  pendukung?: any[];
+  /** Seluruh baris produk ini, untuk membaca nilai penentu pita. */
+  semua?: Map<string, any>;
+}) {
   const [bukaSendiri, setBuka] = useState(false);
   const buka = bukaSendiri || paksaBuka;
   const skor = j.skor_kpi === null || j.skor_kpi === undefined ? null : Number(j.skor_kpi);
@@ -555,6 +622,36 @@ function BarisJejak({ j, berjalan, paksaBuka }: { j: any; berjalan: boolean; pak
           <b className={"num " + nada}>{skor === null ? "—" : angka(skor)}</b>
         </span>
       </header>
+
+      {PERAN_EFEK.has(j.peran) && (j.gerbang.length > 0 || (pakaiPita && j.pemilih_id)) && (
+        <ul className="trc-poin" aria-label="Poin penentu">
+          {j.gerbang.map((g: any, i: number) => {
+            const ok = gerbangLulus(g);
+            const ukur = g.ukur === null || g.ukur === undefined ? null : Number(g.ukur);
+            const tampil = (v: number | null) =>
+              v === null ? "tidak ada" : g.kali_seratus ? angka(v) + "%" : angkaPolos(v);
+            return (
+              <li key={"g" + i} className={ok ? "lolos" : "gagal"}>
+                <span className="trc-poin-tanda" aria-hidden>{ok ? "✓" : "✕"}</span>
+                <span className="trc-poin-label">{g.nama}</span>
+                <span className="trc-poin-ket">syarat {OP[g.operator] ?? g.operator} {tampil(Number(g.nilai))}</span>
+                <b className="num">{tampil(ukur)}</b>
+              </li>
+            );
+          })}
+          {pakaiPita && j.pemilih_id && (() => {
+            const p = semua?.get(j.pemilih_id);
+            return (
+              <li className="info">
+                <span className="trc-poin-tanda" aria-hidden>•</span>
+                <span className="trc-poin-label">{j.pemilih_nama ?? "Penentu nominal"}</span>
+                <span className="trc-poin-ket">penentu besar nominal (band pita)</span>
+                <b className="num">{p ? nilaiBaris(p) : "tidak ada"}</b>
+              </li>
+            );
+          })()}
+        </ul>
+      )}
 
       {buka && (
         <div className="trc-isi">
@@ -765,6 +862,20 @@ function BarisJejak({ j, berjalan, paksaBuka }: { j: any; berjalan: boolean; pak
                   <b className="num">{rp(Number(j.nominal_baris ?? 0))}</b>
                 </div>
               )}
+            </div>
+          )}
+
+          {pendukung.length > 0 && (
+            <div className="trc-langkah">
+              <h3 className="trc-langkah-judul"><span className="trc-no">5</span>Indikator pendukung — rincian perhitungannya</h3>
+              <p className="trc-catatan">
+                Angka-angka di poin penentu di atas berasal dari indikator berikut. Buka masing-masing untuk melihat bahan dan rumusnya.
+              </p>
+              <div className="trc-rantai trc-bersarang">
+                {pendukung.map((p) => (
+                  <BarisJejak key={p.id} j={p} berjalan={berjalan} paksaBuka={paksaBuka} />
+                ))}
+              </div>
             </div>
           )}
         </div>

@@ -6,6 +6,8 @@ import TombolCetak from "@/components/TombolCetak";
 import { readSession } from "@/lib/auth";
 import { menuSesi } from "@/lib/menu";
 import { periodeTersedia, indikatorNik, insentifKaryawan, ringkasan, trenKpi } from "@/lib/kpi";
+import { efekNik } from "@/lib/efek";
+import KartuEfek from "@/components/KartuEfek";
 import Ikon from "@/components/Ikon";
 import { q } from "@/lib/db";
 import { rp, rpSingkat, angka, nilai, namaPeriode, toISODate, tebakSatuan, satuanBaris, nilaiBanding } from "@/lib/format";
@@ -48,11 +50,12 @@ export default async function DetailKpi({
                 LIMIT 1),
               u.jabatan) AS jabatan
        FROM app_user u WHERE u.nik = $1`, [nik, periode]);
-  const [ind, ins, ring, tren] = await Promise.all([
+  const [ind, ins, ring, tren, efek] = await Promise.all([
     indikatorNik(nik, periode),
     insentifKaryawan(nik, periode),
     ringkasan(nik, periode),
     trenKpi(nik),
+    periode ? efekNik(nik, periode) : Promise.resolve([]),
   ]);
 
   const totalIns = ins.reduce((a, b) => a + b.nominal, 0);
@@ -73,9 +76,22 @@ export default async function DetailKpi({
     return { d, satuanTampil, band, tk, skor: s };
   }).sort((a, b) => (a.skor ?? 99) - (b.skor ?? 99));
 
-  const kurang = olah.filter((x) => x.tk === 0).length;
+  // Tabel utama hanya memuat indikator yang DINILAI. Reward, penalty, dan
+  // nominal bersyarat punya kartunya sendiri (KartuEfek) lengkap dengan poin
+  // pendukungnya; indikator pendukung yang dirujuk ikut di dalam kartu itu,
+  // sisanya dikumpulkan terpisah supaya tidak dikira angka yang dikejar.
+  const PERAN_EFEK = new Set(["reward", "penalty", "nominal"]);
+  const rujukan = new Set(efek.flatMap((e) => e.rujukan));
+  const utama = olah.filter((x) =>
+    x.d.peran !== "pendukung" && !(efek.length && PERAN_EFEK.has(x.d.peran ?? "")));
+  const pendukungLain = olah.filter((x) =>
+    x.d.peran === "pendukung" && !(x.d.indikator_id && rujukan.has(x.d.indikator_id)));
+
+  const kurang = utama.filter((x) => x.tk === 0).length;
   const insBerpengaruh = ins.filter((r) => r.nominal !== 0);
-  const gerbangGagal = olah.filter((x) => x.d.peran === "nominal" && x.d.gerbang_gagal).length;
+  const gerbangGagal = efek.length
+    ? efek.filter((e) => e.ditahan).length
+    : olah.filter((x) => x.d.peran === "nominal" && x.d.gerbang_gagal).length;
   const hrefCabang = `/admin/kpi?periode=${periode}&cabang=${encodeURIComponent(orang?.cabang ?? "")}`;
   const nadaSkor = lv === 0 ? "bad" : lv >= 4 ? "good" : "mid";
   const skorMaks = Math.max(5, ...tren.map((t) => t.skor));
@@ -125,7 +141,7 @@ export default async function DetailKpi({
               </div>
               <div className="rk-m">
                 <span className="rk-m-lbl">Di bawah KPI 3</span>
-                <b className={"num " + (kurang ? "bad" : "good")}>{kurang}<small>/ {olah.length}</small></b>
+                <b className={"num " + (kurang ? "bad" : "good")}>{kurang}<small>/ {utama.length}</small></b>
                 <span className={"km-lencana " + (kurang ? "warn" : "good")}>{kurang ? "Perlu coaching" : "Aman"}</span>
               </div>
               <div className="rk-aksi">
@@ -152,7 +168,7 @@ export default async function DetailKpi({
                 <span>
                   <b>Evaluasi performa {orang?.jabatan ?? "karyawan"}</b> — skor {angka(ring.skor)}.
                   {kurang > 0 && <> {kurang} indikator di bawah KPI 3.</>}
-                  {gerbangGagal > 0 && <> {gerbangGagal} indikator nominal tidak cair karena syaratnya gagal.</>}
+                  {gerbangGagal > 0 && <> {gerbangGagal} reward/nominal ditahan karena syaratnya belum terpenuhi.</>}
                 </span>
               </div>
             )}
@@ -166,7 +182,7 @@ export default async function DetailKpi({
                     <span className="km-ikon accent"><Ikon nama="chart" ukuran={20} /></span>
                     <div>
                       <h2>Rincian indikator evaluasi</h2>
-                      <p className="muted small">{olah.length} indikator · yang bermasalah di atas</p>
+                      <p className="muted small">{utama.length} indikator dinilai · yang bermasalah di atas</p>
                     </div>
                     {kurang > 0 && <span className="chip k0">{kurang} di bawah target</span>}
                   </div>
@@ -182,7 +198,7 @@ export default async function DetailKpi({
                         </tr>
                       </thead>
                       <tbody>
-                        {olah.map(({ d, satuanTampil, tk, skor }, i) => {
+                        {utama.map(({ d, satuanTampil, tk, skor }, i) => {
                           // Bilah digambar pada skala skor 1–5 — skala yang sama
                           // dengan angka di kolom sebelahnya. Tanda di 50% dan
                           // 75% adalah ambang KPI 3 dan KPI 4.
@@ -244,6 +260,26 @@ export default async function DetailKpi({
                     </table>
                   </div>
                 </section>
+
+                <KartuEfek efek={efek} />
+
+                {pendukungLain.length > 0 && (
+                  <details className="card rk-kartu rk-pendukung">
+                    <summary>
+                      <Ikon nama="chevronRight" ukuran={14} className="rk-nol-panah" />
+                      {pendukungLain.length} indikator pendukung lain
+                      <span className="muted small"> — tidak dinilai dan tidak dibayar</span>
+                    </summary>
+                    <ul className="rk-ins">
+                      {pendukungLain.map(({ d, satuanTampil }, i) => (
+                        <li key={i}>
+                          <span className="rk-ins-nama" title={d.indikator}>{d.indikator}</span>
+                          <span className="num faint">{nilai(d.pencapaian, satuanTampil)}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  </details>
+                )}
 
                 {tren.length > 1 && (
                   <section className="card rk-kartu">

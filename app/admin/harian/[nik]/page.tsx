@@ -5,7 +5,8 @@ import StatusHarianBar from "@/components/StatusHarian";
 import RincianHarian from "@/components/RincianHarian";
 import { readSession } from "@/lib/auth";
 import { menuSesi } from "@/lib/menu";
-import { statusHarian, progresNik, ringkasHarian } from "@/lib/harian";
+import { statusHarian, progresNik, ringkasHarian, periodeHarian } from "@/lib/harian";
+import { efekNik } from "@/lib/efek";
 import { q } from "@/lib/db";
 import Ikon from "@/components/Ikon";
 
@@ -20,11 +21,12 @@ export default async function DetailHarian({
   if (s.peran !== "admin" && !menuSesi(s.peran, s.menu).includes("admin_harian")) redirect("/harian");
 
   const { nik } = await params;
-  const [[orang], status, baris, ringkas] = await Promise.all([
+  const [[orang], status, baris, ringkas, efek] = await Promise.all([
     q<any>(`SELECT nama, cabang, area, jabatan FROM app_user WHERE nik = $1`, [nik]),
     statusHarian(),
     progresNik(nik),
     ringkasHarian(nik),
+    efekNik(nik, periodeHarian()),
   ]);
 
   return (
@@ -56,7 +58,7 @@ export default async function DetailHarian({
         </header>
 
         <StatusHarianBar s={status} />
-        <RincianHarian ringkas={ringkas} baris={baris} />
+        <RincianHarian ringkas={ringkas} baris={baris} efek={efek} />
       </main>
     </AppShell>
   );

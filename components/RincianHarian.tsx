@@ -4,6 +4,8 @@ import { useState } from "react";
 import { rp, angka, nilai, tebakSatuan } from "@/lib/format";
 import type { progresNik, ringkasHarian } from "@/lib/harian";
 import Ikon from "./Ikon";
+import KartuEfek from "./KartuEfek";
+import type { Efek } from "@/lib/efek";
 
 type Baris = Awaited<ReturnType<typeof progresNik>>[number];
 type Ringkas = Awaited<ReturnType<typeof ringkasHarian>>;
@@ -110,15 +112,16 @@ const JUDUL: Record<string, { judul: string; ket: string }> = {
   },
 };
 
-const URUT = ["nominal", "kpi", "reward", "penalty", "tier", "pendukung"];
+const URUT = ["kpi", "tier", "nominal", "reward", "penalty", "pendukung"];
+const PERAN_EFEK = new Set(["nominal", "reward", "penalty"]);
 
 const IKON_PERAN: Record<string, string> = {
   nominal: "shield", kpi: "chart", reward: "plus", penalty: "trendDown", tier: "layers", pendukung: "file",
 };
 
 export default function RincianHarian({
-  ringkas, baris,
-}: { ringkas: Ringkas; baris: Baris[] }) {
+  ringkas, baris, efek = [],
+}: { ringkas: Ringkas; baris: Baris[]; efek?: Efek[] }) {
   // 'reguler' adalah nilai lama yang setara 'kpi'; disatukan supaya tidak
   // muncul sebagai kelompok kembar yang membingungkan.
   const kelompok = new Map<string, Baris[]>();
@@ -181,9 +184,14 @@ export default function RincianHarian({
           tidak dibayar, dan sengaja tidak dimunculkan di KPI Harian supaya
           tidak dikira angka yang perlu dikejar. Auditnya tetap tersedia di
           Tracing KPI, yang memang dibuat untuk itu. */}
-      {URUT.filter((p) => p !== "pendukung" && kelompok.has(p)).map((peran) => (
-        <KelompokPeran key={peran} peran={peran} isi={kelompok.get(peran)!} />
-      ))}
+      {/* Reward, penalty, dan nominal bersyarat tampil sebagai kartu dengan
+          poin pendukungnya (syarat, penentu nominal) di dalamnya — bukan
+          tabel lepas yang menampilkan hasil rumus seperti "199 unit". */}
+      {URUT.filter((p) => p !== "pendukung" && kelompok.has(p) && !(efek.length && PERAN_EFEK.has(p)))
+        .map((peran) => (
+          <KelompokPeran key={peran} peran={peran} isi={kelompok.get(peran)!} />
+        ))}
+      <KartuEfek efek={efek} />
 
       {!baris.length && (
         <div className="card card-pad">

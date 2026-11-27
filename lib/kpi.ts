@@ -3,6 +3,7 @@ import { q } from "./db";
 import { SQL_TIM_TERLIHAT, profilHierarki } from "./hierarki";
 
 export type Indikator = {
+  indikator_id?: string | null;
   produk: string | null; indikator: string;
   saldo_awal: number | null; pencapaian: number | null; rasio: number | null;
   skor_kpi: number | null; skor_terbobot: number | null;
@@ -51,7 +52,7 @@ export const periodeTersedia = unstable_cache(
 
 export async function indikatorKaryawan(nik: string, periode: string): Promise<Indikator[]> {
   const rows = await q<any>(
-    `SELECT produk, indikator, saldo_awal, pencapaian, rasio, skor_kpi, skor_terbobot,
+    `SELECT indikator_id, produk, indikator, saldo_awal, pencapaian, rasio, skor_kpi, skor_terbobot,
             target_kpi3, target_kpi4, target_kpi5, catatan,
             peran, nominal_baris, gerbang_gagal, satuan, sumber
        FROM v_kpi_aktif
