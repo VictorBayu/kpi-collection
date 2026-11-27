@@ -730,6 +730,7 @@ export default function IndikatorClient() {
   const [detailBuka, setDetailBuka] = useState<number | null>(null);
   const [cariInd, setCariInd] = useState("");
   const [tersalin, setTersalin] = useState(false);
+  const [menuDup, setMenuDup] = useState(false);
 
   /**
    * Indikator lain, bahan isian gerbang dan pemilih pita nominal.
@@ -1024,7 +1025,8 @@ export default function IndikatorClient() {
   const jmlAktif = daftar.filter((d) => d.aktif).length;
   const jmlDaftar = daftar.reduce((a, d) => a + Number(d.terdaftar || 0), 0);
   const pesanOk = !!pesan && (pesan === "Tersimpan." || pesan.startsWith("Hitung ulang selesai") ||
-    pesan === "Indikator diaktifkan kembali." || pesan === "Indikator dinonaktifkan.");
+    pesan === "Indikator diaktifkan kembali." || pesan === "Indikator dinonaktifkan." ||
+    pesan.startsWith("Salinan siap"));
   const indikatorIni = daftar.find((d) => d.id === pilihId);
 
   function tambahTarget() {
@@ -1038,6 +1040,43 @@ export default function IndikatorClient() {
       aktif: true,
     }]);
     setDetailBuka(target.length);
+  }
+
+  /**
+   * Menyalin indikator yang sedang dibuka menjadi indikator BARU di editor.
+   *
+   * Tidak ada yang tersimpan sampai admin menekan Simpan: salinan hanya
+   * mengisi ulang editor dengan rumus (dan, bila dipilih, pendaftaran
+   * jabatan beserta pita, syarat, dan nominalnya), tanpa id. Dengan begitu
+   * seluruh pemeriksaan di Simpan tetap berlaku, dan nama yang bentrok
+   * ditolak server alih-alih ditimpa diam-diam.
+   */
+  function duplikat(denganPendaftaran: boolean) {
+    setMenuDup(false);
+    if (!pilihId) return;
+    const ada = new Set(daftar.map((d) => d.nama.trim().toLowerCase()));
+    let baru = `${nama} (salinan)`;
+    for (let n = 2; ada.has(baru.toLowerCase()); n++) baru = `${nama} (salinan ${n})`;
+
+    setPilihId(null);
+    setNama(baru);
+    setAktif(true);
+    setKomponen(komponen.map((k) => ({
+      ...k,
+      syarat: k.syarat.map((y) => ({ ...y, nilai: [...(y.nilai ?? [])] })),
+      pengakuan: (k.pengakuan ?? []).map((b) => ({ ...b })),
+    })));
+    setTarget(denganPendaftaran
+      ? target.map((t) => ({
+          ...t,
+          pita: t.pita.map((x) => ({ ...x })),
+          nominal: t.nominal.map((x) => ({ ...x })),
+          gerbang: t.gerbang.map((x) => ({ ...x })),
+        }))
+      : []);
+    setUji(null);
+    setDetailBuka(null);
+    setPesan(`Salinan siap${denganPendaftaran ? " beserta pendaftarannya" : ""} — ubah nama atau rumusnya, lalu tekan Simpan.`);
   }
 
   async function salinRumus() {
@@ -1232,6 +1271,27 @@ export default function IndikatorClient() {
                         title="Hitung ulang semua indikator dari data mentah yang sudah ada — tanpa menarik data baru">
                   <Ikon nama="refresh" ukuran={16} /> Hitung ulang
                 </button>
+                {pilihId && (
+                  <div className="ind-dup">
+                    <button className="btn polos" disabled={sibuk} onClick={() => setMenuDup(!menuDup)}
+                            aria-expanded={menuDup}
+                            title="Salin indikator ini menjadi indikator baru">
+                      <Ikon nama="copy" ukuran={16} /> Duplikat
+                    </button>
+                    {menuDup && (
+                      <div className="ind-dup-menu" role="menu">
+                        <button type="button" role="menuitem" onClick={() => duplikat(false)}>
+                          <b>Rumus saja</b>
+                          <span>Tanpa pendaftaran jabatan — didaftarkan ulang manual</span>
+                        </button>
+                        <button type="button" role="menuitem" onClick={() => duplikat(true)}>
+                          <b>Rumus + pendaftaran</b>
+                          <span>Jabatan, produk, pita, syarat, dan nominal ikut disalin</span>
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                )}
                 {pilihId && (
                   <button className={"btn " + (aktif ? "tint-bad" : "tint-good")} disabled={sibuk} onClick={ubahAktif}
                           title={aktif
