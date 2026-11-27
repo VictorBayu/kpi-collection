@@ -437,9 +437,9 @@ export const POST = handler(async (req) => {
          sumberTarget === "target_tier" && t.indikator_amount_id && t.indikator_amount_id !== id
            ? String(t.indikator_amount_id) : null]);
 
-      // Pita nominal dan gerbang hanya berlaku pada peran 'nominal'.
-      // Menyimpannya untuk peran lain akan membuat baris yatim yang tidak
-      // pernah dibaca siapa pun tapi tetap muncul saat peran diganti.
+      // Pita nominal hanya berlaku pada peran 'nominal'; gerbang berlaku
+      // pada nominal, reward, dan penalty. Menyimpannya untuk peran lain
+      // akan membuat baris yatim yang tidak pernah dibaca siapa pun.
       if (peranTarget === "nominal") {
         for (let i = 0; i < (Array.isArray(t.nominal) ? t.nominal : []).length; i++) {
           const n = t.nominal[i];
@@ -456,6 +456,8 @@ export const POST = handler(async (req) => {
              VALUES ($1,$2,$3,$4,$5)`, [tb.id, i, bMin, bMax, rp]);
         }
 
+      }
+      if (["nominal", "reward", "penalty"].includes(peranTarget)) {
         for (let i = 0; i < (Array.isArray(t.gerbang) ? t.gerbang : []).length; i++) {
           const g = t.gerbang[i];
           const nilai = angkaAtauNull(g.nilai);

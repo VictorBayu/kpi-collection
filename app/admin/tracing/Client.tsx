@@ -689,7 +689,7 @@ function BarisJejak({ j, berjalan, paksaBuka }: { j: any; berjalan: boolean; pak
             )}
           </div>
 
-          {/* 4. Gerbang & nominal — hanya untuk indikator berperan nominal */}
+          {/* 4. Gerbang & nominal — nominal, atau reward/penalty yang bersyarat */}
           {(j.peran === "nominal" || j.gerbang.length > 0 || j.nominal_pita.length > 0) && (
             <div className="trc-langkah">
               <h3 className="trc-langkah-judul"><span className="trc-no">4</span>Syarat kelayakan &amp; nominal baris</h3>
@@ -739,10 +739,26 @@ function BarisJejak({ j, berjalan, paksaBuka }: { j: any; berjalan: boolean; pak
                 </div>
               )}
 
-              <div className={"trc-hasil " + (Number(j.nominal_baris ?? 0) > 0 ? "good" : "bad")}>
-                <span>Nominal baris ini{j.gerbang_gagal && <span className="trc-hasil-sebab"> — {j.gerbang_gagal}</span>}</span>
-                <b className="num">{rp(Number(j.nominal_baris ?? 0))}</b>
-              </div>
+              {j.peran === "reward" || j.peran === "penalty" ? (
+                <div className={"trc-hasil " + (j.gerbang_gagal ? "bad" : "good")}>
+                  <span>
+                    {j.gerbang_gagal
+                      ? <>Efek {j.peran} ditahan<span className="trc-hasil-sebab"> — {j.gerbang_gagal}</span></>
+                      : <>Semua syarat lolos — efek {j.peran} berlaku</>}
+                  </span>
+                  <b className="num">
+                    {j.gerbang_gagal ? rp(0)
+                      : j.jenis_nilai === "persen"
+                        ? angka(Number(j.nilai_efek ?? 0) * Number(j.pencapaian ?? 0)) + "%"
+                        : rp(Number(j.nilai_efek ?? 0) * Number(j.pencapaian ?? 0))}
+                  </b>
+                </div>
+              ) : (
+                <div className={"trc-hasil " + (Number(j.nominal_baris ?? 0) > 0 ? "good" : "bad")}>
+                  <span>Nominal baris ini{j.gerbang_gagal && <span className="trc-hasil-sebab"> — {j.gerbang_gagal}</span>}</span>
+                  <b className="num">{rp(Number(j.nominal_baris ?? 0))}</b>
+                </div>
+              )}
             </div>
           )}
         </div>

@@ -560,7 +560,7 @@ async function nilaiGerbang(periode: string): Promise<number> {
   const hasil = await q<any>(
     `WITH baris AS (
        SELECT k.id, k.nik, k.produk, k.periode, k.indikator_id,
-              k.pencapaian, t.id AS target_id, t.pemilih_id
+              k.pencapaian, k.peran, t.id AS target_id, t.pemilih_id
          FROM kpi_row k
          JOIN indikator_target t
            ON t.indikator_id = k.indikator_id
@@ -568,7 +568,10 @@ async function nilaiGerbang(periode: string): Promise<number> {
           AND t.alias        = norm_jabatan(k.jabatan)
           AND t.periode      = k.periode
           AND t.aktif
-        WHERE k.sumber = 'api' AND k.periode = $1 AND k.peran = 'nominal'
+        -- Reward dan penalty ikut dinilai: syarat kelayakan seperti "SR TT 1
+        -- >= 90" menahan efeknya sama seperti menahan nominal datar.
+        WHERE k.sumber = 'api' AND k.periode = $1
+          AND k.peran IN ('nominal','reward','penalty')
      ),
      -- Tiap gerbang dicarikan angka ukurnya. sumber_id kosong berarti
      -- diuji pada indikator baris ini sendiri; terisi berarti pada
@@ -604,7 +607,7 @@ async function nilaiGerbang(periode: string): Promise<number> {
      ),
      rekap AS (
        SELECT b.id, b.target_id, b.pemilih_id, b.nik, b.produk, b.periode,
-              b.indikator_id, b.pencapaian,
+              b.indikator_id, b.pencapaian, b.peran,
               -- Tanpa gerbang sama sekali berarti tidak ada yang menahan.
               COALESCE(bool_and(d.lulus), TRUE) AS lolos,
               string_agg(
@@ -621,7 +624,7 @@ async function nilaiGerbang(periode: string): Promise<number> {
          FROM baris b
          LEFT JOIN dinilai d ON d.row_id = b.id
         GROUP BY b.id, b.target_id, b.pemilih_id, b.nik, b.produk,
-                 b.periode, b.indikator_id, b.pencapaian
+                 b.periode, b.indikator_id, b.pencapaian, b.peran
      ),
      -- Nilai pemilih pita: indikator lain kalau ditunjuk, kalau tidak
      -- nilai baris ini sendiri.
@@ -636,7 +639,8 @@ async function nilaiGerbang(periode: string): Promise<number> {
          FROM rekap r
      )
      UPDATE kpi_row k
-        SET nominal_baris = CASE WHEN f.lolos
+        SET nominal_baris = CASE WHEN f.peran <> 'nominal' THEN NULL
+                                 WHEN f.lolos
                                  THEN nominal_dari_pita(f.target_id, f.nilai_pemilih)
                                  ELSE 0 END,
             gerbang_gagal = f.gagal
@@ -695,13 +699,13 @@ async function hitungInsentif(periode: string): Promise<number> {
               SUM(k.skor_terbobot_ins) AS total_skor,
               MAX(ROUND(k.skor_kpi)) FILTER (WHERE k.peran = 'tier') AS tier,
               COALESCE(SUM(k.nilai_efek * k.pencapaian)
-                FILTER (WHERE k.peran = 'reward'  AND k.jenis_nilai = 'nominal'), 0) AS reward_nominal,
+                FILTER (WHERE k.peran = 'reward'  AND k.jenis_nilai = 'nominal' AND k.gerbang_gagal IS NULL), 0) AS reward_nominal,
               COALESCE(SUM(k.nilai_efek * k.pencapaian)
-                FILTER (WHERE k.peran = 'reward'  AND k.jenis_nilai = 'persen'),  0) AS reward_persen,
+                FILTER (WHERE k.peran = 'reward'  AND k.jenis_nilai = 'persen' AND k.gerbang_gagal IS NULL),  0) AS reward_persen,
               COALESCE(SUM(k.nilai_efek * k.pencapaian)
-                FILTER (WHERE k.peran = 'penalty' AND k.jenis_nilai = 'nominal'), 0) AS penalty_nominal,
+                FILTER (WHERE k.peran = 'penalty' AND k.jenis_nilai = 'nominal' AND k.gerbang_gagal IS NULL), 0) AS penalty_nominal,
               COALESCE(SUM(k.nilai_efek * k.pencapaian)
-                FILTER (WHERE k.peran = 'penalty' AND k.jenis_nilai = 'persen'),  0) AS penalty_persen,
+                FILTER (WHERE k.peran = 'penalty' AND k.jenis_nilai = 'persen' AND k.gerbang_gagal IS NULL),  0) AS penalty_persen,
               -- Nominal datar bersyarat sudah dinilai per baris oleh
               -- nilaiGerbang(); di sini tinggal dijumlahkan.
               COALESCE(SUM(k.nominal_baris)

@@ -476,6 +476,19 @@ function DetailTarget({ t, ubah, lain, namaSendiri, opsiSalin, salinKe }: {
                    onChange={(v) => ubah({ nilai_efek: v })} />
           </label>
         </div>
+
+        <div className="detail-sub">
+          <h5>Syarat kelayakan</h5>
+          <p className="faint small">
+            Efek {t.peran} hanya berlaku bila <b>semua</b> syarat lolos — mis.
+            "SR TT 1 ≥ 90". Satu saja gagal, efeknya 0 dan alasannya tercatat.
+            Kosong berarti selalu berlaku. Indikator syarat harus terdaftar
+            untuk jabatan dan produk yang sama; bila angkanya tidak ada,
+            syarat dianggap gagal.
+          </p>
+          <EditorGerbang gerbang={t.gerbang} lain={lain} namaSendiri={namaSendiri}
+                         ubah={(gerbang) => ubah({ gerbang })} />
+        </div>
       </div>
     );
   }
